@@ -31,7 +31,6 @@ type fakeRelease struct {
 	assets     map[string][]byte
 }
 
-// fakeGitHub serves its releases in the order of the slice.
 type fakeGitHub struct {
 	releases []fakeRelease
 }

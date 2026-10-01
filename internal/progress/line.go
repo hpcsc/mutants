@@ -5,9 +5,11 @@ import (
 	"io"
 )
 
-// Line shows work that takes time, such as a download, on one line. On a
-// terminal it draws the line again as the work goes on. Elsewhere it writes the
-// label one time, so that a log gets no partial lines.
+const (
+	toLineStart     = "\r"
+	clearRestOfLine = "\x1b[K"
+)
+
 type Line struct {
 	w        io.Writer
 	terminal bool
@@ -25,8 +27,6 @@ func Start(w io.Writer, terminal bool, label string) *Line {
 	return l
 }
 
-// Bytes shows the bytes that have arrived, of total. total is -1 when it is
-// not known.
 func (l *Line) Bytes(done, total int64) {
 	if !l.terminal {
 		return
@@ -55,9 +55,7 @@ func (l *Line) draw(text string) {
 	if text == l.shown {
 		return
 	}
-	// \r goes back to the start of the line, and \x1b[K clears what a longer
-	// text left after it.
-	fmt.Fprint(l.w, "\r"+text+"\x1b[K")
+	fmt.Fprint(l.w, toLineStart+text+clearRestOfLine)
 	l.shown = text
 }
 

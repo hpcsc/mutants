@@ -12,7 +12,6 @@ import (
 
 var ErrNoRelease = errors.New("the repository has no release yet")
 
-// maxDownload caps a download, so a wrong URL cannot fill memory.
 const maxDownload = 200 << 20
 
 type Asset struct {
@@ -60,8 +59,7 @@ func (c *Client) Latest(ctx context.Context) (Release, error) {
 	return r, nil
 }
 
-// LatestPrerelease gives the prerelease that the repository published last.
-// The latest release endpoint skips prereleases, so it reads the list.
+// LatestPrerelease reads the list, because the endpoint for the latest release skips prereleases.
 func (c *Client) LatestPrerelease(ctx context.Context) (Release, error) {
 	body, err := c.get(ctx, c.api+"/repos/"+c.repo+"/releases?per_page=100", "application/vnd.github+json", nil)
 	if err != nil {
@@ -83,10 +81,7 @@ func (c *Client) LatestPrerelease(ctx context.Context) (Release, error) {
 	return latest, nil
 }
 
-// Download fetches an asset through its API URL, which works for a private
-// repository when the client has a token. A progress that is not nil gets the
-// bytes that have arrived, and the size, which is -1 when the server does not
-// send it.
+// Download uses the API URL of the asset, which works for a private repository when the client has a token.
 func (c *Client) Download(ctx context.Context, a Asset, progress func(done, total int64)) ([]byte, error) {
 	return c.get(ctx, a.URL, "application/octet-stream", progress)
 }

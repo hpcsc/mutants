@@ -27,8 +27,6 @@ type releases interface {
 	Download(ctx context.Context, a Asset, progress func(done, total int64)) ([]byte, error)
 }
 
-// Channel names the releases that an update takes. An update installs the
-// latest of its channel, also when that is older than the current build.
 type Channel string
 
 const (
@@ -49,8 +47,6 @@ type Updater struct {
 	executable string
 }
 
-// NewUpdater updates the binary at executable, built as version current for
-// platform, such as "darwin-arm64".
 func NewUpdater(releases releases, current, platform, executable string) *Updater {
 	return &Updater{releases: releases, current: current, platform: platform, executable: executable}
 }
@@ -67,9 +63,6 @@ func (u *Updater) Check(ctx context.Context, channel Channel) (Check, error) {
 	return Check{Current: u.current, Latest: r, UpToDate: r.Tag == u.current}, nil
 }
 
-// Install gives progress the bytes of the archive as they arrive, and the size
-// of the archive, which is -1 when the server does not send it. progress can be
-// nil.
 func (u *Updater) Install(ctx context.Context, r Release, progress func(done, total int64)) error {
 	archiveName := binaryName + "-" + u.platform + ".tar.gz"
 	archiveAsset, ok := r.Asset(archiveName)
