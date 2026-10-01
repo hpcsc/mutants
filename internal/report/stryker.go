@@ -67,8 +67,8 @@ func Stryker(w io.Writer, root, language string, mutants []mutant.Mutant) error 
 			ID:           m.ID.String(),
 			MutatorName:  m.Operator,
 			Replacement:  m.Replacement,
-			Status:       strykerStatuses[m.Result.Status],
-			StatusReason: m.Result.Detail,
+			Status:       strykerStatuses[m.Verdict.Status],
+			StatusReason: m.Verdict.Detail,
 		}
 		entry.Location.Start = strykerPosition{Line: m.Line, Column: m.Column}
 		entry.Location.End = strykerPosition{Line: m.EndLine, Column: m.EndColumn}

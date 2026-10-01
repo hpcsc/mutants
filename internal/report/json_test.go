@@ -18,7 +18,7 @@ func TestJSON(t *testing.T) {
 			lived := reported("handler.go", 42, "BRANCH_IF", 1, "{ return err }", "{}", mutant.Lived)
 			killed := reported("handler.go", 50, "INVERT_LOGICAL", 1, "a && b", "a || b", mutant.Killed)
 			killed.Start = 100
-			killed.Result.Detail = "--- FAIL: TestAccounts"
+			killed.Verdict.Detail = "--- FAIL: TestAccounts"
 			var output strings.Builder
 
 			require.NoError(t, report.JSON(&output, []mutant.Mutant{killed, lived}, "1a2b3c4d5e"))

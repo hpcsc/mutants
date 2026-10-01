@@ -38,10 +38,10 @@ func JSON(w io.Writer, mutants []mutant.Mutant, base string) error {
 			Line:        m.Line,
 			Column:      m.Column,
 			Operator:    m.Operator,
-			Status:      m.Result.Status.String(),
+			Status:      m.Verdict.Status.String(),
 			Original:    m.Original,
 			Replacement: m.Replacement,
-			Detail:      m.Result.Detail,
+			Detail:      m.Verdict.Detail,
 		})
 	}
 	encoder := json.NewEncoder(w)

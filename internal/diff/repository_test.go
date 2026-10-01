@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var goFiles = diff.Paths{Extensions: []string{".go"}}
+var goFiles = diff.Pathspec{Extensions: []string{".go"}}
 
 type gitRepository struct {
 	t    *testing.T
@@ -197,7 +197,7 @@ func TestRepository(t *testing.T) {
 			r.write("api/client_gen.go", "package api\n")
 			r.write("api/client.go", "package api\n")
 
-			lines, err := r.open().Changed(context.Background(), "HEAD", diff.Paths{
+			lines, err := r.open().Changed(context.Background(), "HEAD", diff.Pathspec{
 				Extensions: []string{".go"},
 				Exclude:    []string{"vendor/**", "**/*_gen.go"},
 			})

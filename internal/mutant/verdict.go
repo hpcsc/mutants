@@ -1,6 +1,6 @@
 package mutant
 
-type Result struct {
+type Verdict struct {
 	Status Status
 	Detail string
 }

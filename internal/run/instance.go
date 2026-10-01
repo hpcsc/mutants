@@ -47,12 +47,12 @@ type Instance struct {
 	pack       operator.Pack
 	matcher    operator.Matcher
 	adapter    language.Adapter
-	status     io.Writer
+	stderr     io.Writer
 	terminal   bool
 }
 
-func New(repository *diff.Repository, pack operator.Pack, matcher operator.Matcher, adapter language.Adapter, status io.Writer, terminal bool) *Instance {
-	return &Instance{repository: repository, pack: pack, matcher: matcher, adapter: adapter, status: status, terminal: terminal}
+func New(repository *diff.Repository, pack operator.Pack, matcher operator.Matcher, adapter language.Adapter, stderr io.Writer, terminal bool) *Instance {
+	return &Instance{repository: repository, pack: pack, matcher: matcher, adapter: adapter, stderr: stderr, terminal: terminal}
 }
 
 func (r *Instance) Run(ctx context.Context, settings Settings) (Outcome, error) {
@@ -74,15 +74,15 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	if err != nil {
 		return Outcome{}, err
 	}
-	paths := diff.Paths{Extensions: r.adapter.Extensions(), Exclude: settings.Exclude}
+	pathspec := diff.Pathspec{Extensions: r.adapter.Extensions(), Exclude: settings.Exclude}
 	var outcome Outcome
 	var lines diff.Lines
 	if len(settings.Folders) > 0 {
-		lines, err = r.repository.All(ctx, settings.Folders, paths)
+		lines, err = r.repository.All(ctx, settings.Folders, pathspec)
 	} else {
 		outcome.Base, err = r.repository.MergeBase(ctx, settings.Base)
 		if err == nil {
-			lines, err = r.repository.Changed(ctx, settings.Base, paths)
+			lines, err = r.repository.Changed(ctx, settings.Base, pathspec)
 		}
 	}
 	if err != nil {
@@ -90,14 +90,14 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	}
 	outcome.Files, outcome.Lines = len(lines.Files()), lines.Len()
 
-	finding := progress.Start(r.status, r.terminal, fmt.Sprintf("Finding the mutants in %d files", outcome.Files))
+	finding := progress.Start(r.stderr, r.terminal, fmt.Sprintf("Finding the mutants in %d files", outcome.Files))
 	mutants, err := r.find(ctx, pack, lines.Files(), lines.Touches)
 	finding.End()
 	if err != nil || len(mutants) == 0 {
 		return outcome, err
 	}
 
-	covering := progress.Start(r.status, r.terminal, "Running the tests one time with the real code")
+	covering := progress.Start(r.stderr, r.terminal, "Running the tests one time with the real code")
 	uncovered, err := r.adapter.Uncovered(ctx, mutants)
 	covering.End()
 	if err != nil {
@@ -106,7 +106,7 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	var toRun []int
 	for i, m := range mutants {
 		if detail, found := uncovered[m.ID]; found {
-			mutants[i].Result = mutant.Result{Status: mutant.NotCovered, Detail: detail}
+			mutants[i].Verdict = mutant.Verdict{Status: mutant.NotCovered, Detail: detail}
 		} else {
 			toRun = append(toRun, i)
 		}
@@ -149,10 +149,10 @@ func (r *Instance) Rerun(ctx context.Context, id mutant.ID) (mutant.Mutant, erro
 		return mutant.Mutant{}, err
 	}
 	if detail, found := uncovered[m.ID]; found {
-		m.Result = mutant.Result{Status: mutant.NotCovered, Detail: detail}
+		m.Verdict = mutant.Verdict{Status: mutant.NotCovered, Detail: detail}
 		return m, nil
 	}
-	m.Result, err = r.adapter.Runner().Run(ctx, m)
+	m.Verdict, err = r.adapter.Runner().Run(ctx, m)
 	return m, err
 }
 
@@ -212,7 +212,7 @@ func (r *Instance) test(ctx context.Context, mutants []mutant.Mutant, indexes []
 	if len(indexes) == 0 {
 		return finished, nil
 	}
-	testing := progress.Start(r.status, r.terminal, fmt.Sprintf("Testing %d mutants", len(indexes)))
+	testing := progress.Start(r.stderr, r.terminal, fmt.Sprintf("Testing %d mutants", len(indexes)))
 	defer testing.End()
 	var mutex sync.Mutex
 	done := 0
@@ -227,7 +227,7 @@ func (r *Instance) test(ctx context.Context, mutants []mutant.Mutant, indexes []
 					return err
 				}
 				mutex.Lock()
-				mutants[i].Result, finished[i] = result, true
+				mutants[i].Verdict, finished[i] = result, true
 				done++
 				testing.Count(done, len(indexes))
 				mutex.Unlock()

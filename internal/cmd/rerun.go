@@ -70,17 +70,17 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 		return cli.Exit(err, exitNoVerdict)
 	}
 
-	row := fmt.Sprintf("%s: %s\n", m.Result.Status, report.Row(m))
-	if m.Result.Detail != "" {
-		row += "  " + strings.ReplaceAll(strings.TrimSpace(m.Result.Detail), "\n", "\n  ") + "\n"
+	row := fmt.Sprintf("%s: %s\n", m.Verdict.Status, report.Row(m))
+	if m.Verdict.Detail != "" {
+		row += "  " + strings.ReplaceAll(strings.TrimSpace(m.Verdict.Detail), "\n", "\n  ") + "\n"
 	}
 	if _, err := fmt.Fprint(cmd.Root().Writer, row); err != nil {
 		return cli.Exit(err, exitNoVerdict)
 	}
 	switch {
-	case m.Result.Status == mutant.Killed:
+	case m.Verdict.Status == mutant.Killed:
 		return nil
-	case m.Result.Status.IsSurvivor():
+	case m.Verdict.Status.IsSurvivor():
 		return cli.Exit("", exitSurvivors)
 	}
 	return cli.Exit("", exitNoVerdict)

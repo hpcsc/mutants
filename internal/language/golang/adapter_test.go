@@ -71,7 +71,7 @@ func mutantOf(t *testing.T, root, file, original, replacement string) mutant.Mut
 	}
 }
 
-func run(t *testing.T, adapter language.Adapter, m mutant.Mutant) mutant.Result {
+func run(t *testing.T, adapter language.Adapter, m mutant.Mutant) mutant.Verdict {
 	t.Helper()
 	result, err := adapter.Runner().Run(context.Background(), m)
 	require.NoError(t, err)

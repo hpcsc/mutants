@@ -21,8 +21,8 @@ func Rows(w io.Writer, mutants []mutant.Mutant, base string) error {
 	})
 	reasons := map[string]int{}
 	for _, m := range mutants {
-		if m.Result.Status == mutant.NotCovered && m.Result.Detail != "" {
-			reasons[m.Result.Detail]++
+		if m.Verdict.Status == mutant.NotCovered && m.Verdict.Detail != "" {
+			reasons[m.Verdict.Detail]++
 		}
 	}
 	printed := map[string]bool{}
@@ -30,14 +30,14 @@ func Rows(w io.Writer, mutants []mutant.Mutant, base string) error {
 	for _, status := range []mutant.Status{mutant.Lived, mutant.NotCovered, mutant.TimedOut, mutant.InfraError} {
 		header := false
 		for _, m := range sorted {
-			if m.Result.Status != status {
+			if m.Verdict.Status != status {
 				continue
 			}
 			if !header {
 				fmt.Fprintf(&text, "%s:\n", status)
 				header = true
 			}
-			reason := m.Result.Detail
+			reason := m.Verdict.Detail
 			switch {
 			case status != mutant.NotCovered || reason == "":
 				fmt.Fprintf(&text, "  %s\n", Row(m))
@@ -62,7 +62,7 @@ func Counts(mutants []mutant.Mutant, base string) string {
 	for _, status := range []mutant.Status{mutant.Killed, mutant.Lived, mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError} {
 		count := 0
 		for _, m := range mutants {
-			if m.Result.Status == status {
+			if m.Verdict.Status == status {
 				count++
 			}
 		}

@@ -101,7 +101,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	switch {
 	case outcome.Stopped:
 		return cli.Exit(fmt.Sprintf("mutants stopped at the limit of %s: the report holds the mutants that got a verdict", runSettings.Limit), exitLimit)
-	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Result.Status.IsSurvivor() }):
+	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Verdict.Status.IsSurvivor() }):
 		return cli.Exit("", exitSurvivors)
 	}
 	return nil

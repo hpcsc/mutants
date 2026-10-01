@@ -37,26 +37,26 @@ type runner struct {
 	coverage *coverage
 }
 
-func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Result, error) {
+func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, error) {
 	path := filepath.Join(r.root, m.File)
 	pkg, err := r.finder.find(ctx, filepath.Dir(path))
 	if err != nil {
-		return mutant.Result{Status: mutant.InfraError, Detail: err.Error()}, nil
+		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
 	}
 	baseline, err := r.coverage.baseline(ctx, pkg.Dir)
 	if err != nil {
-		return mutant.Result{}, err
+		return mutant.Verdict{}, err
 	}
 
 	folder, err := os.MkdirTemp("", "mutants-mutant-")
 	if err != nil {
-		return mutant.Result{}, err
+		return mutant.Verdict{}, err
 	}
 	defer os.RemoveAll(folder)
 	original := filepath.Join(pkg.Dir, filepath.Base(path))
 	content, err := r.mutate(original, m)
 	if err != nil {
-		return mutant.Result{Status: mutant.InfraError, Detail: err.Error()}, nil
+		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
 	}
 	binary := filepath.Join(folder, "pkg.test")
 	built, err := r.build(ctx, pkg, folder, original, content, binary)
@@ -67,14 +67,14 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Result, error
 	}
 	switch {
 	case err != nil:
-		return mutant.Result{}, err
+		return mutant.Verdict{}, err
 	case built.timedOut:
-		return mutant.Result{Status: mutant.InfraError, Detail: fmt.Sprintf("the build ran past %s", r.settings.BuildLimit)}, nil
+		return mutant.Verdict{Status: mutant.InfraError, Detail: fmt.Sprintf("the build ran past %s", r.settings.BuildLimit)}, nil
 	case built.code != 0:
-		return mutant.Result{Status: mutant.NotViable, Detail: strings.TrimSpace(built.tail)}, nil
+		return mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(built.tail)}, nil
 	}
 	if _, err := os.Stat(binary); err != nil {
-		return mutant.Result{Status: mutant.InfraError, Detail: "go test -c made no test binary: " + err.Error()}, nil
+		return mutant.Verdict{Status: mutant.InfraError, Detail: "go test -c made no test binary: " + err.Error()}, nil
 	}
 
 	limit := baselineFactor*baseline + limitMargin
@@ -85,7 +85,7 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Result, error
 		tested, err = r.test(ctx, pkg, binary, limit)
 	}
 	if err != nil {
-		return mutant.Result{}, err
+		return mutant.Verdict{}, err
 	}
 	return r.verdict(tested, limit), nil
 }
@@ -242,18 +242,18 @@ func (r *runner) clauseStarts(lines *token.File, body *ast.BlockStmt) []int {
 	return offsets
 }
 
-func (r *runner) verdict(tested exit, limit time.Duration) mutant.Result {
+func (r *runner) verdict(tested exit, limit time.Duration) mutant.Verdict {
 	switch {
 	case tested.timedOut:
-		return mutant.Result{Status: mutant.TimedOut, Detail: fmt.Sprintf("the tests ran past %s", limit)}
+		return mutant.Verdict{Status: mutant.TimedOut, Detail: fmt.Sprintf("the tests ran past %s", limit)}
 	case tested.code == 0 && !tested.signaled:
-		return mutant.Result{Status: mutant.Lived}
+		return mutant.Verdict{Status: mutant.Lived}
 	case tested.signaled:
-		return mutant.Result{Status: mutant.InfraError, Detail: "a signal stopped the tests:\n" + strings.TrimSpace(tested.tail)}
+		return mutant.Verdict{Status: mutant.InfraError, Detail: "a signal stopped the tests:\n" + strings.TrimSpace(tested.tail)}
 	case strings.Contains(tested.tail, "runtime: out of memory"):
-		return mutant.Result{Status: mutant.InfraError, Detail: "the tests ran out of memory"}
+		return mutant.Verdict{Status: mutant.InfraError, Detail: "the tests ran out of memory"}
 	}
-	return mutant.Result{Status: mutant.Killed, Detail: r.failure(tested)}
+	return mutant.Verdict{Status: mutant.Killed, Detail: r.failure(tested)}
 }
 
 func (r *runner) failure(tested exit) string {

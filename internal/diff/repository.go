@@ -40,7 +40,7 @@ func (r *Repository) MergeBase(ctx context.Context, base string) (string, error)
 	return strings.TrimSpace(string(output)), nil
 }
 
-func (r *Repository) Changed(ctx context.Context, base string, paths Paths) (Lines, error) {
+func (r *Repository) Changed(ctx context.Context, base string, pathspec Pathspec) (Lines, error) {
 	output, err := r.git(ctx, append([]string{
 		"-c", "core.quotePath=false",
 		"diff", "--merge-base", base,
@@ -48,7 +48,7 @@ func (r *Repository) Changed(ctx context.Context, base string, paths Paths) (Lin
 		"--no-color", "--no-ext-diff", "--no-textconv", "--no-relative", "--find-renames",
 		"--src-prefix=a/", "--dst-prefix=b/",
 		"--",
-	}, paths.pathspecs()...)...)
+	}, pathspec.patterns()...)...)
 	if err != nil {
 		return Lines{}, fmt.Errorf("read the diff against %s: %w", base, err)
 	}
@@ -57,7 +57,7 @@ func (r *Repository) Changed(ctx context.Context, base string, paths Paths) (Lin
 		return Lines{}, err
 	}
 
-	untracked, err := r.git(ctx, append([]string{"ls-files", "--others", "--exclude-standard", "-z", "--"}, paths.pathspecs()...)...)
+	untracked, err := r.git(ctx, append([]string{"ls-files", "--others", "--exclude-standard", "-z", "--"}, pathspec.patterns()...)...)
 	if err != nil {
 		return Lines{}, fmt.Errorf("list the untracked files: %w", err)
 	}
@@ -67,7 +67,7 @@ func (r *Repository) Changed(ctx context.Context, base string, paths Paths) (Lin
 	return lines, nil
 }
 
-func (r *Repository) All(ctx context.Context, folders []string, paths Paths) (Lines, error) {
+func (r *Repository) All(ctx context.Context, folders []string, pathspec Pathspec) (Lines, error) {
 	var globs []string
 	for _, folder := range folders {
 		glob, err := r.folderGlob(folder)
@@ -77,7 +77,7 @@ func (r *Repository) All(ctx context.Context, folders []string, paths Paths) (Li
 		globs = append(globs, glob)
 	}
 
-	files, err := r.git(ctx, append([]string{"ls-files", "--cached", "--others", "--exclude-standard", "-z", "--"}, paths.pathspecs(globs...)...)...)
+	files, err := r.git(ctx, append([]string{"ls-files", "--cached", "--others", "--exclude-standard", "-z", "--"}, pathspec.patterns(globs...)...)...)
 	if err != nil {
 		return Lines{}, fmt.Errorf("list the files in %s: %w", strings.Join(folders, ", "), err)
 	}

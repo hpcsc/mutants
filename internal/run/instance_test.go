@@ -50,22 +50,22 @@ func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map
 	return uncovered, nil
 }
 
-func (f *fakeAdapter) Run(ctx context.Context, m mutant.Mutant) (mutant.Result, error) {
+func (f *fakeAdapter) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, error) {
 	f.mutex.Lock()
 	f.ran = append(f.ran, m.ID.String())
 	f.mutex.Unlock()
 	if f.waits[m.ID.String()] {
 		<-ctx.Done()
-		return mutant.Result{}, ctx.Err()
+		return mutant.Verdict{}, ctx.Err()
 	}
 	if f.failure != nil {
-		return mutant.Result{}, f.failure
+		return mutant.Verdict{}, f.failure
 	}
 	status, found := f.statuses[m.ID.String()]
 	if !found {
 		status = mutant.Killed
 	}
-	return mutant.Result{Status: status}, nil
+	return mutant.Verdict{Status: status}, nil
 }
 
 type gitRepository struct {
@@ -117,7 +117,7 @@ func (r *gitRepository) instance(adapter *fakeAdapter) *run.Instance {
 func idsAndStatuses(mutants []mutant.Mutant) []string {
 	var rows []string
 	for _, m := range mutants {
-		rows = append(rows, m.ID.String()+" "+m.Result.Status.String())
+		rows = append(rows, m.ID.String()+" "+m.Verdict.Status.String())
 	}
 	return rows
 }
@@ -151,7 +151,7 @@ func TestInstance(t *testing.T) {
 				Operator:    "CONDITIONALS_BOUNDARY",
 				Original:    "a > b",
 				Replacement: "a >= b",
-				Result:      mutant.Result{Status: mutant.Lived},
+				Verdict:     mutant.Verdict{Status: mutant.Lived},
 			}, outcome.Mutants[0])
 			require.Equal(t, 1, outcome.Files)
 			require.Equal(t, 1, outcome.Lines)
@@ -178,7 +178,7 @@ func TestInstance(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#1 NOT COVERED", "a.go:f:CONDITIONALS_BOUNDARY#2 KILLED"}, idsAndStatuses(outcome.Mutants))
-			require.Equal(t, "package . has no test files", outcome.Mutants[0].Result.Detail)
+			require.Equal(t, "package . has no test files", outcome.Mutants[0].Verdict.Detail)
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#2"}, adapter.ran)
 		})
 
@@ -261,7 +261,7 @@ func TestInstance(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, "a < b -> a <= b", m.Original+" -> "+m.Replacement)
-			require.Equal(t, mutant.Lived, m.Result.Status)
+			require.Equal(t, mutant.Lived, m.Verdict.Status)
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#1"}, adapter.ran)
 		})
 
@@ -282,7 +282,7 @@ func TestInstance(t *testing.T) {
 			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1})
 
 			require.NoError(t, err)
-			require.Equal(t, mutant.NotCovered, m.Result.Status)
+			require.Equal(t, mutant.NotCovered, m.Verdict.Status)
 			require.Empty(t, adapter.ran)
 		})
 

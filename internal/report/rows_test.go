@@ -20,7 +20,7 @@ func reported(file string, line int, operator string, number int, original, repl
 		Operator:    operator,
 		Original:    original,
 		Replacement: replacement,
-		Result:      mutant.Result{Status: status},
+		Verdict:     mutant.Verdict{Status: status},
 	}
 }
 
@@ -53,7 +53,7 @@ mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, in
 
 		t.Run("prints the NOT COVERED mutants that share a reason as one row with their count", func(t *testing.T) {
 			noTests := func(m mutant.Mutant) mutant.Mutant {
-				m.Result.Detail = "package report has no test files"
+				m.Verdict.Detail = "package report has no test files"
 				return m
 			}
 			mutants := []mutant.Mutant{

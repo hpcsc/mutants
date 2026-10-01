@@ -2,12 +2,12 @@ package diff
 
 import "path"
 
-type Paths struct {
+type Pathspec struct {
 	Extensions []string
 	Exclude    []string
 }
 
-func (p Paths) pathspecs(folders ...string) []string {
+func (p Pathspec) patterns(folders ...string) []string {
 	if len(folders) == 0 {
 		folders = []string{"**"}
 	}
