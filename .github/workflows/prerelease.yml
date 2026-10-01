@@ -1,0 +1,66 @@
+name: Prerelease
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# one run at a time, so the run numbers in the tags and the pruning stay in order
+concurrency:
+  group: prerelease
+  cancel-in-progress: false
+
+jobs:
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  prerelease:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      # The tag is the next patch after the latest release, the run number and
+      # the commit, for example v0.2.1-42.g4829f92. The g keeps a sha of digits
+      # from starting with 0, which semver does not allow. A tag that this job
+      # pushes with GITHUB_TOKEN does not start release.yml.
+      - name: Tag the commit
+        id: tag
+        run: |
+          latest=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
+          IFS=. read -r major minor patch <<< "${latest:-v0.0.0}"
+          major=${major#v}
+          tag="v${major}.${minor}.$((patch + 1))-${GITHUB_RUN_NUMBER}.g$(git rev-parse --short=7 HEAD)"
+          git tag "$tag"
+          git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Release
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.tag.outputs.tag }}
+
+      - name: Keep the 5 newest prereleases of main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --limit 100 --json tagName,isPrerelease,publishedAt \
+            --jq '[.[] | select(.isPrerelease and (.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+\\.g[0-9a-f]+$")))]
+                  | sort_by(.publishedAt) | reverse | .[5:] | .[].tagName' |
+            while read -r tag; do
+              gh release delete "$tag" --cleanup-tag --yes
+            done

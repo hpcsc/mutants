@@ -1,0 +1,35 @@
+version: '3'
+
+vars:
+  E2E_TAG: v0.1.0
+
+tasks:
+  unit:
+    cmds:
+      - gotestsum --format pkgname-and-test-fails -- -tags=unit -race -cover -covermode=atomic -coverprofile=coverage-unit.out ./...
+
+  e2e:
+    desc: Run the end-to-end tests in Docker against a fresh binary, as CI does
+    cmds:
+      - docker build -f e2e/Dockerfile --build-arg BUILD_TAG={{.E2E_TAG}} -t mutants-e2e .
+      - docker container run --rm mutants-e2e
+
+  e2e:local:
+    desc: Run the end-to-end tests on this machine without Docker (needs node)
+    dir: e2e
+    cmds:
+      - CGO_ENABLED=0 go build -ldflags "-X github.com/hpcsc/mutants/internal/version.releaseTag={{.E2E_TAG}}" -o ../bin/mutants-e2e ../cmd/mutants
+      - npm install --no-audit --no-fund
+      - EXECUTABLE=../bin/mutants-e2e BUILD_TAG={{.E2E_TAG}} npx vitest run
+
+  shellcheck:
+    cmds:
+      - |
+        if [ -d ./scripts ]; then
+          find ./scripts -type f -name '*.sh' | xargs shellcheck -S error
+        fi
+      - shellcheck -S error ./hooks/*
+
+  vulnerabilities:
+    cmds:
+      - govulncheck ./...

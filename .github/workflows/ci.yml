@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    # prerelease.yml runs these checks for main before it publishes a prerelease
+    branches-ignore: [main]
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Mise install
+      uses: jdx/mise-action@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run shellcheck
+      run: task test:shellcheck
+
+    - name: Build
+      run: task build
+
+    - name: Run Unit Test
+      run: task test:unit
+
+    - name: Run vulnerabilities check
+      run: task test:vulnerabilities
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.x
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run E2E Test
+      run: task test:e2e

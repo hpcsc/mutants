@@ -1,0 +1,18 @@
+{
+  "name": "mutants-e2e",
+  "version": "0.1.0",
+  "description": "End-to-end tests for the mutants CLI",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "vitest": "^3.0.5"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0",
+    "tuistory": "^0.0.9"
+  }
+}

@@ -1,0 +1,26 @@
+version: '3'
+
+includes:
+  release: Taskfile.release.yml
+  test: Taskfile.test.yml
+
+tasks:
+  run:
+    cmds:
+      - go run ./cmd/mutants {{.CLI_ARGS}}
+
+  build:
+    cmds:
+      - mkdir -p ./bin
+      - go build -o ./bin/mutants ./cmd/mutants
+    env:
+      CGO_ENABLED: '0'
+
+  hook:setup:
+    cmds:
+      - git config core.hooksPath ./hooks
+
+  hook:validate-go-changes:
+    cmds:
+      - task: test:unit
+      - task: test:e2e

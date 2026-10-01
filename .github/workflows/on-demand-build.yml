@@ -1,0 +1,51 @@
+name: On Demand Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Git ref to build
+        required: true
+        default: main
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Mise install
+        uses: jdx/mise-action@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run release local
+        run: task release:local
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: darwin-amd64
+          path: dist/mutants-darwin-amd64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: darwin-arm64
+          path: dist/mutants-darwin-arm64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64
+          path: dist/mutants-linux-amd64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64
+          path: dist/mutants-linux-arm64.tar.gz

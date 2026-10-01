@@ -1,0 +1,38 @@
+version: 2
+project_name: mutants
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    main: ./cmd/mutants
+    ldflags:
+      - -s -w -X github.com/hpcsc/mutants/internal/version.releaseTag={{ .Tag }}
+archives:
+  - formats:
+      - tar.gz
+    # mutants update looks for this name, with the GOOS and the GOARCH of the machine that runs it
+    name_template: '{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}'
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  version_template: '{{ incpatch .Version }}-next'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+release:
+  # a tag with a prerelease part, such as v0.2.1-42.g4829f92, gives a prerelease
+  prerelease: auto
+  github:
+    owner: hpcsc
+    name: mutants
