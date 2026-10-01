@@ -21,6 +21,7 @@ const (
 	returnErrorNil   = "RETURN_ERROR_NIL"
 	returnTrue       = "RETURN_TRUE"
 	integerDecrement = "INTEGER_DECREMENT"
+	timeBoundary     = "TIME_BOUNDARY"
 )
 
 type Settings struct {
@@ -102,6 +103,8 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.canBecomeTrue(path, candidate.Start, candidate.End)
 	case integerDecrement:
 		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
+	case timeBoundary:
+		return a.types.callsTimeMethod(path, candidate.Start, candidate.End)
 	}
 	return true
 }

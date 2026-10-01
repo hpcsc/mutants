@@ -99,6 +99,33 @@ func TestAllowed(t *testing.T) {
 }
 `
 
+const wait = `package wait
+
+import "time"
+
+func Expired(now, deadline time.Time) bool {
+	return now.After(deadline)
+}
+`
+
+function waitTest(offsets: string[]): string {
+  const checks = offsets.map((offset) => `	if got := Expired(deadline.Add(${offset}), deadline); got != (${offset} > 0) {
+		t.Errorf("Expired at %v: got %v", ${offset}, got)
+	}`)
+  return `package wait
+
+import (
+	"testing"
+	"time"
+)
+
+func TestExpired(t *testing.T) {
+	deadline := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+${checks.join('\n')}
+}
+`
+}
+
 const maxSource = `package calc
 
 func Max(a, b int) int {
@@ -156,6 +183,19 @@ describe('mutants run', { timeout: 240_000 }, () => {
 
     expect(lives.mutants.map((m) => m.status)).toEqual(['LIVED'])
     expect(dies.mutants.map((m) => m.status)).toEqual(['KILLED'])
+  })
+
+  it('the boundary of a time comparison lives when no test uses the time itself, and dies when one does', async () => {
+    const around = goRepository()
+    writeFiles(around, { 'wait/wait.go': wait, 'wait/wait_test.go': waitTest(['-time.Hour', 'time.Hour']) })
+    const at = goRepository()
+    writeFiles(at, { 'wait/wait.go': wait, 'wait/wait_test.go': waitTest(['-time.Hour', '0', 'time.Hour']) })
+
+    const lives = await runMutants(around, ['--base', 'HEAD', '--operators', 'TIME_BOUNDARY'])
+    const dies = await runMutants(at, ['--base', 'HEAD', '--operators', 'TIME_BOUNDARY'])
+
+    expect(verdicts(lives.mutants)).toEqual(['TIME_BOUNDARY now.After(deadline) LIVED'])
+    expect(verdicts(dies.mutants)).toEqual(['TIME_BOUNDARY now.After(deadline) KILLED'])
   })
 
   it('a mutant that removes the only use of a variable and of an import builds, and lives', async () => {

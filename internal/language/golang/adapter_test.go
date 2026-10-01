@@ -303,6 +303,28 @@ func First(xs []int) (int, []int, []int, int) {
 			require.True(t, adapter.Keep(editIn(t, root, "calc/calc.go", "INTEGER_DECREMENT", "start := 0", "0", "(0-1)")))
 		})
 
+		t.Run("keeps a TIME_BOUNDARY edit only for a method of time.Time, also through an embedded field", func(t *testing.T) {
+			root := newModule(t, map[string]string{"wait/wait.go": `package wait
+
+import "time"
+
+type Window struct{ time.Time }
+
+type Gate struct{}
+
+func (Gate) After(n int) bool { return n > 0 }
+
+func Open(now, deadline time.Time, w Window, g Gate) []bool {
+	return []bool{now.After(deadline), !w.Before(deadline), g.After(1)}
+}
+`})
+			adapter := golang.New(root, defaultSettings)
+
+			require.True(t, adapter.Keep(editOf(t, root, "wait/wait.go", "TIME_BOUNDARY", "now.After(deadline)", "!now.Before(deadline)")))
+			require.True(t, adapter.Keep(editOf(t, root, "wait/wait.go", "TIME_BOUNDARY", "!w.Before(deadline)", "w.After(deadline)")))
+			require.False(t, adapter.Keep(editOf(t, root, "wait/wait.go", "TIME_BOUNDARY", "g.After(1)", "!g.Before(1)")))
+		})
+
 		t.Run("finds the slot of a return in a function literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nvar Next = func(n int) (int, error) {\n\treturn n + 1, nil\n}\n"})
 

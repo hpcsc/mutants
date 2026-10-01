@@ -233,6 +233,7 @@ The Go pack for v1:
 | --- | --- | --- |
 | `CONDITIONALS_BOUNDARY` | `<` to `<=`, `>` to `>=`, and back | |
 | `CONDITIONALS_NEGATION` | `==` to `!=`, `<` to `>=`, and the rest | |
+| `TIME_BOUNDARY` | `a.After(b)` to `!a.Before(b)`, `a.Before(b)` to `!a.After(b)`, and back | `CONDITIONALS_BOUNDARY` for a `time.Time`: each pair differs only when the two times are equal |
 | `ARITHMETIC_BASE` | `+` to `-`, `-` to `+`, `*` to `/`, `/` to `*`, `%` to `*` | skips a `+` in a zerolog chain that ends in `Msg`, `Msgf` or `Send` |
 | `INCREMENT_DECREMENT` | `++` to `--`, and back | |
 | `INVERT_LOGICAL` | `&&` to `\|\|`, and back | |
@@ -264,6 +265,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | a `RETURN_ZERO` value that is not the zero value of its slot, that fills an error slot, or that is zero already |
 | Type | a `RETURN_ERROR_NIL` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
+| Type | a `TIME_BOUNDARY` call of a method that `go/types` does not find on `time.Time` |
 
 A candidate that passes the filters and still fails to build is NOT VIABLE.
 
@@ -544,6 +546,7 @@ The end-to-end fixtures:
 | Two figures of one type with equal values in the test | `SWAP_FIELDS` LIVED. With different values in the test: KILLED. |
 | An error branch that no test enters | `BRANCH_IF` LIVED and `RETURN_ERROR_NIL` NOT COVERED |
 | A condition that holds the only use of a variable and of an import | `EXPRESSION_REMOVE` LIVED, not NOT VIABLE |
+| A deadline that a test checks one hour before and one hour after | `TIME_BOUNDARY` LIVED. With a check at the deadline itself: KILLED. |
 | A loop over a list that a test runs with one item | `BREAK_AT_END` LIVED. With two items: KILLED. |
 | A busy loop and a removed `close` | TIMED OUT for both, and the child process of the test is not alive after the run |
 | `diff.mnemonicPrefix=true` in the git config of the fixture | the same mutants as without it |

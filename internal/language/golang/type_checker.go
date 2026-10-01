@@ -145,6 +145,31 @@ func (c *typeChecker) canBecomeTrue(path string, start, end int) bool {
 	return isBasic && basic.Info()&types.IsBoolean != 0 && !isTrue
 }
 
+func (c *typeChecker) callsTimeMethod(path string, start, end int) bool {
+	loaded, syntax, lines := c.file(path)
+	if syntax == nil || start < 0 || end > lines.Size() {
+		return false
+	}
+	enclosing, _ := astutil.PathEnclosingInterval(syntax, lines.Pos(start), lines.Pos(end))
+	if len(enclosing) == 0 {
+		return false
+	}
+	expression, _ := enclosing[0].(ast.Expr)
+	if negation, ok := expression.(*ast.UnaryExpr); ok && negation.Op == token.NOT {
+		expression = negation.X
+	}
+	call, isCall := ast.Unparen(expression).(*ast.CallExpr)
+	if !isCall {
+		return false
+	}
+	selector, isSelector := call.Fun.(*ast.SelectorExpr)
+	if !isSelector {
+		return false
+	}
+	method, isMethod := loaded.TypesInfo.Uses[selector.Sel].(*types.Func)
+	return isMethod && strings.HasPrefix(method.FullName(), "(time.Time).")
+}
+
 func (c *typeChecker) isError(slot types.Type) bool {
 	return types.Identical(slot, types.Universe.Lookup("error").Type())
 }
