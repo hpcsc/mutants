@@ -219,9 +219,10 @@ The Go pack for v1:
 | `REMOVE_LOGICAL_NOT` | `!x` to `x` | |
 | `EXPRESSION_REMOVE` | `a && b` to `true && b` | |
 | `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | empty the body | finds an error branch that no test enters |
-| `STATEMENT_REMOVE` | `x = expr` to `_ = expr` | |
+| `STATEMENT_REMOVE` | `x = expr` to `_ = expr`, and removes a call that stands alone, such as `close(done)` or `wg.Done()` | skips a log call that ends in `Msg`, `Msgf` or `Send`, and `panic` |
 | `RETURN_ZERO` | a return value to the zero value of its type | the type comes from `go/types` |
 | `RETURN_ERROR_NIL` | an error return value to `nil` | `go/types` finds the error slot |
+| `RETURN_TRUE` | a bool return value to `true` | `go/types` finds the bool slot; `RETURN_ZERO` already makes it `false` |
 | `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `n` to `n+1`, `n-1` | |
 | `RANGE_BREAK` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
