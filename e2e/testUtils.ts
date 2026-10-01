@@ -1,7 +1,7 @@
-import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { execFileSync, spawn } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { launchTerminal, type Session } from 'tuistory'
 import { onTestFinished } from 'vitest'
 
@@ -71,4 +71,54 @@ export async function openCli(cwd: string, args: string[] = [], env: Record<stri
   })
   onTestFinished(() => session.close())
   return session
+}
+
+export function git(dir: string, ...args: string[]): string {
+  return execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
+}
+
+export function writeFiles(dir: string, files: Record<string, string>): void {
+  for (const [name, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, name)), { recursive: true })
+    writeFileSync(join(dir, name), content)
+  }
+}
+
+// goRepository makes a git repository with one commit, which holds a Go module and the files.
+export function goRepository(files: Record<string, string> = {}): string {
+  const dir = scratchDir()
+  git(dir, 'init', '--quiet', '--initial-branch=main')
+  git(dir, 'config', 'user.email', 'e2e@example.com')
+  git(dir, 'config', 'user.name', 'e2e')
+  git(dir, 'config', 'commit.gpgsign', 'false')
+  writeFiles(dir, { 'go.mod': 'module example.com/fixture\n\ngo 1.22\n', ...files })
+  git(dir, 'add', '--all')
+  git(dir, 'commit', '--quiet', '--message', 'start')
+  return dir
+}
+
+export interface ReportedMutant {
+  id: string
+  file: string
+  line: number
+  column: number
+  operator: string
+  status: string
+  original: string
+  replacement: string
+  detail?: string
+}
+
+// runMutants runs mutants run with --format json, and reads the mutants from the report.
+export async function runMutants(dir: string, args: string[]): Promise<{ result: Result; mutants: ReportedMutant[] }> {
+  const result = await runCli(dir, ['run', '--format', 'json', ...args])
+  if (result.stdout.trim() === '') {
+    throw new Error(`mutants run printed no report, and exited ${result.status}:\n${result.stderr}`)
+  }
+  return { result, mutants: JSON.parse(result.stdout).mutants }
+}
+
+// verdicts gives each mutant as its operator, its original text and its status.
+export function verdicts(mutants: ReportedMutant[]): string[] {
+  return mutants.map((m) => `${m.operator} ${m.original} ${m.status}`)
 }
