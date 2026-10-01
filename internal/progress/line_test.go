@@ -76,6 +76,29 @@ func TestLine(t *testing.T) {
 		})
 	})
 
+	t.Run("count", func(t *testing.T) {
+		t.Run("on a terminal, draws the items that are done again on the same line", func(t *testing.T) {
+			var out bytes.Buffer
+			line := progress.Start(&out, true, "Testing 3 mutants")
+			out.Reset()
+
+			line.Count(1, 3)
+			line.Count(2, 3)
+
+			require.Equal(t, "\rTesting 3 mutants: 1 of 3\x1b[K\rTesting 3 mutants: 2 of 3\x1b[K", out.String())
+		})
+
+		t.Run("elsewhere, writes nothing", func(t *testing.T) {
+			var out bytes.Buffer
+			line := progress.Start(&out, false, "Testing 3 mutants")
+			out.Reset()
+
+			line.Count(1, 3)
+
+			require.Empty(t, out.String())
+		})
+	})
+
 	t.Run("end", func(t *testing.T) {
 		t.Run("on a terminal, ends the line", func(t *testing.T) {
 			var out bytes.Buffer

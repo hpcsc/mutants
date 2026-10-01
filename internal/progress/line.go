@@ -38,6 +38,13 @@ func (l *Line) Bytes(done, total int64) {
 	l.draw(text)
 }
 
+func (l *Line) Count(done, total int) {
+	if !l.terminal {
+		return
+	}
+	l.draw(fmt.Sprintf("%s: %d of %d", l.label, done, total))
+}
+
 func (l *Line) End() {
 	if l.terminal {
 		fmt.Fprintln(l.w)
