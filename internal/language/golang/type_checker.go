@@ -14,13 +14,18 @@ import (
 )
 
 type typeChecker struct {
-	tags     []string
-	mutex    sync.Mutex
-	packages map[string]*packages.Package
+	tags          []string
+	zeroFunctions map[string]bool
+	mutex         sync.Mutex
+	packages      map[string]*packages.Package
 }
 
-func newTypeChecker(tags []string) *typeChecker {
-	return &typeChecker{tags: tags, packages: map[string]*packages.Package{}}
+func newTypeChecker(tags, zeroFunctions []string) *typeChecker {
+	checker := &typeChecker{tags: tags, zeroFunctions: map[string]bool{}, packages: map[string]*packages.Package{}}
+	for _, name := range zeroFunctions {
+		checker.zeroFunctions[name] = true
+	}
+	return checker
 }
 
 // canSwap needs start at the first value, and end after the second value, of two adjacent keyed fields.
@@ -41,11 +46,7 @@ func (c *typeChecker) canSwap(path string, start, end int) bool {
 			if !firstKeyed || !secondKeyed || lines.Offset(first.Value.Pos()) != start || lines.Offset(second.Value.End()) != end {
 				continue
 			}
-			literalType := loaded.TypesInfo.TypeOf(literal)
-			if pointer, ok := types.Unalias(literalType).(*types.Pointer); ok {
-				literalType = pointer.Elem()
-			}
-			if _, isStruct := literalType.Underlying().(*types.Struct); !isStruct {
+			if !c.isStructLiteral(literal, loaded.TypesInfo) {
 				return false
 			}
 			firstType, secondType := loaded.TypesInfo.TypeOf(first.Value), loaded.TypesInfo.TypeOf(second.Value)
@@ -55,6 +56,75 @@ func (c *typeChecker) canSwap(path string, start, end int) bool {
 		return true
 	})
 	return same
+}
+
+// canZeroField needs start at the key of a keyed field.
+func (c *typeChecker) canZeroField(path string, start int) bool {
+	loaded, syntax, lines := c.file(path)
+	if syntax == nil {
+		return false
+	}
+	found, canZero := false, false
+	ast.Inspect(syntax, func(node ast.Node) bool {
+		literal, ok := node.(*ast.CompositeLit)
+		if !ok || found {
+			return !found
+		}
+		for _, element := range literal.Elts {
+			keyed, isKeyed := element.(*ast.KeyValueExpr)
+			if !isKeyed || lines.Offset(keyed.Pos()) != start {
+				continue
+			}
+			found = true
+			value, isLiteral := keyed.Value.(*ast.CompositeLit)
+			isZero := c.isZero(loaded.TypesInfo.Types[keyed.Value]) || isLiteral && c.isEmpty(value, loaded.TypesInfo) ||
+				c.callsZeroFunction(keyed.Value, loaded.TypesInfo)
+			canZero = c.isStructLiteral(literal, loaded.TypesInfo) && !isZero
+			return false
+		}
+		return true
+	})
+	return canZero
+}
+
+func (c *typeChecker) callsZeroFunction(value ast.Expr, info *types.Info) bool {
+	call, isCall := ast.Unparen(value).(*ast.CallExpr)
+	if !isCall {
+		return false
+	}
+	function := ast.Unparen(call.Fun)
+	switch generic := function.(type) {
+	case *ast.IndexExpr:
+		function = generic.X
+	case *ast.IndexListExpr:
+		function = generic.X
+	}
+	var name *ast.Ident
+	switch function := function.(type) {
+	case *ast.Ident:
+		name = function
+	case *ast.SelectorExpr:
+		name = function.Sel
+	default:
+		return false
+	}
+	called, isFunction := info.Uses[name].(*types.Func)
+	if !isFunction || called.Pkg() == nil || called.Signature().Recv() != nil {
+		return false
+	}
+	return c.zeroFunctions[called.Pkg().Name()+"."+called.Name()]
+}
+
+func (c *typeChecker) isStructLiteral(literal *ast.CompositeLit, info *types.Info) bool {
+	literalType := info.TypeOf(literal)
+	if literalType == nil {
+		return false
+	}
+	if pointer, ok := types.Unalias(literalType).(*types.Pointer); ok {
+		literalType = pointer.Elem()
+	}
+	_, isStruct := literalType.Underlying().(*types.Struct)
+	return isStruct
 }
 
 // a swap in a table such as {NoMatch: Reason{"NoMatch"}, Late: Reason{"Late"}} lives unless a test reads the text

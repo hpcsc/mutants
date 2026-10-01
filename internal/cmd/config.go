@@ -25,6 +25,8 @@ type config struct {
 	Tags      []string `yaml:"tags"`
 	Operators []string `yaml:"operators"`
 	Exclude   []string `yaml:"exclude"`
+	// ZeroFunctions names each function as package.Function, with the name of the package and not its path.
+	ZeroFunctions []string `yaml:"zero_functions"`
 }
 
 func loadConfig(root string) (config, error) {

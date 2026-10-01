@@ -51,9 +51,10 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 		return cli.Exit(err, exitNoVerdict)
 	}
 	instance, err := newInstance(ctx, repository, golang.Settings{
-		Tags:       configured.tags(cmd),
-		BuildLimit: cmd.Duration("build-limit"),
-		Workers:    1,
+		Tags:          configured.tags(cmd),
+		BuildLimit:    cmd.Duration("build-limit"),
+		Workers:       1,
+		ZeroFunctions: configured.ZeroFunctions,
 	}, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitNoVerdict)

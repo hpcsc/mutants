@@ -78,9 +78,10 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		Limit:     cmd.Duration("limit"),
 	}
 	instance, err := newInstance(ctx, repository, golang.Settings{
-		Tags:       configured.tags(cmd),
-		BuildLimit: cmd.Duration("build-limit"),
-		Workers:    runSettings.Workers,
+		Tags:          configured.tags(cmd),
+		BuildLimit:    cmd.Duration("build-limit"),
+		Workers:       runSettings.Workers,
+		ZeroFunctions: configured.ZeroFunctions,
 	}, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)

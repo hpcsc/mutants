@@ -1,0 +1,12 @@
+id: FIELD_ZERO
+language: go
+rule:
+  kind: keyed_element
+  inside:
+    kind: literal_value
+fix:
+  template: ''
+  expandEnd:
+    regex: ','
+metadata:
+  default: off

@@ -249,6 +249,7 @@ The Go pack for v1:
 | `RANGE_BREAK` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
 | `SWAP_FIELDS` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |
+| `FIELD_ZERO` | removes one keyed field from a struct literal, so the field gets the zero value of its type | off by default until its noise is measured; shows a field that no test reads |
 | `ERRORF_WRAP` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
 
 ### Filters
@@ -266,6 +267,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | a `RETURN_ZERO` value that is not the zero value of its slot, that fills an error slot, or that is zero already |
 | Type | a `RETURN_ERROR_NIL` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
+| Type | a `FIELD_ZERO` field outside a struct literal, or whose value is zero already |
 | Type | a `TIME_BOUNDARY` or `CALENDAR_DAY` call of a method that `go/types` does not find on `time.Time`, and a `CALENDAR_DAY` in a file that does not import `time` by that name |
 
 A candidate that passes the filters and still fails to build is NOT VIABLE.
@@ -464,7 +466,12 @@ workers: 4
 tags: [unit]
 operators: [-ERRORF_WRAP]
 exclude: ["**/*_gen.go", "vendor/**"]
+zero_functions: [maybe.None, caseautoresolve.Submitted]
 ```
+
+`zero_functions` names the functions that return the zero value of their type, as `package.Function` with the
+name of the package, not its path. `FIELD_ZERO` skips a field whose value is a call of one of them, because
+the removal of that field changes nothing.
 
 v1 keeps no cache and no state file. The rules for a scan, the mutated files, the overlays, the test binaries
 and the coverage profiles go to temp folders that `mutants` removes after each use. The v2 cache goes under

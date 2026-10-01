@@ -67,6 +67,7 @@ workers: 4
 tags: [unit]
 operators: [-SWAP_FIELDS]
 exclude: ["**/*_gen.go", "vendor/**"]
+zero_functions: [maybe.None]   # functions that return a zero value, so FIELD_ZERO skips their calls
 ```
 
 A repository adds its own operators as ast-grep rules with a `fix`, in `.mutants/operators/go/`. A rule

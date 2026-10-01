@@ -23,12 +23,14 @@ const (
 	integerDecrement = "INTEGER_DECREMENT"
 	timeBoundary     = "TIME_BOUNDARY"
 	calendarDay      = "CALENDAR_DAY"
+	fieldZero        = "FIELD_ZERO"
 )
 
 type Settings struct {
-	Tags       []string
-	BuildLimit time.Duration
-	Workers    int
+	Tags          []string
+	BuildLimit    time.Duration
+	Workers       int
+	ZeroFunctions []string
 }
 
 func (s Settings) tagArguments() []string {
@@ -65,7 +67,7 @@ func New(root string, settings Settings) language.Adapter {
 		root:     root,
 		finder:   finder,
 		sources:  newSourceFiles(root),
-		types:    newTypeChecker(settings.Tags),
+		types:    newTypeChecker(settings.Tags, settings.ZeroFunctions),
 		coverage: coverage,
 		runner:   &runner{root: root, settings: settings, finder: finder, coverage: coverage},
 	}
@@ -108,6 +110,8 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.callsTimeMethod(path, candidate.Start, candidate.End)
 	case calendarDay:
 		return a.types.callsTimeMethod(path, candidate.Start, candidate.End) && a.sources.importsTime(candidate.File)
+	case fieldZero:
+		return a.types.canZeroField(path, candidate.Start)
 	}
 	return true
 }

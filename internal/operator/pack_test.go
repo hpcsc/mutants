@@ -139,6 +139,7 @@ func TestPack(t *testing.T) {
 			require.Contains(t, operatorsOf(pack), "CONDITIONALS_BOUNDARY")
 			require.Contains(t, operatorsOf(pack), "SWAP_FIELDS")
 			require.NotContains(t, operatorsOf(pack), "ERRORF_WRAP")
+			require.NotContains(t, operatorsOf(pack), "FIELD_ZERO")
 		})
 
 		t.Run("a name with - takes an operator out", func(t *testing.T) {
@@ -362,6 +363,18 @@ func TestPack(t *testing.T) {
 			edits := editsOf(t, "CALENDAR_DAY", "package a\n\nfunc f(t time.Time, n int) []time.Time {\n\treturn []time.Time{t.AddDate(0, 0, n+1), t.AddDate(0, 1, 0)}\n}\n")
 
 			require.Equal(t, []string{"t.AddDate(0, 0, n+1) -> t.Add(time.Duration(n+1) * 24 * time.Hour)"}, edits)
+		})
+
+		t.Run("FIELD_ZERO removes each keyed element with its comma", func(t *testing.T) {
+			source := "package a\n\nvar p = P{A: 1, B: two,\n\tC: Q{D: 3},\n}\n"
+
+			edits := findEdits(t, "FIELD_ZERO", source)
+
+			require.Len(t, edits, 4)
+			require.Equal(t, formatted(t, "package a\n\nvar p = P{B: two,\n\tC: Q{D: 3},\n}\n"), mutated(t, source, edits[0]))
+			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1,\n\tC: Q{D: 3},\n}\n"), mutated(t, source, edits[1]))
+			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1, B: two}\n"), mutated(t, source, edits[2]))
+			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1, B: two,\n\tC: Q{},\n}\n"), mutated(t, source, edits[3]))
 		})
 
 		t.Run("ERRORF_WRAP turns %w into %v", func(t *testing.T) {

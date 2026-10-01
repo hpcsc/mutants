@@ -35,18 +35,20 @@ func TestConfig(t *testing.T) {
 	t.Run("load", func(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
-			content := "base: origin/main\nworkers: 2\ntags: [unit]\noperators: [-ERRORF_WRAP]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\n"
+			content := "base: origin/main\nworkers: 2\ntags: [unit]\noperators: [-ERRORF_WRAP]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\n" +
+				"zero_functions: [maybe.None]\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
 			loaded, err := loadConfig(root)
 
 			require.NoError(t, err)
 			require.Equal(t, config{
-				Base:      "origin/main",
-				Workers:   2,
-				Tags:      []string{"unit"},
-				Operators: []string{"-ERRORF_WRAP"},
-				Exclude:   []string{"**/*_gen.go", "vendor/**"},
+				Base:          "origin/main",
+				Workers:       2,
+				Tags:          []string{"unit"},
+				Operators:     []string{"-ERRORF_WRAP"},
+				Exclude:       []string{"**/*_gen.go", "vendor/**"},
+				ZeroFunctions: []string{"maybe.None"},
 			}, loaded)
 		})
 
@@ -63,7 +65,7 @@ func TestConfig(t *testing.T) {
 
 			_, err := loadConfig(root)
 
-			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, tags, operators, exclude")
+			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, tags, operators, exclude, zero_functions")
 		})
 
 		t.Run("an empty file gives no settings", func(t *testing.T) {

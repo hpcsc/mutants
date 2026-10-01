@@ -355,6 +355,72 @@ func Later(start clock.Time) clock.Time {
 			require.False(t, adapter.Keep(editOf(t, root, "due/later.go", "CALENDAR_DAY", "start.AddDate(0, 0, 1)", "start.Add(time.Duration(1) * 24 * time.Hour)")))
 		})
 
+		t.Run("drops a FIELD_ZERO edit of a call of a function that the settings name as a zero function", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"maybe/maybe.go": `package maybe
+
+type Maybe[T any] struct {
+	value T
+	ok    bool
+}
+
+func None[T any]() Maybe[T] { return Maybe[T]{} }
+
+func Some[T any](value T) Maybe[T] { return Maybe[T]{value: value, ok: true} }
+`,
+				"trigger/trigger.go": "package trigger\n\ntype Trigger struct{ kind int }\n\nfunc Submitted() Trigger { return Trigger{} }\n",
+				"cases/cases.go": `package cases
+
+import (
+	"example.com/fixture/maybe"
+	"example.com/fixture/trigger"
+)
+
+type Case struct {
+	Parker  maybe.Maybe[string]
+	Owner   maybe.Maybe[string]
+	Trigger trigger.Trigger
+}
+
+func New(owner string) Case {
+	return Case{Parker: maybe.None[string](), Owner: maybe.Some(owner), Trigger: trigger.Submitted()}
+}
+`,
+			})
+			settings := golang.Settings{BuildLimit: time.Minute, Workers: 1, ZeroFunctions: []string{"maybe.None", "trigger.Submitted"}}
+			adapter := golang.New(root, settings)
+			parker := editOf(t, root, "cases/cases.go", "FIELD_ZERO", "Parker: maybe.None[string](),", "")
+
+			require.False(t, adapter.Keep(parker))
+			require.False(t, adapter.Keep(editOf(t, root, "cases/cases.go", "FIELD_ZERO", "Trigger: trigger.Submitted()", "")))
+			require.True(t, adapter.Keep(editOf(t, root, "cases/cases.go", "FIELD_ZERO", "Owner: maybe.Some(owner),", "")))
+			require.True(t, golang.New(root, defaultSettings).Keep(parker))
+		})
+
+		t.Run("keeps a FIELD_ZERO edit in a struct literal only, and drops it when the value is zero already", func(t *testing.T) {
+			root := newModule(t, map[string]string{"info/info.go": `package info
+
+type Point struct{ X int }
+
+type Info struct {
+	Arrived bool
+	ID      string
+	Inner   Point
+}
+
+func Build(arrived bool, id string) (*Info, map[string]int, Info) {
+	return &Info{Arrived: arrived, ID: id}, map[string]int{"a": 1}, Info{Arrived: false, Inner: Point{}}
+}
+`})
+			adapter := golang.New(root, defaultSettings)
+
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Arrived: arrived,", "")))
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "ID: id", "")))
+			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", `"a": 1`, "")))
+			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Arrived: false,", "")))
+			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Inner: Point{}", "")))
+		})
+
 		t.Run("finds the slot of a return in a function literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nvar Next = func(n int) (int, error) {\n\treturn n + 1, nil\n}\n"})
 
