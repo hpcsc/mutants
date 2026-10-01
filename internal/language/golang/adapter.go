@@ -24,6 +24,7 @@ const (
 	timeBoundary     = "TIME_BOUNDARY"
 	calendarDay      = "CALENDAR_DAY"
 	fieldZero        = "FIELD_ZERO"
+	argumentZero     = "ARGUMENT_ZERO"
 )
 
 type Settings struct {
@@ -112,6 +113,9 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.callsTimeMethod(path, candidate.Start, candidate.End) && a.sources.importsTime(candidate.File)
 	case fieldZero:
 		return a.types.canZeroField(path, candidate.Start)
+	case argumentZero:
+		zero := a.types.zeroOfParameter(path, candidate.Start, candidate.End)
+		return zero != "" && zero == candidate.Replacement
 	}
 	return true
 }

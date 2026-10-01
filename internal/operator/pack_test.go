@@ -140,6 +140,7 @@ func TestPack(t *testing.T) {
 			require.Contains(t, operatorsOf(pack), "SWAP_FIELDS")
 			require.NotContains(t, operatorsOf(pack), "ERRORF_WRAP")
 			require.NotContains(t, operatorsOf(pack), "FIELD_ZERO")
+			require.NotContains(t, operatorsOf(pack), "ARGUMENT_ZERO")
 		})
 
 		t.Run("a name with - takes an operator out", func(t *testing.T) {
@@ -375,6 +376,17 @@ func TestPack(t *testing.T) {
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1,\n\tC: Q{D: 3},\n}\n"), mutated(t, source, edits[1]))
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1, B: two}\n"), mutated(t, source, edits[2]))
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1, B: two,\n\tC: Q{},\n}\n"), mutated(t, source, edits[3]))
+		})
+
+		t.Run("ARGUMENT_ZERO gives each argument the zero values, for the type filter to choose, and skips a log chain", func(t *testing.T) {
+			source := "package a\n\nfunc f() {\n\tresolve(id.String(), Point{X: 1})\n\tlog.Info().Str(\"id\", id.String()).Msg(\"x\")\n}\n"
+
+			edits := editsOf(t, "ARGUMENT_ZERO", source)
+
+			require.ElementsMatch(t, []string{
+				"id.String() -> nil", "id.String() -> 0", `id.String() -> ""`, "id.String() -> false",
+				"Point{X: 1} -> nil", "Point{X: 1} -> 0", `Point{X: 1} -> ""`, "Point{X: 1} -> false", "Point{X: 1} -> Point{}",
+			}, edits)
 		})
 
 		t.Run("ERRORF_WRAP turns %w into %v", func(t *testing.T) {

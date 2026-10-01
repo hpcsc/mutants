@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -158,6 +159,15 @@ func (c *typeChecker) isTable(literal *ast.CompositeLit, info *types.Info) bool 
 
 func (c *typeChecker) zeroOfSlot(path string, start, end int) string {
 	slot, value, info := c.returnSlot(path, start, end)
+	return c.zeroOf(slot, value, info)
+}
+
+func (c *typeChecker) zeroOfParameter(path string, start, end int) string {
+	slot, value, info := c.parameterSlot(path, start, end)
+	return c.zeroOf(slot, value, info)
+}
+
+func (c *typeChecker) zeroOf(slot types.Type, value ast.Expr, info *types.Info) string {
 	if slot == nil || c.isError(slot) || c.isZero(info.Types[value]) {
 		return ""
 	}
@@ -303,6 +313,56 @@ func (c *typeChecker) returnSlot(path string, start, end int) (types.Type, ast.E
 		return nil, nil, nil
 	}
 	return signature.Results().At(index).Type(), statement.Results[index], loaded.TypesInfo
+}
+
+// parameterSlot leaves out the parameters where a zero value gives noise: a context, the text of an error,
+// and a variadic parameter, whose arguments are mostly the values of a message, such as those of fmt.Sprintf.
+func (c *typeChecker) parameterSlot(path string, start, end int) (types.Type, ast.Expr, *types.Info) {
+	loaded, syntax, lines := c.file(path)
+	if syntax == nil || start < 0 || end > lines.Size() {
+		return nil, nil, nil
+	}
+	enclosing, _ := astutil.PathEnclosingInterval(syntax, lines.Pos(start), lines.Pos(end))
+	if len(enclosing) < 2 {
+		return nil, nil, nil
+	}
+	call, isCall := enclosing[1].(*ast.CallExpr)
+	if !isCall {
+		return nil, nil, nil
+	}
+	index := slices.IndexFunc(call.Args, func(argument ast.Expr) bool { return argument == enclosing[0] })
+	function := loaded.TypesInfo.Types[call.Fun]
+	if index < 0 || function.Type == nil || function.IsType() || function.IsBuiltin() {
+		return nil, nil, nil
+	}
+	signature, isSignature := function.Type.Underlying().(*types.Signature)
+	if !isSignature {
+		return nil, nil, nil
+	}
+	fixed := signature.Params().Len()
+	if signature.Variadic() {
+		fixed--
+	}
+	if index >= fixed || len(call.Args) < fixed {
+		return nil, nil, nil
+	}
+	slot := signature.Params().At(index).Type()
+	if c.isContext(slot) || c.isErrorText(signature, slot, loaded.TypesInfo.Types[call.Args[index]]) {
+		return nil, nil, nil
+	}
+	return slot, call.Args[index], loaded.TypesInfo
+}
+
+func (c *typeChecker) isContext(slot types.Type) bool {
+	named, isNamed := types.Unalias(slot).(*types.Named)
+	return isNamed && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == "context" && named.Obj().Name() == "Context"
+}
+
+func (c *typeChecker) isErrorText(signature *types.Signature, slot types.Type, value types.TypeAndValue) bool {
+	results := signature.Results()
+	basic, isBasic := slot.Underlying().(*types.Basic)
+	isText := isBasic && basic.Info()&types.IsString != 0 && value.Value != nil
+	return isText && results.Len() == 1 && c.isError(results.At(0).Type())
 }
 
 func (c *typeChecker) file(path string) (*packages.Package, *ast.File, *token.File) {

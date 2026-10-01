@@ -1,0 +1,179 @@
+id: ARGUMENT_ZERO/nil
+language: go
+rule:
+  any:
+    - kind: identifier
+    - kind: call_expression
+    - kind: selector_expression
+    - kind: index_expression
+    - kind: slice_expression
+    - kind: type_assertion_expression
+    - kind: type_conversion_expression
+    - kind: type_instantiation_expression
+    - kind: unary_expression
+    - kind: binary_expression
+    - kind: parenthesized_expression
+    - kind: composite_literal
+    - kind: func_literal
+    - kind: int_literal
+    - kind: float_literal
+    - kind: imaginary_literal
+    - kind: rune_literal
+    - kind: interpreted_string_literal
+    - kind: raw_string_literal
+    - kind: 'nil'
+    - kind: 'true'
+    - kind: 'false'
+    - kind: iota
+  inside:
+    kind: argument_list
+  not:
+    inside:
+      stopBy: end
+      kind: call_expression
+      has:
+        field: function
+        regex: \.\s*(Msgf?|Send)$
+fix: 'nil'
+metadata:
+  default: off
+---
+id: ARGUMENT_ZERO/zero
+language: go
+rule:
+  any:
+    - kind: identifier
+    - kind: call_expression
+    - kind: selector_expression
+    - kind: index_expression
+    - kind: slice_expression
+    - kind: type_assertion_expression
+    - kind: type_conversion_expression
+    - kind: type_instantiation_expression
+    - kind: unary_expression
+    - kind: binary_expression
+    - kind: parenthesized_expression
+    - kind: composite_literal
+    - kind: func_literal
+    - kind: int_literal
+    - kind: float_literal
+    - kind: imaginary_literal
+    - kind: rune_literal
+    - kind: interpreted_string_literal
+    - kind: raw_string_literal
+    - kind: 'nil'
+    - kind: 'true'
+    - kind: 'false'
+    - kind: iota
+  inside:
+    kind: argument_list
+  not:
+    inside:
+      stopBy: end
+      kind: call_expression
+      has:
+        field: function
+        regex: \.\s*(Msgf?|Send)$
+fix: '0'
+metadata:
+  default: off
+---
+id: ARGUMENT_ZERO/empty
+language: go
+rule:
+  any:
+    - kind: identifier
+    - kind: call_expression
+    - kind: selector_expression
+    - kind: index_expression
+    - kind: slice_expression
+    - kind: type_assertion_expression
+    - kind: type_conversion_expression
+    - kind: type_instantiation_expression
+    - kind: unary_expression
+    - kind: binary_expression
+    - kind: parenthesized_expression
+    - kind: composite_literal
+    - kind: func_literal
+    - kind: int_literal
+    - kind: float_literal
+    - kind: imaginary_literal
+    - kind: rune_literal
+    - kind: interpreted_string_literal
+    - kind: raw_string_literal
+    - kind: 'nil'
+    - kind: 'true'
+    - kind: 'false'
+    - kind: iota
+  inside:
+    kind: argument_list
+  not:
+    inside:
+      stopBy: end
+      kind: call_expression
+      has:
+        field: function
+        regex: \.\s*(Msgf?|Send)$
+fix: '""'
+metadata:
+  default: off
+---
+id: ARGUMENT_ZERO/false
+language: go
+rule:
+  any:
+    - kind: identifier
+    - kind: call_expression
+    - kind: selector_expression
+    - kind: index_expression
+    - kind: slice_expression
+    - kind: type_assertion_expression
+    - kind: type_conversion_expression
+    - kind: type_instantiation_expression
+    - kind: unary_expression
+    - kind: binary_expression
+    - kind: parenthesized_expression
+    - kind: composite_literal
+    - kind: func_literal
+    - kind: int_literal
+    - kind: float_literal
+    - kind: imaginary_literal
+    - kind: rune_literal
+    - kind: interpreted_string_literal
+    - kind: raw_string_literal
+    - kind: 'nil'
+    - kind: 'true'
+    - kind: 'false'
+    - kind: iota
+  inside:
+    kind: argument_list
+  not:
+    inside:
+      stopBy: end
+      kind: call_expression
+      has:
+        field: function
+        regex: \.\s*(Msgf?|Send)$
+fix: 'false'
+metadata:
+  default: off
+---
+id: ARGUMENT_ZERO/struct
+language: go
+rule:
+  kind: composite_literal
+  has:
+    field: type
+    pattern: $TYPE
+  inside:
+    kind: argument_list
+  not:
+    inside:
+      stopBy: end
+      kind: call_expression
+      has:
+        field: function
+        regex: \.\s*(Msgf?|Send)$
+fix: $TYPE{}
+metadata:
+  default: off

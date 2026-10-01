@@ -421,6 +421,76 @@ func Build(arrived bool, id string) (*Info, map[string]int, Info) {
 			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Inner: Point{}", "")))
 		})
 
+		t.Run("keeps only the zero value that fits the parameter of an argument", func(t *testing.T) {
+			root := newModule(t, map[string]string{"client/client.go": `package client
+
+type Point struct{ X int }
+
+type ID int
+
+func (i ID) String() string { return "id" }
+
+func resolve(client string, p Point, limit int, done func()) string { return client }
+
+func Run(id ID) string {
+	return resolve(id.String(), Point{X: 1}, 3, func() {})
+}
+`})
+			adapter := golang.New(root, defaultSettings)
+			zeros := map[string]string{"id.String()": `""`, "Point{X: 1}": "Point{}", "3": "0", "func() {}": "nil"}
+			for value, zero := range zeros {
+				for _, candidate := range []string{"nil", "0", `""`, "false", "Point{}"} {
+					keep := adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "resolve(id.String(), Point{X: 1}, 3, func() {})", value, candidate))
+
+					require.Equal(t, candidate == zero, keep, "%s -> %s", value, candidate)
+				}
+			}
+		})
+
+		t.Run("drops an ARGUMENT_ZERO edit of a builtin, a conversion or a variadic parameter, and keeps the fixed parameters of a variadic call", func(t *testing.T) {
+			root := newModule(t, map[string]string{"client/client.go": `package client
+
+import "fmt"
+
+func Run(xs []int, id int) (int, int64, string) {
+	return len(xs), int64(id), fmt.Sprintf("%d", id)
+}
+`})
+			adapter := golang.New(root, defaultSettings)
+
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "len(xs)", "xs", "nil")))
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "int64(id)", "id", "0")))
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", `"%d", id)`, "id", "0")))
+			require.True(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", `"%d"`, `""`)))
+		})
+
+		t.Run("drops an ARGUMENT_ZERO edit of a context and of the text of an error, and keeps the other arguments", func(t *testing.T) {
+			root := newModule(t, map[string]string{"client/client.go": `package client
+
+import (
+	"context"
+	"errors"
+	"fmt"
+)
+
+func load(ctx context.Context, id string) error { return nil }
+
+func validate(name string) error { return nil }
+
+func Run(ctx context.Context, id, name string, cause error) []error {
+	return []error{load(ctx, id), load(context.Background(), id), errors.New("not found"), fmt.Errorf("load %s: %w", id, cause), validate(name)}
+}
+`})
+			adapter := golang.New(root, defaultSettings)
+
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "load(ctx, id)", "ctx", "nil")))
+			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", "context.Background()", "nil")))
+			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", `"not found"`, `""`)))
+			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", `"load %s: %w"`, `""`)))
+			require.True(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "load(ctx, id)", "id", `""`)))
+			require.True(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "validate(name)", "name", `""`)))
+		})
+
 		t.Run("finds the slot of a return in a function literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nvar Next = func(n int) (int, error) {\n\treturn n + 1, nil\n}\n"})
 

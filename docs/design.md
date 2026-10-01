@@ -225,7 +225,8 @@ type Hook interface {
 
 A rule cannot know a type, so a rule gives every candidate and the type filter of the adapter chooses.
 `RETURN_ZERO` has one rule for each zero value (`nil`, `0`, `""` and `false`) and one rule that makes a struct
-literal `T{}`, and the filter keeps the one that is the zero value of the slot.
+literal `T{}`, and the filter keeps the one that is the zero value of the slot. `ARGUMENT_ZERO` does the same
+for the parameter of a call argument.
 
 The Go pack for v1:
 
@@ -250,6 +251,7 @@ The Go pack for v1:
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
 | `SWAP_FIELDS` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |
 | `FIELD_ZERO` | removes one keyed field from a struct literal, so the field gets the zero value of its type | off by default until its noise is measured; shows a field that no test reads |
+| `ARGUMENT_ZERO` | a call argument to the zero value of its parameter type | off by default: each argument of each call makes a mutant, so it is noisy until it has a filter |
 | `ERRORF_WRAP` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
 
 ### Filters
@@ -268,6 +270,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | a `RETURN_ERROR_NIL` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
 | Type | a `FIELD_ZERO` field outside a struct literal, or whose value is zero already |
+| Type | an `ARGUMENT_ZERO` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion, of a variadic parameter or of a log chain. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `TIME_BOUNDARY` or `CALENDAR_DAY` call of a method that `go/types` does not find on `time.Time`, and a `CALENDAR_DAY` in a file that does not import `time` by that name |
 
 A candidate that passes the filters and still fails to build is NOT VIABLE.
