@@ -51,6 +51,28 @@ mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, in
 `, output.String())
 		})
 
+		t.Run("prints the NOT COVERED mutants that share a reason as one row with their count", func(t *testing.T) {
+			noTests := func(m mutant.Mutant) mutant.Mutant {
+				m.Result.Detail = "package report has no test files"
+				return m
+			}
+			mutants := []mutant.Mutant{
+				noTests(reported("report/main.go", 20, "BRANCH_IF", 1, "{ g() }", "{}", mutant.NotCovered)),
+				reported("handler.go", 43, "RETURN_ERROR_NIL", 1, "err", "nil", mutant.NotCovered),
+				noTests(reported("report/main.go", 10, "RETURN_ZERO", 1, "n", "0", mutant.NotCovered)),
+				noTests(reported("report/write.go", 5, "STATEMENT_REMOVE", 1, "close(f)", "", mutant.NotCovered)),
+			}
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, mutants, ""))
+
+			require.Equal(t, `NOT COVERED:
+  handler.go:43 RETURN_ERROR_NIL: err -> nil  [handler.go:(*Handler).accounts:RETURN_ERROR_NIL#1]
+  package report has no test files: 3 mutants
+mutants: 4, not covered: 4
+`, output.String())
+		})
+
 		t.Run("shows code on one line, shortens long code, and shows an empty replacement as (nothing)", func(t *testing.T) {
 			mutants := []mutant.Mutant{
 				reported("a.go", 3, "BRANCH_CASE", 1, "g()\n\t\th(\"a long argument that goes past the end\")\n", "", mutant.Lived),

@@ -437,6 +437,13 @@ Each row shows the original and the replacement on one line, cut at 40 character
 start a few words before the first difference, so that the row shows it. An empty replacement shows as
 `(nothing)`.
 
+A package with no test files gives one row for all its mutants, not one row for each mutant:
+
+```text
+NOT COVERED:
+  package cmd/evalreport has no test files: 502 mutants
+```
+
 `--format json` prints every mutant as one JSON document: `base`, and `mutants` with the fields `id`, `file`,
 `line`, `column`, `operator`, `status`, `original`, `replacement` and `detail`, the reason for the status.
 `--stryker` writes version 2 of the `mutation-testing-elements` report format, which has an HTML viewer and
@@ -544,6 +551,7 @@ The end-to-end fixtures:
 | A folder name that differs from its package name | the mutants run the tests of that package |
 | A test file with a build tag | with `--tags`, its tests run |
 | Two runs | the same verdicts, mutant by mutant |
+| A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
 
 ## Later
 

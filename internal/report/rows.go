@@ -19,6 +19,13 @@ func Rows(w io.Writer, mutants []mutant.Mutant, base string) error {
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Line, b.Line), cmp.Compare(a.ID.String(), b.ID.String()))
 	})
+	reasons := map[string]int{}
+	for _, m := range mutants {
+		if m.Result.Status == mutant.NotCovered && m.Result.Detail != "" {
+			reasons[m.Result.Detail]++
+		}
+	}
+	printed := map[string]bool{}
 	var text strings.Builder
 	for _, status := range []mutant.Status{mutant.Lived, mutant.NotCovered, mutant.TimedOut, mutant.InfraError} {
 		header := false
@@ -30,7 +37,14 @@ func Rows(w io.Writer, mutants []mutant.Mutant, base string) error {
 				fmt.Fprintf(&text, "%s:\n", status)
 				header = true
 			}
-			fmt.Fprintf(&text, "  %s\n", Row(m))
+			reason := m.Result.Detail
+			switch {
+			case status != mutant.NotCovered || reason == "":
+				fmt.Fprintf(&text, "  %s\n", Row(m))
+			case !printed[reason]:
+				fmt.Fprintf(&text, "  %s: %s\n", reason, plural(reasons[reason], "mutant"))
+				printed[reason] = true
+			}
 		}
 	}
 	text.WriteString(Counts(mutants, base) + "\n")
@@ -61,6 +75,13 @@ func Counts(mutants []mutant.Mutant, base string) string {
 		line += fmt.Sprintf(" (base %s)", base[:min(len(base), 10)])
 	}
 	return line
+}
+
+func plural(count int, noun string) string {
+	if count == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", count, noun)
 }
 
 func shorten(original, replacement string) (string, string) {

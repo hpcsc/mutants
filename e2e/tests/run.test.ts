@@ -335,6 +335,22 @@ func TestWait(t *testing.T) {
       /^LIVED:\n {2}figures\/figures.go:8 SWAP_FIELDS: paid, Owed: owed -> owed, Owed: paid {2}\[figures\/figures.go:Summarise:SWAP_FIELDS#1\]\nmutants: 1, lived: 1 \(base [0-9a-f]{10}\)\n$/,
     )
   })
+
+  it('prints one row for a package with no test files, and keeps each mutant in the JSON', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': maxSource })
+    const args = ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION']
+
+    const rows = await runCli(dir, ['run', ...args])
+    const json = await runMutants(dir, args)
+
+    expect(rows.status).toBe(10)
+    expect(rows.stdout).toMatch(/^NOT COVERED:\n {2}package calc has no test files: 2 mutants\nmutants: 2, not covered: 2 \(base [0-9a-f]{10}\)\n$/)
+    expect(json.mutants.map((m) => `${m.operator} ${m.status}: ${m.detail}`)).toEqual([
+      'CONDITIONALS_BOUNDARY NOT COVERED: package calc has no test files',
+      'CONDITIONALS_NEGATION NOT COVERED: package calc has no test files',
+    ])
+  })
 })
 
 describe('mutants rerun', { timeout: 240_000 }, () => {

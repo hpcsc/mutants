@@ -71,6 +71,7 @@ Each fixture has a known answer from the design:
 | A folder name that differs from its package name | the mutants run the tests of that package |
 | A test file with a build tag | with `--tags`, its tests run |
 | Two runs | the same verdicts, mutant by mutant |
+| A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
 
 To keep each test short, a test names the operators that it needs with `--operators`.
 
