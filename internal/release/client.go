@@ -109,23 +109,23 @@ func (c *Client) get(ctx context.Context, url, accept string, progress func(done
 	}
 	body := io.LimitReader(resp.Body, maxDownload)
 	if progress != nil {
-		body = &counter{r: body, total: resp.ContentLength, progress: progress}
+		body = &progressReader{r: body, total: resp.ContentLength, progress: progress}
 	}
 	return io.ReadAll(body)
 }
 
-type counter struct {
+type progressReader struct {
 	r        io.Reader
 	done     int64
 	total    int64
 	progress func(done, total int64)
 }
 
-func (c *counter) Read(p []byte) (int, error) {
-	n, err := c.r.Read(p)
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.r.Read(p)
 	if n > 0 {
-		c.done += int64(n)
-		c.progress(c.done, c.total)
+		pr.done += int64(n)
+		pr.progress(pr.done, pr.total)
 	}
 	return n, err
 }
