@@ -1,0 +1,7 @@
+id: SWAP_FIELDS
+language: go
+rule:
+  kind: keyed_element
+  has:
+    field: value
+    pattern: $VALUE

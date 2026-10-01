@@ -1,0 +1,11 @@
+id: INCREMENT_DECREMENT/increment
+language: go
+rule:
+  pattern: $X++
+fix: $X--
+---
+id: INCREMENT_DECREMENT/decrement
+language: go
+rule:
+  pattern: $X--
+fix: $X++

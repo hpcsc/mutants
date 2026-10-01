@@ -1,0 +1,19 @@
+id: BRANCH_ELSE
+language: go
+rule:
+  kind: block
+  inside:
+    kind: if_statement
+    field: alternative
+  has:
+    kind: statement_list
+    has:
+      regex: .
+      not:
+        kind: expression_statement
+        has:
+          kind: call_expression
+          has:
+            field: function
+            regex: \.\s*(Msgf?|Send)$
+fix: '{}'

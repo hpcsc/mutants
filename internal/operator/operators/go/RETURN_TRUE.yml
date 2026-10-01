@@ -1,0 +1,32 @@
+id: RETURN_TRUE
+language: go
+rule:
+  any:
+    - kind: identifier
+    - kind: call_expression
+    - kind: selector_expression
+    - kind: index_expression
+    - kind: slice_expression
+    - kind: type_assertion_expression
+    - kind: type_conversion_expression
+    - kind: type_instantiation_expression
+    - kind: unary_expression
+    - kind: binary_expression
+    - kind: parenthesized_expression
+    - kind: composite_literal
+    - kind: func_literal
+    - kind: int_literal
+    - kind: float_literal
+    - kind: imaginary_literal
+    - kind: rune_literal
+    - kind: interpreted_string_literal
+    - kind: raw_string_literal
+    - kind: 'nil'
+    - kind: 'true'
+    - kind: 'false'
+    - kind: iota
+  inside:
+    kind: expression_list
+    inside:
+      kind: return_statement
+fix: 'true'

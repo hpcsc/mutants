@@ -1,0 +1,23 @@
+id: CONDITIONALS_BOUNDARY/lt
+language: go
+rule:
+  pattern: $A < $B
+fix: $A <= $B
+---
+id: CONDITIONALS_BOUNDARY/le
+language: go
+rule:
+  pattern: $A <= $B
+fix: $A < $B
+---
+id: CONDITIONALS_BOUNDARY/gt
+language: go
+rule:
+  pattern: $A > $B
+fix: $A >= $B
+---
+id: CONDITIONALS_BOUNDARY/ge
+language: go
+rule:
+  pattern: $A >= $B
+fix: $A > $B

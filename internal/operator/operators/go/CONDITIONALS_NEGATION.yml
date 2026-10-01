@@ -1,0 +1,35 @@
+id: CONDITIONALS_NEGATION/eq
+language: go
+rule:
+  pattern: $A == $B
+fix: $A != $B
+---
+id: CONDITIONALS_NEGATION/ne
+language: go
+rule:
+  pattern: $A != $B
+fix: $A == $B
+---
+id: CONDITIONALS_NEGATION/lt
+language: go
+rule:
+  pattern: $A < $B
+fix: $A >= $B
+---
+id: CONDITIONALS_NEGATION/ge
+language: go
+rule:
+  pattern: $A >= $B
+fix: $A < $B
+---
+id: CONDITIONALS_NEGATION/gt
+language: go
+rule:
+  pattern: $A > $B
+fix: $A <= $B
+---
+id: CONDITIONALS_NEGATION/le
+language: go
+rule:
+  pattern: $A <= $B
+fix: $A > $B

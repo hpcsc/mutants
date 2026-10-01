@@ -1,0 +1,6 @@
+id: INTEGER_INCREMENT
+language: go
+rule:
+  kind: int_literal
+  pattern: $N
+fix: ($N+1)

@@ -1,0 +1,36 @@
+id: ARITHMETIC_BASE/plus
+language: go
+rule:
+  pattern: $A + $B
+  not:
+    inside:
+      stopBy: end
+      kind: call_expression
+      has:
+        field: function
+        regex: \.\s*(Msgf?|Send)$
+fix: $A - $B
+---
+id: ARITHMETIC_BASE/minus
+language: go
+rule:
+  pattern: $A - $B
+fix: $A + $B
+---
+id: ARITHMETIC_BASE/multiply
+language: go
+rule:
+  pattern: $A * $B
+fix: $A / $B
+---
+id: ARITHMETIC_BASE/divide
+language: go
+rule:
+  pattern: $A / $B
+fix: $A * $B
+---
+id: ARITHMETIC_BASE/remainder
+language: go
+rule:
+  pattern: $A % $B
+fix: $A * $B

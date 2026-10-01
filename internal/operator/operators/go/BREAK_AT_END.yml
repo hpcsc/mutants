@@ -1,0 +1,22 @@
+id: BREAK_AT_END
+language: go
+rule:
+  pattern: for $$$HEAD { $$$BODY }
+  not:
+    has:
+      field: body
+      has:
+        kind: statement_list
+        has:
+          any:
+            - kind: return_statement
+            - kind: break_statement
+            - kind: continue_statement
+          nthChild:
+            position: 1
+            reverse: true
+fix: |-
+  for $$$HEAD {
+  	$$$BODY
+  	break
+  }

@@ -1,0 +1,23 @@
+id: EXPRESSION_REMOVE/and-left
+language: go
+rule:
+  pattern: $A && $B
+fix: true && $B
+---
+id: EXPRESSION_REMOVE/and-right
+language: go
+rule:
+  pattern: $A && $B
+fix: $A && true
+---
+id: EXPRESSION_REMOVE/or-left
+language: go
+rule:
+  pattern: $A || $B
+fix: false || $B
+---
+id: EXPRESSION_REMOVE/or-right
+language: go
+rule:
+  pattern: $A || $B
+fix: $A || false

@@ -1,0 +1,11 @@
+id: INVERT_LOGICAL/and
+language: go
+rule:
+  pattern: $A && $B
+fix: $A || $B
+---
+id: INVERT_LOGICAL/or
+language: go
+rule:
+  pattern: $A || $B
+fix: $A && $B

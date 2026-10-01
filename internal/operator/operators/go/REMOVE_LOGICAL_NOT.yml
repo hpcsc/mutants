@@ -1,0 +1,5 @@
+id: REMOVE_LOGICAL_NOT
+language: go
+rule:
+  pattern: '!$X'
+fix: $X

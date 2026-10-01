@@ -1,0 +1,20 @@
+id: BRANCH_CASE
+language: go
+rule:
+  kind: statement_list
+  inside:
+    any:
+      - kind: expression_case
+      - kind: type_case
+      - kind: default_case
+      - kind: communication_case
+  has:
+    regex: .
+    not:
+      kind: expression_statement
+      has:
+        kind: call_expression
+        has:
+          field: function
+          regex: \.\s*(Msgf?|Send)$
+fix: ''

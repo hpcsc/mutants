@@ -1,0 +1,16 @@
+id: ERRORF_WRAP
+language: go
+rule:
+  pattern: fmt.Errorf($FORMAT, $$$ARGUMENTS)
+constraints:
+  FORMAT:
+    regex: '%w'
+transform:
+  UNWRAPPED:
+    replace:
+      source: $FORMAT
+      replace: '%w'
+      by: '%v'
+fix: fmt.Errorf($UNWRAPPED, $$$ARGUMENTS)
+metadata:
+  default: off

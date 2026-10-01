@@ -1,0 +1,11 @@
+id: RANGE_BREAK
+language: go
+rule:
+  pattern: for $$$HEAD { $$$BODY }
+  has:
+    kind: range_clause
+fix: |-
+  for $$$HEAD {
+  	break
+  	$$$BODY
+  }
