@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/hpcsc/mutants/internal/mutant"
 )
@@ -72,16 +71,11 @@ func Stryker(w io.Writer, root, language string, mutants []mutant.Mutant) error 
 			StatusReason: m.Result.Detail,
 		}
 		entry.Location.Start = strykerPosition{Line: m.Line, Column: m.Column}
-		entry.Location.End = endOf(file.Source, m.End)
+		entry.Location.End = strykerPosition{Line: m.EndLine, Column: m.EndColumn}
 		file.Mutants = append(file.Mutants, entry)
 		report.Files[m.File] = file
 	}
 	encoder := json.NewEncoder(w)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(report)
-}
-
-func endOf(source string, offset int) strykerPosition {
-	before := source[:min(offset, len(source))]
-	return strykerPosition{Line: strings.Count(before, "\n") + 1, Column: len(before) - strings.LastIndex(before, "\n")}
 }

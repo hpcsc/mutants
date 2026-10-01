@@ -19,12 +19,13 @@ func TestStryker(t *testing.T) {
 			root := t.TempDir()
 			source := "package a\n\nfunc f(a, b int) bool {\n\treturn a < b\n}\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, "a.go"), []byte(source), 0o644))
-			start := strings.Index(source, "a < b")
 			survivor := reported("a.go", 4, "CONDITIONALS_BOUNDARY", 1, "a < b", "a <= b", mutant.Lived)
-			survivor.Column, survivor.Start, survivor.End = 9, start, start+len("a < b")
+			survivor.Column, survivor.EndLine, survivor.EndColumn = 9, 4, 14
+			killed := reported("a.go", 4, "CONDITIONALS_NEGATION", 1, "a < b", "a >= b", mutant.Killed)
+			killed.Column, killed.EndLine, killed.EndColumn = 9, 4, 14
 			var output strings.Builder
 
-			require.NoError(t, report.Stryker(&output, root, "go", []mutant.Mutant{survivor}))
+			require.NoError(t, report.Stryker(&output, root, "go", []mutant.Mutant{survivor, killed}))
 
 			require.JSONEq(t, `{
 				"schemaVersion": "2",
@@ -39,6 +40,12 @@ func TestStryker(t *testing.T) {
 							"mutatorName": "CONDITIONALS_BOUNDARY",
 							"replacement": "a <= b",
 							"status": "Survived",
+							"location": {"start": {"line": 4, "column": 9}, "end": {"line": 4, "column": 14}}
+						}, {
+							"id": "a.go:(*Handler).accounts:CONDITIONALS_NEGATION#1",
+							"mutatorName": "CONDITIONALS_NEGATION",
+							"replacement": "a >= b",
+							"status": "Killed",
 							"location": {"start": {"line": 4, "column": 9}, "end": {"line": 4, "column": 14}}
 						}]
 					}

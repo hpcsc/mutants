@@ -144,6 +144,8 @@ func TestInstance(t *testing.T) {
 				File:        "a.go",
 				Line:        7,
 				Column:      9,
+				EndLine:     7,
+				EndColumn:   14,
 				Start:       strings.Index(compareAfter, "a > b"),
 				End:         strings.Index(compareAfter, "a > b") + len("a > b"),
 				Operator:    "CONDITIONALS_BOUNDARY",

@@ -188,11 +188,14 @@ func (r *Instance) find(ctx context.Context, pack operator.Pack, files []string,
 		if !inScope(edit.File, line, last) {
 			continue
 		}
+		endLine, endColumn := lines.position(edit.End)
 		mutants = append(mutants, mutant.Mutant{
 			ID:          id,
 			File:        edit.File,
 			Line:        line,
 			Column:      column,
+			EndLine:     endLine,
+			EndColumn:   endColumn,
 			Start:       edit.Start,
 			End:         edit.End,
 			Operator:    edit.Operator,

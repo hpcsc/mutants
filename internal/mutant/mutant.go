@@ -1,12 +1,14 @@
 package mutant
 
-// Mutant is one small change to the code. Line and Column give the start of the change, from 1, and Start
-// and End are its byte offsets in File, a path from the root of the repository.
+// File is a path from the root of the repository. Line, Column, EndLine and EndColumn count from 1, and give
+// the positions of the byte offsets Start and End.
 type Mutant struct {
 	ID          ID
 	File        string
 	Line        int
 	Column      int
+	EndLine     int
+	EndColumn   int
 	Start, End  int
 	Operator    string
 	Original    string
