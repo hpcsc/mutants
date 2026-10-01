@@ -325,6 +325,36 @@ func Open(now, deadline time.Time, w Window, g Gate) []bool {
 			require.False(t, adapter.Keep(editOf(t, root, "wait/wait.go", "TIME_BOUNDARY", "g.After(1)", "!g.Before(1)")))
 		})
 
+		t.Run("keeps a CALENDAR_DAY edit only for a method of time.Time in a file that imports time by that name", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"due/due.go": `package due
+
+import "time"
+
+type Calendar struct{}
+
+func (Calendar) AddDate(years, months, days int) int { return days }
+
+func Due(start time.Time, c Calendar, n int) (time.Time, int) {
+	return start.AddDate(0, 0, n), c.AddDate(0, 0, n)
+}
+`,
+				"due/later.go": `package due
+
+import clock "time"
+
+func Later(start clock.Time) clock.Time {
+	return start.AddDate(0, 0, 1)
+}
+`,
+			})
+			adapter := golang.New(root, defaultSettings)
+
+			require.True(t, adapter.Keep(editOf(t, root, "due/due.go", "CALENDAR_DAY", "start.AddDate(0, 0, n)", "start.Add(time.Duration(n) * 24 * time.Hour)")))
+			require.False(t, adapter.Keep(editOf(t, root, "due/due.go", "CALENDAR_DAY", "c.AddDate(0, 0, n)", "c.Add(time.Duration(n) * 24 * time.Hour)")))
+			require.False(t, adapter.Keep(editOf(t, root, "due/later.go", "CALENDAR_DAY", "start.AddDate(0, 0, 1)", "start.Add(time.Duration(1) * 24 * time.Hour)")))
+		})
+
 		t.Run("finds the slot of a return in a function literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nvar Next = func(n int) (int, error) {\n\treturn n + 1, nil\n}\n"})
 

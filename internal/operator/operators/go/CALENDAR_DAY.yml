@@ -1,0 +1,7 @@
+id: CALENDAR_DAY
+language: go
+rule:
+  pattern:
+    context: 'func f() { _ = $T.AddDate(0, 0, $N) }'
+    selector: call_expression
+fix: $T.Add(time.Duration($N) * 24 * time.Hour)

@@ -358,6 +358,12 @@ func TestPack(t *testing.T) {
 			}, edits)
 		})
 
+		t.Run("CALENDAR_DAY adds days as 24 hours each, and skips a call that adds months or years", func(t *testing.T) {
+			edits := editsOf(t, "CALENDAR_DAY", "package a\n\nfunc f(t time.Time, n int) []time.Time {\n\treturn []time.Time{t.AddDate(0, 0, n+1), t.AddDate(0, 1, 0)}\n}\n")
+
+			require.Equal(t, []string{"t.AddDate(0, 0, n+1) -> t.Add(time.Duration(n+1) * 24 * time.Hour)"}, edits)
+		})
+
 		t.Run("ERRORF_WRAP turns %w into %v", func(t *testing.T) {
 			edits := editsOf(t, "ERRORF_WRAP", "package a\n\nfunc f() error {\n\treturn fmt.Errorf(\"load: %w\", err)\n}\n")
 

@@ -22,6 +22,7 @@ const (
 	returnTrue       = "RETURN_TRUE"
 	integerDecrement = "INTEGER_DECREMENT"
 	timeBoundary     = "TIME_BOUNDARY"
+	calendarDay      = "CALENDAR_DAY"
 )
 
 type Settings struct {
@@ -105,6 +106,8 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
 	case timeBoundary:
 		return a.types.callsTimeMethod(path, candidate.Start, candidate.End)
+	case calendarDay:
+		return a.types.callsTimeMethod(path, candidate.Start, candidate.End) && a.sources.importsTime(candidate.File)
 	}
 	return true
 }

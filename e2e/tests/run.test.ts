@@ -126,6 +126,37 @@ ${checks.join('\n')}
 `
 }
 
+const due = `package due
+
+import "time"
+
+func Due(start time.Time, days int) time.Time {
+	return start.AddDate(0, 0, days)
+}
+`
+
+function dueTest(location: string): string {
+  return `package due
+
+import (
+	"testing"
+	"time"
+	_ "time/tzdata"
+)
+
+func TestDue(t *testing.T) {
+	location, err := time.LoadLocation("${location}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := time.Date(2026, 10, 2, 9, 0, 0, 0, location)
+	if got, want := Due(start, 3), time.Date(2026, 10, 5, 9, 0, 0, 0, location); !got.Equal(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+`
+}
+
 const maxSource = `package calc
 
 func Max(a, b int) int {
@@ -196,6 +227,19 @@ describe('mutants run', { timeout: 240_000 }, () => {
 
     expect(verdicts(lives.mutants)).toEqual(['TIME_BOUNDARY now.After(deadline) LIVED'])
     expect(verdicts(dies.mutants)).toEqual(['TIME_BOUNDARY now.After(deadline) KILLED'])
+  })
+
+  it('24 hours in place of a calendar day live when the test has no change of daylight saving time, and die when it has one', async () => {
+    const utc = goRepository()
+    writeFiles(utc, { 'due/due.go': due, 'due/due_test.go': dueTest('UTC') })
+    const sydney = goRepository()
+    writeFiles(sydney, { 'due/due.go': due, 'due/due_test.go': dueTest('Australia/Sydney') })
+
+    const lives = await runMutants(utc, ['--base', 'HEAD', '--operators', 'CALENDAR_DAY'])
+    const dies = await runMutants(sydney, ['--base', 'HEAD', '--operators', 'CALENDAR_DAY'])
+
+    expect(verdicts(lives.mutants)).toEqual(['CALENDAR_DAY start.AddDate(0, 0, days) LIVED'])
+    expect(verdicts(dies.mutants)).toEqual(['CALENDAR_DAY start.AddDate(0, 0, days) KILLED'])
   })
 
   it('a mutant that removes the only use of a variable and of an import builds, and lives', async () => {
