@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -13,32 +13,36 @@ import (
 
 const releaseRepository = "hpcsc/mutants"
 
-func Run(ctx context.Context) int {
-	if err := newCommand().Run(ctx, os.Args); err != nil {
-		color.Red(err.Error())
-		return 1
-	}
+var red = color.New(color.FgRed)
 
-	return 0
+func Run(ctx context.Context) int {
+	err := newCommand().Run(ctx, os.Args)
+	var exit cli.ExitCoder
+	switch {
+	case err == nil:
+		return 0
+	case errors.As(err, &exit):
+		if message := err.Error(); message != "" {
+			red.Fprintln(os.Stderr, message)
+		}
+		return exit.ExitCode()
+	}
+	red.Fprintln(os.Stderr, err.Error())
+	return 1
 }
 
 func newCommand() *cli.Command {
 	return &cli.Command{
 		Name:                  "mutants",
 		Version:               version.Current(),
+		Usage:                 "find weak tests in the lines that a branch changes",
 		EnableShellCompletion: true,
-		Action: func(_ context.Context, cmd *cli.Command) error {
-			reader := bufio.NewReader(os.Stdin)
-			fmt.Fprint(cmd.Root().Writer, "Name: ")
-			text, err := reader.ReadString('\n')
-			if err != nil {
-				return fmt.Errorf("failed to read user input: %w", err)
-			}
-
-			fmt.Fprintf(cmd.Root().Writer, "hello %s\n", text)
-			return nil
-		},
+		// Run maps each error to its exit code, so the default handler must not call os.Exit
+		ExitErrHandler: func(context.Context, *cli.Command, error) {},
 		Commands: []*cli.Command{
+			newRunCommand(),
+			newRerunCommand(),
+			newOperatorsCommand(),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},

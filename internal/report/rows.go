@@ -30,13 +30,17 @@ func Rows(w io.Writer, mutants []mutant.Mutant, base string) error {
 				fmt.Fprintf(&text, "%s:\n", status)
 				header = true
 			}
-			original, replacement := shorten(m.Original, m.Replacement)
-			fmt.Fprintf(&text, "  %s:%d %s: %s -> %s  [%s]\n", m.File, m.Line, m.Operator, original, replacement, m.ID)
+			fmt.Fprintf(&text, "  %s\n", Row(m))
 		}
 	}
 	text.WriteString(Counts(mutants, base) + "\n")
 	_, err := io.WriteString(w, text.String())
 	return err
+}
+
+func Row(m mutant.Mutant) string {
+	original, replacement := shorten(m.Original, m.Replacement)
+	return fmt.Sprintf("%s:%d %s: %s -> %s  [%s]", m.File, m.Line, m.Operator, original, replacement, m.ID)
 }
 
 func Counts(mutants []mutant.Mutant, base string) string {

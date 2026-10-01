@@ -1,0 +1,171 @@
+package cmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"slices"
+	"time"
+
+	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language/golang"
+	"github.com/hpcsc/mutants/internal/mutant"
+	"github.com/hpcsc/mutants/internal/operator"
+	"github.com/hpcsc/mutants/internal/operator/astgrep"
+	"github.com/hpcsc/mutants/internal/report"
+	"github.com/hpcsc/mutants/internal/run"
+	"github.com/urfave/cli/v3"
+)
+
+const (
+	exitSurvivors   = 10
+	exitUsage       = 2
+	exitLimit       = 124
+	exitInterrupted = 130
+)
+
+func newRunCommand() *cli.Command {
+	return &cli.Command{
+		Name:      "run",
+		Usage:     "run the mutants of the lines that the branch changes",
+		ArgsUsage: "[--all FOLDER...]",
+		Description: "mutants run compares the work tree with the merge base of HEAD and --base, and runs the mutants of\n" +
+			"the changed lines, committed or not. Every line of an untracked file counts.\n\n" +
+			"Exit codes: 0 no survivor, 10 survivors, 124 the limit, 2 a usage or tool error.",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "base", Usage: "compare with the merge base of HEAD and this commit (default: " + defaultBase + ")"},
+			&cli.BoolFlag{Name: "all", Usage: "run every line of the files in each FOLDER, and in its subfolders for FOLDER/..."},
+			&cli.IntFlag{Name: "workers", Value: defaultWorkers, Usage: "test this many mutants at once"},
+			&cli.DurationFlag{Name: "limit", Usage: "stop the whole run after this time, and exit 124 (default: no limit)"},
+			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "stop the build of one mutant after this time"},
+			&cli.StringSliceFlag{Name: "tags", Usage: "the build tags for go list, the coverage run and the builds"},
+			&cli.StringSliceFlag{Name: "operators", Usage: "the operators to run: -NAME takes one out, +NAME adds one, NAME runs only the named ones"},
+			&cli.StringFlag{Name: "format", Value: "rows", Usage: "print rows or json"},
+			&cli.StringFlag{Name: "json", Usage: "also write the JSON report to this file"},
+			&cli.StringFlag{Name: "stryker", Usage: "also write the Stryker report to this file"},
+		},
+		OnUsageError: usageError,
+		Action:       runMutants,
+	}
+}
+
+func runMutants(ctx context.Context, cmd *cli.Command) error {
+	format := cmd.String("format")
+	if format != "rows" && format != "json" {
+		return cli.Exit(fmt.Sprintf("--format is rows or json, not %q", format), exitUsage)
+	}
+	folders := cmd.Args().Slice()
+	if cmd.Bool("all") != (len(folders) > 0) {
+		return cli.Exit("--all needs one FOLDER or more, and a FOLDER needs --all", exitUsage)
+	}
+
+	repository, err := diff.Open(ctx, ".")
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
+	configured, err := loadConfig(repository.Root())
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
+	runSettings := run.Settings{
+		Base:      configured.base(cmd),
+		Folders:   folders,
+		Exclude:   configured.Exclude,
+		Operators: configured.operators(cmd),
+		Workers:   configured.workers(cmd),
+		Limit:     cmd.Duration("limit"),
+	}
+	instance, err := newInstance(ctx, repository, golang.Settings{
+		Tags:       configured.tags(cmd),
+		BuildLimit: cmd.Duration("build-limit"),
+		Workers:    runSettings.Workers,
+	}, cmd.Root().ErrWriter)
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
+
+	outcome, err := instance.Run(ctx, runSettings)
+	switch {
+	case errors.Is(err, context.Canceled):
+		return cli.Exit("mutants stopped: the run was interrupted", exitInterrupted)
+	case err != nil:
+		return cli.Exit(err, exitUsage)
+	}
+	if err := writeReports(cmd, repository.Root(), format, outcome); err != nil {
+		return cli.Exit(err, exitUsage)
+	}
+
+	switch {
+	case outcome.Stopped:
+		return cli.Exit(fmt.Sprintf("mutants stopped at the limit of %s: the report holds the mutants that got a verdict", runSettings.Limit), exitLimit)
+	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Result.Status.IsSurvivor() }):
+		return cli.Exit("", exitSurvivors)
+	}
+	return nil
+}
+
+func newInstance(ctx context.Context, repository *diff.Repository, settings golang.Settings, status io.Writer) (*run.Instance, error) {
+	if err := astgrep.CheckVersion(ctx); err != nil {
+		return nil, err
+	}
+	adapter := golang.New(repository.Root(), settings)
+	pack, err := operator.Load(adapter.Name(), repository.Root())
+	if err != nil {
+		return nil, err
+	}
+	return run.New(repository, pack, astgrep.New(repository.Root()), adapter, status, isTerminal(status)), nil
+}
+
+func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {
+	out := cmd.Root().Writer
+	if len(outcome.Mutants) == 0 && !outcome.Stopped {
+		message := fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files)
+		if outcome.Base != "" {
+			message += fmt.Sprintf(" (base %s)", outcome.Base[:min(len(outcome.Base), 10)])
+		}
+		if format == "json" {
+			fmt.Fprintln(cmd.Root().ErrWriter, message)
+		} else {
+			fmt.Fprintln(out, message)
+		}
+	}
+	switch {
+	case format == "json":
+		if err := report.JSON(out, outcome.Mutants, outcome.Base); err != nil {
+			return err
+		}
+	case len(outcome.Mutants) > 0 || outcome.Stopped:
+		if err := report.Rows(out, outcome.Mutants, outcome.Base); err != nil {
+			return err
+		}
+	}
+	if path := cmd.String("json"); path != "" {
+		if err := writeFile(path, func(w io.Writer) error { return report.JSON(w, outcome.Mutants, outcome.Base) }); err != nil {
+			return err
+		}
+	}
+	if path := cmd.String("stryker"); path != "" {
+		if err := writeFile(path, func(w io.Writer) error { return report.Stryker(w, root, "go", outcome.Mutants) }); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeFile(path string, write func(io.Writer) error) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	if err := write(file); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
+}
+
+func usageError(_ context.Context, _ *cli.Command, err error, _ bool) error {
+	return cli.Exit(err, exitUsage)
+}

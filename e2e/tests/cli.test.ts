@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { buildTag, openCli, runCli, scratchDir } from '../testUtils'
+import { buildTag, runCli, scratchDir } from '../testUtils'
 
 describe('the root command', () => {
-  it('greets the name that the person types', async () => {
-    const cli = await openCli(scratchDir())
-    await cli.waitForText('Name:')
+  it('lists the commands', async () => {
+    const result = await runCli(scratchDir())
 
-    await cli.type('world')
-    await cli.press('enter')
-
-    const screen = await cli.waitForText('hello world')
-    expect(screen).toContain('EXIT:0')
+    expect(result.status).toBe(0)
+    for (const command of ['run', 'rerun', 'operators', 'version', 'update']) {
+      expect(result.stdout).toMatch(new RegExp(`^\\s+${command}\\s`, 'm'))
+    }
   })
 })
 
