@@ -63,7 +63,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	m, err := instance.Rerun(ctx, id)
 	switch {
 	case errors.Is(err, run.ErrUnknownID):
-		return cli.Exit(err, exitUsage)
+		return cli.Exit(fmt.Errorf("%w: %s", run.ErrUnknownID, cmd.Args().First()), exitUsage)
 	case errors.Is(err, context.Canceled):
 		return cli.Exit("mutants stopped: the run was interrupted", exitInterrupted)
 	case err != nil:

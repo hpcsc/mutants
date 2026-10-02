@@ -583,7 +583,7 @@ describe('mutants run --proposals', { timeout: 240_000 }, () => {
     const result = await runCli(dir, ['rerun', 'calc/calc.go:Max:PROPOSED#000000'])
 
     expect(result.status).toBe(2)
-    expect(result.stderr).toContain('no mutant has this id')
+    expect(result.stderr).toContain('no mutant has this id: calc/calc.go:Max:PROPOSED#000000')
   })
 
   it('exits 2 when the file of proposals does not exist', async () => {
