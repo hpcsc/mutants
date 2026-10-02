@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'node:child_process'
+import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -40,16 +40,16 @@ export interface Result {
   status: number | null
 }
 
-// runCli does not block, so a fake server in this process can still answer the
-// requests the CLI makes.
-export function runCli(
+// startCli does not block, so a fake server in this process can still answer the
+// requests the CLI makes, and a test can send a signal to the CLI while it runs.
+export function startCli(
   cwd: string,
   args: string[] = [],
   env: Record<string, string> = {},
   executable = getExecutablePath(),
-): Promise<Result> {
-  return new Promise((done, fail) => {
-    const child = spawn(executable, args, { cwd, env: withoutDeveloperSettings(env) })
+): { child: ChildProcess; result: Promise<Result> } {
+  const child = spawn(executable, args, { cwd, env: withoutDeveloperSettings(env) })
+  const result = new Promise<Result>((done, fail) => {
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk) => (stdout += chunk))
@@ -57,6 +57,16 @@ export function runCli(
     child.on('error', fail)
     child.on('close', (status) => done({ stdout, stderr, status }))
   })
+  return { child, result }
+}
+
+export function runCli(
+  cwd: string,
+  args: string[] = [],
+  env: Record<string, string> = {},
+  executable = getExecutablePath(),
+): Promise<Result> {
+  return startCli(cwd, args, env, executable).result
 }
 
 // openCli starts the CLI in a pseudo-terminal. When the CLI stops, the shell

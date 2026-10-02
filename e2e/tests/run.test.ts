@@ -1,7 +1,7 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { git, goRepository, runCli, runMutants, scratchDir, verdicts, writeFiles } from '../testUtils'
+import { git, goRepository, type ReportedMutant, runCli, runMutants, scratchDir, startCli, verdicts, writeFiles } from '../testUtils'
 
 const figures = `package figures
 
@@ -431,6 +431,111 @@ func TestWait(t *testing.T) {
       },
       { timeout: 5_000, interval: 100 },
     )
+  })
+
+  it('stops at SIGTERM with exit 130, and stops the tests of the mutant that runs', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'wait/wait.go': `package wait
+
+func Wait() {
+	done := make(chan struct{})
+	go func() {
+		close(done)
+	}()
+	<-done
+}
+`,
+      'wait/wait_test.go': `package wait
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"testing"
+	"time"
+)
+
+func TestWait(t *testing.T) {
+	child := exec.Command("sleep", "120")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	children, err := os.OpenFile("children.pid", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprintln(children, child.Process.Pid)
+	children.Close()
+	// a pending timer stops the runtime from reporting a deadlock, so a missing close makes the test hang
+	time.AfterFunc(time.Hour, func() {})
+	Wait()
+}
+`,
+    })
+    const pids = join(dir, 'wait', 'children.pid')
+    const children = () => (existsSync(pids) ? readFileSync(pids, 'utf8').trim().split('\n').map(Number) : [])
+
+    const { child, result } = startCli(dir, ['run', '--base', 'HEAD', '--operators', 'STATEMENT_REMOVE'])
+    // the first pid comes from the coverage run, and the second from the test of the mutant
+    await vi.waitFor(() => expect(children()).toHaveLength(2), { timeout: 120_000, interval: 100 })
+    child.kill('SIGTERM')
+    const { status, stderr } = await result
+
+    expect(status).toBe(130)
+    expect(stderr).toContain('the run was interrupted')
+    await vi.waitFor(
+      () => {
+        for (const pid of children()) {
+          expect(() => process.kill(pid, 0)).toThrow()
+        }
+      },
+      { timeout: 5_000, interval: 100 },
+    )
+  })
+
+  it('with --all, runs each line of the files in the folder, also committed lines, and no file of another folder', async () => {
+    const dir = goRepository({
+      'calc/calc.go': maxSource,
+      'calc/calc_test.go': maxTest,
+      'other/max.go': maxSource.replace('package calc', 'package other'),
+    })
+
+    const { result, mutants } = await runMutants(dir, ['--all', 'calc', '--operators', 'CONDITIONALS_NEGATION'])
+
+    expect(mutants.map((m) => `${m.id} ${m.status}`)).toEqual(['calc/calc.go:Max:CONDITIONALS_NEGATION#1 KILLED'])
+    expect(result.status).toBe(0)
+  })
+
+  it('with no flags in a clone, runs the mutants of the commits that the branch adds to the default branch of origin', async () => {
+    const clone = scratchDir()
+    git(clone, 'clone', '--quiet', goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest }), '.')
+    git(clone, 'switch', '--quiet', '--create', 'feature')
+    writeFiles(clone, {
+      'calc/min.go': maxSource.replace('Max', 'Min').replace('a > b', 'a < b'),
+      'calc/min_test.go': maxTest.replace('TestMax', 'TestMin').replace('Max(1, 2) != 2 || Max(2, 1) != 2', 'Min(1, 2) != 1 || Min(2, 1) != 1'),
+    })
+    git(clone, 'add', '--all')
+    git(clone, '-c', 'user.email=e2e@example.com', '-c', 'user.name=e2e', 'commit', '--quiet', '--message', 'add Min')
+
+    const { mutants } = await runMutants(clone, ['--operators', 'CONDITIONALS_NEGATION'])
+
+    expect(mutants.map((m) => `${m.id} ${m.status}`)).toEqual(['calc/min.go:Min:CONDITIONALS_NEGATION#1 KILLED'])
+  })
+
+  it('--json and --stryker write the reports to files, and the rows still go to stdout', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    const out = scratchDir()
+
+    const rows = await runCli(dir, ['run', '--base', 'HEAD', '--operators', 'CONDITIONALS_NEGATION', '--json', join(out, 'report.json'), '--stryker', join(out, 'stryker.json')])
+    const json = JSON.parse(readFileSync(join(out, 'report.json'), 'utf8'))
+    const stryker = JSON.parse(readFileSync(join(out, 'stryker.json'), 'utf8'))
+
+    expect(rows.status).toBe(0)
+    expect(rows.stdout).toMatch(/^mutants: 1, killed: 1 /m)
+    expect(json.mutants.map((m: ReportedMutant) => `${m.id} ${m.status}`)).toEqual(['calc/calc.go:Max:CONDITIONALS_NEGATION#1 KILLED'])
+    expect(stryker.files['calc/calc.go'].mutants.map((m: { status: string }) => m.status)).toEqual(['Killed'])
   })
 
   it('runs the mutants of an untracked file, and leaves git status as it was', async () => {
