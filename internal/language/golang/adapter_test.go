@@ -5,7 +5,9 @@ package golang_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -865,6 +867,56 @@ func apply(xs []int, double func(int) int, extra int) int {
 
 			require.Equal(t, mutant.NotViable, result.Status, result.Detail)
 			require.Contains(t, result.Detail, "calc.go")
+		})
+
+		t.Run("builds a mutant through the build cache of the settings, with a mutant cache that the run deletes", func(t *testing.T) {
+			executable, err := os.Executable()
+			require.NoError(t, err)
+			log := filepath.Join(t.TempDir(), "log")
+			t.Setenv(buildCacheLog, log)
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
+			settings := defaultSettings
+			settings.CacheProgram = []string{executable}
+
+			result := run(t, golang.New(root, settings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Killed, result.Status, result.Detail)
+			served, err := os.ReadFile(log)
+			require.NoError(t, err)
+			mutantCaches := strings.Fields(string(served))
+			require.Len(t, mutantCaches, 1)
+			require.NoDirExists(t, mutantCaches[0])
+		})
+
+		t.Run("a build cache that does not start gives INFRA ERROR, not NOT VIABLE", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
+			settings := defaultSettings
+			settings.CacheProgram = []string{filepath.Join(t.TempDir(), "missing")}
+
+			result := run(t, golang.New(root, settings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.InfraError, result.Status, result.Detail)
+			require.Contains(t, result.Detail, "GOCACHEPROG")
+		})
+
+		t.Run("keeps the GOCACHEPROG of the user in place of the build cache of the settings", func(t *testing.T) {
+			executable, err := os.Executable()
+			require.NoError(t, err)
+			userCache, err := exec.Command("go", "env", "GOCACHE").Output()
+			require.NoError(t, err)
+			log := filepath.Join(t.TempDir(), "log")
+			t.Setenv(buildCacheLog, log)
+			t.Setenv("GOCACHEPROG", fmt.Sprintf("'%s' '%[2]s' '%[2]s'", executable, strings.TrimSpace(string(userCache))))
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
+			settings := defaultSettings
+			settings.CacheProgram = []string{filepath.Join(t.TempDir(), "missing")}
+
+			result := run(t, golang.New(root, settings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Killed, result.Status, result.Detail)
+			served, err := os.ReadFile(log)
+			require.NoError(t, err)
+			require.Contains(t, string(served), strings.TrimSpace(string(userCache)))
 		})
 
 		t.Run("a mutant that removes the only use of an import still builds", func(t *testing.T) {

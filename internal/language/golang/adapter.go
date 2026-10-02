@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
@@ -33,6 +34,9 @@ type Settings struct {
 	BuildLimit    time.Duration
 	Workers       int
 	ZeroFunctions []string
+	// CacheProgram is the GOCACHEPROG of a mutant build, before the folders of the user cache and the mutant
+	// cache. When it is empty, mutant builds write to the cache of the user.
+	CacheProgram []string
 }
 
 func (s Settings) tagArguments() []string {
@@ -75,7 +79,7 @@ func New(root string, settings Settings) language.Adapter {
 		types:      types,
 		coverage:   coverage,
 		callerGaps: &callerGaps{root: root, settings: settings, finder: finder, coverage: coverage, types: types, sources: sources},
-		runner:     &runner{root: root, settings: settings, finder: finder, coverage: coverage},
+		runner:     &runner{root: root, settings: settings, finder: finder, coverage: coverage, userCache: sync.OnceValue(func() string { return userCache(root, settings.CacheProgram) })},
 	}
 }
 

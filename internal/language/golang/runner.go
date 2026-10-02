@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -31,10 +32,11 @@ var (
 
 // runner runs the test binary itself, because go test can give a verdict from its cache.
 type runner struct {
-	root     string
-	settings Settings
-	finder   *packageFinder
-	coverage *coverage
+	root      string
+	settings  Settings
+	finder    *packageFinder
+	coverage  *coverage
+	userCache func() string
 }
 
 func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, error) {
@@ -71,6 +73,8 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 		return mutant.Verdict{}, err
 	case built.timedOut:
 		return mutant.Verdict{Status: mutant.InfraError, Detail: fmt.Sprintf("the build ran past %s", buildLimit)}, nil
+	case built.code != 0 && strings.Contains(built.tail, "GOCACHEPROG"):
+		return mutant.Verdict{Status: mutant.InfraError, Detail: "the build cache failed: " + strings.TrimSpace(built.tail)}, nil
 	case built.code != 0:
 		return mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(built.tail)}, nil
 	}
@@ -130,10 +134,59 @@ func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, con
 		program:   "go",
 		arguments: append(append([]string{"test", "-c", "-vet=off", "-overlay", overlay, "-o", binary}, r.settings.tagArguments()...), "."),
 		folder:    pkg.Dir,
-		env:       r.settings.buildEnv(),
+		env:       r.buildEnv(folder),
 		limit:     limit,
 	}
 	return build.run(ctx)
+}
+
+// buildEnv sends the new entries of a mutant build to the cache of the mutant, because no later build
+// reads them.
+func (r *runner) buildEnv(folder string) []string {
+	env := r.settings.buildEnv()
+	userCache := r.userCache()
+	if userCache == "" {
+		return env
+	}
+	program, ok := quote(append(slices.Clone(r.settings.CacheProgram), userCache, filepath.Join(folder, "cache")))
+	if !ok {
+		return env
+	}
+	return append(env, "GOCACHEPROG="+program)
+}
+
+// userCache gives "" when the user has a cache program of their own, because mutants must not replace it.
+func userCache(root string, cacheProgram []string) string {
+	if len(cacheProgram) == 0 {
+		return ""
+	}
+	command := exec.Command("go", "env", "-json", "GOCACHE", "GOCACHEPROG")
+	command.Dir = root
+	output, err := command.Output()
+	if err != nil {
+		return ""
+	}
+	var env struct{ GOCACHE, GOCACHEPROG string }
+	if json.Unmarshal(output, &env) != nil || env.GOCACHEPROG != "" {
+		return ""
+	}
+	return env.GOCACHE
+}
+
+// quote follows go, which splits GOCACHEPROG at spaces, keeps a quoted field whole, and has no escape in it.
+func quote(arguments []string) (string, bool) {
+	quoted := make([]string, 0, len(arguments))
+	for _, argument := range arguments {
+		switch {
+		case !strings.Contains(argument, "'"):
+			quoted = append(quoted, "'"+argument+"'")
+		case !strings.Contains(argument, `"`):
+			quoted = append(quoted, `"`+argument+`"`)
+		default:
+			return "", false
+		}
+	}
+	return strings.Join(quoted, " "), true
 }
 
 func (r *runner) blankImports(content, compilerOutput string) string {
