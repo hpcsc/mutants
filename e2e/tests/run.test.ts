@@ -345,7 +345,7 @@ describe('mutants run', { timeout: 240_000 }, () => {
     ])
   })
 
-  it('a busy loop and a removed close time out, and no process of their tests stays alive', async () => {
+  it('a busy loop and a removed close time out, and no process that a test of a mutant starts stays alive', async () => {
     const dir = goRepository()
     writeFiles(dir, {
       'count/count.go': `package count
@@ -361,9 +361,9 @@ func Count(n int) int {
       'count/count_test.go': `package count
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"testing"
 )
 
@@ -372,9 +372,12 @@ func TestCount(t *testing.T) {
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile("child.pid", []byte(strconv.Itoa(child.Process.Pid)), 0o644); err != nil {
+	children, err := os.OpenFile("children.pid", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
 		t.Fatal(err)
 	}
+	fmt.Fprintln(children, child.Process.Pid)
+	children.Close()
 	if Count(3) != 3 {
 		t.Fatal("Count(3) is not 3")
 	}
@@ -418,10 +421,13 @@ func TestWait(t *testing.T) {
       'STATEMENT_REMOVE work() KILLED',
       'STATEMENT_REMOVE close(done) TIMED OUT',
     ])
-    const child = Number(readFileSync(join(dir, 'count', 'child.pid'), 'utf8'))
+    const children = readFileSync(join(dir, 'count', 'children.pid'), 'utf8').trim().split('\n').map(Number)
+    expect(children.length).toBeGreaterThan(2)
     await vi.waitFor(
       () => {
-        expect(() => process.kill(child, 0)).toThrow()
+        for (const child of children) {
+          expect(() => process.kill(child, 0)).toThrow()
+        }
       },
       { timeout: 5_000, interval: 100 },
     )
