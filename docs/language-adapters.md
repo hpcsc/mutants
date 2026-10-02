@@ -11,7 +11,7 @@ name Go. [docs/design.md](design.md) tells how a run works.
 
 | Part | Where | Does |
 | --- | --- | --- |
-| Rule pack | `internal/operator/operators/<language>/` | holds the ast-grep rules that make the candidate edits |
+| Rule pack | `internal/operator/operators/<language>/` | holds the ast-grep rules of each operator of the catalog |
 | Hook | `internal/operator/` | makes the edits of an operator that a rule cannot express. Most operators need none. |
 | Adapter | `internal/language/<language>/` | holds the filters, the function names of the ids, the coverage, the runner and the caller gaps |
 | Connection | `internal/cmd/` | builds the adapter from the flags and `.mutants.yml`, and gives it to the run |
@@ -78,9 +78,12 @@ fix: $A <= $B
 ```
 
 - The operator is the part of the id before the first `/`.
-- Give an operator the name of the Go operator that makes the same change. Then `--operators`,
-  `.mutants.yml` and [docs/operators.md](operators.md) mean the same thing in each language.
-- Add `metadata: {default: off}` to a rule that gives many survivors that are not gaps in the tests.
+- Give rules for each operator of the catalog in `internal/operator/catalog.go`, and for no other operator.
+  `operator.Load` refuses a pack that does not. Then `--operators`, `.mutants.yml` and
+  [docs/operators.md](operators.md) mean the same thing in each language.
+- Do not add an operator to the catalog when only one language can make its change. Such a change is a
+  rule of a repository, as [docs/operators.md](operators.md#operators-of-your-own) shows for `CALENDAR_DAY`.
+- The catalog says whether each operator runs by default, so a pack does not set it.
 - A rule cannot know a type. Let the rule give each candidate, and let `Keep` choose. The Go pack does this
   for `RETURN_EMPTY`: it has one rule for each zero value, and the type filter keeps the zero value of the
   slot.

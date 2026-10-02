@@ -35,8 +35,6 @@ rule:
         field: function
         regex: \.\s*(Msgf?|Send)$
 fix: 'nil'
-metadata:
-  default: off
 ---
 id: ARGUMENT_EMPTY/zero
 language: go
@@ -75,8 +73,6 @@ rule:
         field: function
         regex: \.\s*(Msgf?|Send)$
 fix: '0'
-metadata:
-  default: off
 ---
 id: ARGUMENT_EMPTY/empty
 language: go
@@ -115,8 +111,6 @@ rule:
         field: function
         regex: \.\s*(Msgf?|Send)$
 fix: '""'
-metadata:
-  default: off
 ---
 id: ARGUMENT_EMPTY/false
 language: go
@@ -155,8 +149,6 @@ rule:
         field: function
         regex: \.\s*(Msgf?|Send)$
 fix: 'false'
-metadata:
-  default: off
 ---
 id: ARGUMENT_EMPTY/struct
 language: go
@@ -175,5 +167,3 @@ rule:
         field: function
         regex: \.\s*(Msgf?|Send)$
 fix: $TYPE{}
-metadata:
-  default: off

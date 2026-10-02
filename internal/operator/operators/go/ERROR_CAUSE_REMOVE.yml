@@ -12,5 +12,3 @@ transform:
       replace: '%w'
       by: '%v'
 fix: fmt.Errorf($UNWRAPPED, $$$ARGUMENTS)
-metadata:
-  default: off

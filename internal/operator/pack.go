@@ -50,6 +50,9 @@ func Load(language, repository string) (Pack, error) {
 			return Pack{}, err
 		}
 	}
+	if err := p.checkCatalog(rules); err != nil {
+		return Pack{}, err
+	}
 
 	folder := filepath.Join(".mutants", "operators", language)
 	repositoryFiles, err := filepath.Glob(filepath.Join(repository, folder, "*.y*ml"))
@@ -164,6 +167,23 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 	return edits, nil
 }
 
+func (p Pack) checkCatalog(standardRules map[string]Rule) error {
+	operators := map[string]bool{}
+	for _, id := range slices.Sorted(maps.Keys(standardRules)) {
+		operator := standardRules[id].Operator
+		if _, found := catalog[operator]; !found {
+			return fmt.Errorf("the %s rule %s is for %s, which is not in the catalog of operators", p.language, id, operator)
+		}
+		operators[operator] = true
+	}
+	for _, operator := range slices.Sorted(maps.Keys(catalog)) {
+		if !operators[operator] {
+			return fmt.Errorf("mutants has no %s rule for %s, which is in the catalog of operators", p.language, operator)
+		}
+	}
+	return nil
+}
+
 func (p Pack) unsigned(name string) bool {
 	return !strings.HasPrefix(name, "-") && !strings.HasPrefix(name, "+")
 }
@@ -197,7 +217,7 @@ func (p Pack) add(rules map[string]Rule, file, text string) error {
 			ID:           fields.ID,
 			Operator:     operator,
 			File:         file,
-			OffByDefault: fields.Metadata["default"] == "off",
+			OffByDefault: fields.Metadata["default"] == "off" || catalog[operator] == offByDefault,
 			Text:         document,
 		}
 	}

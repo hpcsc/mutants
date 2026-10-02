@@ -342,6 +342,7 @@ fix: nil
   make one operator, `NIL_MAP`.
 - A rule with the id of a standard rule replaces that rule.
 - A rule with `metadata: {default: off}` runs only when `--operators` or `.mutants.yml` names its operator.
+  A rule for an operator that is off by default, such as `ERROR_CAUSE_REMOVE`, is also off by default.
 - `mutants operators` lists each rule, and the file of each rule that the repository adds.
 
 ## Time limits

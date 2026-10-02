@@ -143,8 +143,13 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 An operator is one kind of change, for example "replace `<` with `<=`". A rule is one ast-grep rule with a
 `fix`. An operator has one or more rules, or a hook in Go when a rule cannot express it.
 
+The catalog in `internal/operator/catalog.go` names each operator, and whether it runs by default. The pack of
+each language must give rules for each operator of the catalog, and for no other operator, so an operator is
+the same change in each language. A change that only one language can make, such as the `AddDate` of
+calendar days in Go, is a rule of a repository.
+
 ```yaml
-# internal/operator/operators/go/CONDITIONALS_BOUNDARY.yml, the first two of its four rules
+# internal/operator/operators/go/CONDITIONALS_BOUNDARY.yml, two of its eight rules
 id: CONDITIONALS_BOUNDARY/lt
 language: go
 rule:
@@ -634,7 +639,7 @@ gives back.
 | Package | Holds |
 | --- | --- |
 | `diff` | `diff.Lines`, the changed lines of each file, and `diff.Repository`, the git calls that read them |
-| `operator` | the rule packs, `operator.Rule`, `operator.Hook`, `operator.Matcher`, and the hooks |
+| `operator` | the catalog of the operators, the rule packs, `operator.Rule`, `operator.Hook`, `operator.Matcher`, and the hooks |
 | `operator/astgrep` | an `operator.Matcher` that calls `ast-grep scan --json` and parses its matches |
 | `mutant` | `mutant.Mutant`, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
 | `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage, its caller gaps and its runner |
@@ -750,6 +755,11 @@ costs time only for a mutant that really hangs, and such a mutant is rare.
 **Why the build limit comes from the build of the real code.** A fixed limit of 120 s gave INFRA ERROR to
 11 builds of one large package on the measured monorepo, under a load average of up to 111. The build of
 the real code runs under the same load, so 3 × its time fits the package and the host.
+
+**Why each language has the same operators.** `--operators`, `.mutants.yml` and the ids name operators. When
+each language has its own operators, one setting means two different changes in two repositories, and the
+list of operators holds changes that the language of the reader cannot make. A change that only one language
+or one library has, such as the `AddDate` of calendar days in Go, is a rule of a repository.
 
 **Why NAMED_VALUE_REMOVE runs by default.** On 12 measured PRs, it made 329 mutants, about a third more than
 the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example

@@ -1,7 +1,9 @@
 # What Each Operator of mutants Changes
 
-An operator is one kind of change. Each row of the output names the operator of its mutant. This page
-tells what each operator of the Go rule pack changes, and what a survivor of that operator usually shows.
+An operator is one kind of change. Each row of the output names the operator of its mutant. The operators
+are the same in each language: the catalog in `internal/operator/catalog.go` names them, and the rule pack
+of each language gives the syntax of each one. This page tells what each operator changes, with an example
+in Go, and what a survivor of that operator usually shows.
 
 `mutants operators` lists the operators of your version, whether each one runs by default, and the
 ast-grep rules of each one.
@@ -52,7 +54,7 @@ ast-grep rules of each one.
 | `BREAK_AT_START` | `break` at the start of the body of a `range` loop | no test checks what the loop does |
 | `BREAK_AT_END` | `break` at the end of the body of a `for` loop | the tests give the loop only one item |
 
-## Struct literals and calls
+## Named values
 
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |

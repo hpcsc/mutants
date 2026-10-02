@@ -167,6 +167,16 @@ func TestPack(t *testing.T) {
 			require.NotContains(t, operatorsOf(pack), "ARGUMENT_EMPTY")
 		})
 
+		t.Run("a rule in the repository for an operator that is off by default is also off by default", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/sprintf.yml"), "id: ERROR_CAUSE_REMOVE/sprintf\nlanguage: go\nrule:\n  pattern: fmt.Sprintf($$$A)\nfix: fmt.Sprint($$$A)\n")
+
+			pack, err := loadPack(t, repository).Select(nil)
+
+			require.NoError(t, err)
+			require.NotContains(t, operatorsOf(pack), "ERROR_CAUSE_REMOVE")
+		})
+
 		t.Run("a name with - takes an operator out", func(t *testing.T) {
 			pack, err := loadPack(t, t.TempDir()).Select([]string{"-NAMED_VALUE_SWAP"})
 
