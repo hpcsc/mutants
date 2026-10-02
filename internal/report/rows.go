@@ -32,10 +32,10 @@ func Rows(w io.Writer, outcome Outcome) error {
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Line, b.Line), cmp.Compare(a.ID.String(), b.ID.String()))
 	})
-	reasons := map[string]int{}
+	details := map[string]int{}
 	for _, m := range mutants {
 		if m.Verdict.Status == mutant.NotCovered && m.Verdict.Detail != "" {
-			reasons[m.Verdict.Detail]++
+			details[m.Verdict.Detail]++
 		}
 	}
 	printed := map[string]bool{}
@@ -50,13 +50,13 @@ func Rows(w io.Writer, outcome Outcome) error {
 				fmt.Fprintf(&text, "%s:\n", status)
 				header = true
 			}
-			reason := m.Verdict.Detail
+			detail := m.Verdict.Detail
 			switch {
-			case status != mutant.NotCovered || reason == "":
+			case status != mutant.NotCovered || detail == "":
 				fmt.Fprintf(&text, "  %s\n", Row(m))
-			case !printed[reason]:
-				fmt.Fprintf(&text, "  %s: %s\n", reason, plural(reasons[reason], "mutant"))
-				printed[reason] = true
+			case !printed[detail]:
+				fmt.Fprintf(&text, "  %s: %s\n", detail, plural(details[detail], "mutant"))
+				printed[detail] = true
 			}
 		}
 	}
