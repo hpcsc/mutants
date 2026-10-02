@@ -688,7 +688,7 @@ describe('mutants run --proposals', { timeout: 240_000 }, () => {
 })
 
 describe('mutants run --caller-gaps', { timeout: 240_000 }, () => {
-  it('lists the changed statements of a package that no test of a changed caller with a fake runs, and exits 10', async () => {
+  it('lists the changed statements of a package that no test of a changed caller with a fake runs, and exits 10 for the gaps alone', async () => {
     const dir = goRepository()
     writeFiles(dir, {
       'gate/gate.go': gate,
@@ -697,8 +697,9 @@ describe('mutants run --caller-gaps', { timeout: 240_000 }, () => {
       'handler/handler_test.go': handlerTest,
     })
 
-    const rows = await runCli(dir, ['run', '--base', 'HEAD', '--operators', 'BRANCH_IF', '--caller-gaps'])
-    const json = await runMutants(dir, ['--base', 'HEAD', '--operators', 'BRANCH_IF', '--caller-gaps'])
+    const args = ['--base', 'HEAD', '--operators=none', '--caller-gaps']
+    const rows = await runCli(dir, ['run', ...args])
+    const json = await runMutants(dir, args)
 
     expect(rows.stdout).toContain(
       'CALLER GAPS:\n' +
@@ -708,6 +709,7 @@ describe('mutants run --caller-gaps', { timeout: 240_000 }, () => {
     )
     expect(rows.stdout).toContain('caller gaps: 3\n')
     expect(rows.status).toBe(10)
+    expect(json.mutants).toEqual([])
     expect(JSON.parse(json.result.stdout).callerGaps).toEqual([
       { file: 'gate/gate.go', function: 'NewChecker', lines: [12], callers: ['handler'] },
       { file: 'gate/gate.go', function: '(*Checker).Allow', lines: [16, 17, 19], callers: ['handler'] },
