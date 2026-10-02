@@ -31,8 +31,11 @@ type fakeRelease struct {
 	assets     map[string][]byte
 }
 
+// fakeGitHub answers 404 to a request with no Bearer token when it has a token, as GitHub does for a
+// private repository.
 type fakeGitHub struct {
 	releases []fakeRelease
+	token    string
 }
 
 func (f fakeGitHub) serve(t *testing.T) *httptest.Server {
@@ -77,7 +80,13 @@ func (f fakeGitHub) serve(t *testing.T) *httptest.Server {
 		}
 		http.NotFound(w, r)
 	})
-	server = httptest.NewServer(mux)
+	server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if f.token != "" && r.Header.Get("Authorization") != "Bearer "+f.token {
+			http.NotFound(w, r)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(server.Close)
 	return server
 }
@@ -87,9 +96,9 @@ func archiveHolding(t *testing.T, binary string) []byte {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	files := tar.NewWriter(gz)
-	for name, content := range map[string]string{"README.md": "# mutants\n", "mutants": binary} {
-		require.NoError(t, files.WriteHeader(&tar.Header{Name: name, Mode: 0o755, Size: int64(len(content)), Typeflag: tar.TypeReg}))
-		_, err := files.Write([]byte(content))
+	for _, file := range []struct{ name, content string }{{"README.md", "# mutants\n"}, {"mutants", binary}} {
+		require.NoError(t, files.WriteHeader(&tar.Header{Name: file.name, Mode: 0o755, Size: int64(len(file.content)), Typeflag: tar.TypeReg}))
+		_, err := files.Write([]byte(file.content))
 		require.NoError(t, err)
 	}
 	require.NoError(t, files.Close())
@@ -150,15 +159,16 @@ func TestUpdater(t *testing.T) {
 
 		t.Run("the prerelease channel takes the prerelease that was published last", func(t *testing.T) {
 			client := clientFor(t,
-				fakeRelease{tag: "v0.2.0", published: day(4)},
+				fakeRelease{tag: "v0.2.0", published: day(1)},
 				fakeRelease{tag: "v0.2.1-2.gbbbbbbb", prerelease: true, published: day(2)},
+				fakeRelease{tag: "v0.2.1-4.gddddddd", prerelease: true, published: day(4)},
 				fakeRelease{tag: "v0.2.1-3.gccccccc", prerelease: true, published: day(3)},
 			)
 
 			check, err := release.NewUpdater(client, "v0.2.0", "darwin-arm64", "").Check(ctx, release.Prereleases)
 
 			require.NoError(t, err)
-			require.Equal(t, "v0.2.1-3.gccccccc", check.Latest.Tag)
+			require.Equal(t, "v0.2.1-4.gddddddd", check.Latest.Tag)
 		})
 
 		t.Run("the prerelease channel skips a draft", func(t *testing.T) {
@@ -249,6 +259,57 @@ func TestUpdater(t *testing.T) {
 			require.NotEmpty(t, reported)
 			size := int64(len(archive))
 			require.Equal(t, [2]int64{size, size}, reported[len(reported)-1])
+		})
+
+		t.Run("leaves the executable alone when checksums.txt has no line for the archive", func(t *testing.T) {
+			server := fakeGitHub{releases: []fakeRelease{{tag: "v0.2.0", assets: map[string][]byte{
+				"mutants-darwin-arm64.tar.gz": archiveHolding(t, "new binary"),
+				"checksums.txt":               checksumsFor(map[string][]byte{"mutants-linux-amd64.tar.gz": []byte("other")}),
+			}}}}.serve(t)
+			path := installedBinary(t)
+			updater := release.NewUpdater(release.NewClient(server.Client(), server.URL, "hpcsc/mutants", ""), "v0.1.0", "darwin-arm64", path)
+			check, err := updater.Check(ctx, release.Releases)
+			require.NoError(t, err)
+
+			err = updater.Install(ctx, check.Latest, nil)
+
+			require.ErrorContains(t, err, "mutants-darwin-arm64.tar.gz")
+			installed, readErr := os.ReadFile(path)
+			require.NoError(t, readErr)
+			require.Equal(t, "old binary", string(installed))
+		})
+
+		t.Run("leaves the executable alone when the archive cannot be read", func(t *testing.T) {
+			client := releaseWith(t, "v0.2.0", map[string][]byte{"mutants-darwin-arm64.tar.gz": []byte("not a tar.gz")})
+			path := installedBinary(t)
+			updater := release.NewUpdater(client, "v0.1.0", "darwin-arm64", path)
+			check, err := updater.Check(ctx, release.Releases)
+			require.NoError(t, err)
+
+			err = updater.Install(ctx, check.Latest, nil)
+
+			require.Error(t, err)
+			installed, readErr := os.ReadFile(path)
+			require.NoError(t, readErr)
+			require.Equal(t, "old binary", string(installed))
+		})
+
+		t.Run("sends the token to a private repository, for the release and for its archive", func(t *testing.T) {
+			archive := archiveHolding(t, "darwin arm64 binary")
+			server := fakeGitHub{token: "secret", releases: []fakeRelease{{tag: "v0.2.0", assets: map[string][]byte{
+				"mutants-darwin-arm64.tar.gz": archive,
+				"checksums.txt":               checksumsFor(map[string][]byte{"mutants-darwin-arm64.tar.gz": archive}),
+			}}}}.serve(t)
+			path := installedBinary(t)
+			updater := release.NewUpdater(release.NewClient(server.Client(), server.URL, "hpcsc/mutants", "secret"), "v0.1.0", "darwin-arm64", path)
+
+			check, err := updater.Check(ctx, release.Releases)
+			require.NoError(t, err)
+			require.NoError(t, updater.Install(ctx, check.Latest, nil))
+
+			installed, err := os.ReadFile(path)
+			require.NoError(t, err)
+			require.Equal(t, "darwin arm64 binary", string(installed))
 		})
 
 		t.Run("leaves the executable alone when the download does not match its checksum", func(t *testing.T) {
