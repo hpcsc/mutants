@@ -22,6 +22,10 @@ func TestVersion(t *testing.T) {
 	}
 
 	t.Run("from build", func(t *testing.T) {
+		t.Run("a binary with no build information is unknown", func(t *testing.T) {
+			require.Equal(t, version.Unknown, version.FromBuild("", nil))
+		})
+
 		t.Run("a release build reports the tag the release set", func(t *testing.T) {
 			require.Equal(t, "v0.2.0", version.FromBuild("v0.2.0", build("v0.0.0-20260911114137-875558850016", "875558850016133e", "false")))
 		})
