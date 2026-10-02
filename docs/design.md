@@ -328,7 +328,7 @@ mutant is rejected with its reason:
 | old not found, old found N times | `old` does not occur exactly once |
 | old and new are the same | the edit changes nothing |
 | the go adapter drops the edit | the file is a test file, generated code, or out of the build |
-| not on a changed line | the edit does not touch a changed line |
+| not on a changed line | the edit does not touch a changed line, and the run has no `--proposals-anywhere` |
 | the same edit as another proposal | an earlier proposal of the file has the same id |
 
 - **The id** is `<file>:<function>:PROPOSED#<n>`. `n` has six digits from a hash of `old` and `new`, so an

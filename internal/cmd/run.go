@@ -47,6 +47,7 @@ func newRunCommand() *cli.Command {
 			&cli.StringFlag{Name: "json", Usage: "also write the JSON report to this file"},
 			&cli.StringFlag{Name: "stryker", Usage: "also write the Stryker report to this file"},
 			&cli.StringFlag{Name: "proposals", Usage: "also run the mutants that this file proposes, one JSON object on each line"},
+			&cli.BoolFlag{Name: "proposals-anywhere", Usage: "accept a proposal also on a line that the diff does not change"},
 			&cli.BoolFlag{Name: "caller-gaps", Usage: "also find the changed lines that the tests of their package run, but that no test of a changed caller runs"},
 		},
 		OnUsageError: usageError,
@@ -76,15 +77,19 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
+	if cmd.Bool("proposals-anywhere") && len(proposals) == 0 {
+		return cli.Exit("--proposals-anywhere needs --proposals", exitUsage)
+	}
 	runSettings := run.Settings{
-		Base:       configured.base(cmd),
-		Folders:    folders,
-		Exclude:    configured.Exclude,
-		Operators:  configured.operators(cmd),
-		Workers:    configured.workers(cmd),
-		Limit:      cmd.Duration("limit"),
-		Proposals:  proposals,
-		CallerGaps: configured.callerGaps(cmd),
+		Base:              configured.base(cmd),
+		Folders:           folders,
+		Exclude:           configured.Exclude,
+		Operators:         configured.operators(cmd),
+		Workers:           configured.workers(cmd),
+		Limit:             cmd.Duration("limit"),
+		Proposals:         proposals,
+		ProposalsAnywhere: cmd.Bool("proposals-anywhere"),
+		CallerGaps:        configured.callerGaps(cmd),
 	}
 	instance, err := newInstance(ctx, repository, golang.Settings{
 		Tags:          configured.tags(cmd),

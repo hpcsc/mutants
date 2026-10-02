@@ -31,14 +31,15 @@ var ErrNothingToRun = errors.New("the run has no operator, no proposal and no ch
 var errLimit = errors.New("the run reached its limit")
 
 type Settings struct {
-	Base       string
-	Folders    []string
-	Exclude    []string
-	Operators  []string
-	Workers    int
-	Limit      time.Duration
-	Proposals  []proposal.Proposal
-	CallerGaps bool
+	Base              string
+	Folders           []string
+	Exclude           []string
+	Operators         []string
+	Workers           int
+	Limit             time.Duration
+	Proposals         []proposal.Proposal
+	ProposalsAnywhere bool
+	CallerGaps        bool
 }
 
 // Proposals is nil when the run got no proposals, and CallerGaps is nil when the run did not look for caller
@@ -109,7 +110,11 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	if err == nil && len(settings.Proposals) > 0 {
 		var proposed []mutant.Mutant
 		var rejected []proposal.Rejection
-		if proposed, rejected, err = r.propose(ctx, settings.Proposals, lines.Touches); err == nil {
+		inScope := lines.Touches
+		if settings.ProposalsAnywhere {
+			inScope = func(string, int, int) bool { return true }
+		}
+		if proposed, rejected, err = r.propose(ctx, settings.Proposals, inScope); err == nil {
 			outcome.Proposals = &proposal.Summary{Accepted: len(proposed), Rejected: rejected}
 		}
 		mutants = append(mutants, proposed...)

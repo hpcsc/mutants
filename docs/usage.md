@@ -63,6 +63,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 | `--json PATH` | also writes the JSON report to `PATH` |
 | `--stryker PATH` | also writes the Stryker report to `PATH` |
 | `--proposals PATH` | also runs the mutants that the file proposes. See [Proposed mutants](#proposed-mutants). |
+| `--proposals-anywhere` | accepts a proposal also on a line that the diff does not change. It needs `--proposals`. |
 | `--caller-gaps` | also finds the changed statements that no test of a changed caller runs. See [Caller gaps](#caller-gaps). |
 
 ## Flags of mutants rerun
@@ -158,6 +159,8 @@ mutants run --proposals proposals.jsonl
 - Each other proposal is rejected. The rows list it under `REJECTED PROPOSALS` with its reason, for
   example `old found 3 times` or `not on a changed line`.
 - The last line counts the proposals: `proposals: 7 accepted, 1 rejected`.
+- `--proposals-anywhere` accepts a proposal on any line, for example to check a review finding about a test
+  that the diff made weaker. The operators still mutate only the changed lines.
 - The number in the id of a proposed mutant comes from `old` and `new`, so the id stays the same when the
   other proposals change.
 - `mutants` keeps the accepted proposals in the git folder, so `mutants rerun ID` works without the file.

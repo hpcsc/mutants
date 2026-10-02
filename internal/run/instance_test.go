@@ -394,6 +394,19 @@ func TestInstance(t *testing.T) {
 			require.Nil(t, outcome.Proposals)
 		})
 
+		t.Run("with ProposalsAnywhere, accepts a proposal on a line that the diff does not change", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			unchanged := proposal.Proposal{File: "a.go", Old: "if a < b", New: "if a <= b", Bug: "equal values count as less"}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 2, Proposals: []proposal.Proposal{unchanged}, ProposalsAnywhere: true}
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", unchanged.Number())}, idsAndStatuses(outcome.Mutants))
+			require.Empty(t, outcome.Proposals.Rejected)
+		})
+
 		t.Run("rerun finds an accepted proposal by its id, also without the proposals", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
 			r.write("a.go", compareAfter)
