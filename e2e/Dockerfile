@@ -13,8 +13,16 @@ FROM node:24-trixie-slim
 # python3, make and g++ build node-pty when no prebuilt node-pty fits the platform. mutants needs git,
 # and the Go toolchain of the first stage.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 make g++ git ca-certificates \
+    && apt-get install -y --no-install-recommends python3 python3-venv make g++ git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+# the venvs of the Python fixtures: globalSetup.ts makes them when these variables are not set
+ARG PYTEST_VERSION=9.1.1
+ARG COVERAGE_VERSION=7.16.2
+RUN python3 -m venv /opt/venvs/with-coverage \
+    && /opt/venvs/with-coverage/bin/pip install --quiet "pytest==${PYTEST_VERSION}" "coverage==${COVERAGE_VERSION}" \
+    && python3 -m venv /opt/venvs/without-coverage \
+    && /opt/venvs/without-coverage/bin/pip install --quiet "pytest==${PYTEST_VERSION}"
+ENV E2E_PYTHON_VENV=/opt/venvs/with-coverage E2E_PYTHON_VENV_WITHOUT_COVERAGE=/opt/venvs/without-coverage
 COPY --from=builder /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:$PATH GOTOOLCHAIN=local
 # the platform package of ast-grep holds the binary, so it needs no install script

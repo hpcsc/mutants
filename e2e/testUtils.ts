@@ -1,5 +1,5 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import type { Session } from 'tuistory'
@@ -113,6 +113,33 @@ export function goRepository(files: Record<string, string> = {}): string {
   git(dir, 'add', '--all')
   git(dir, 'commit', '--quiet', '--message', 'start')
   return dir
+}
+
+// pythonRepository makes a git repository with one commit, which holds a Python project and the files. Its
+// .venv is a link to a venv of globalSetup.ts.
+export function pythonRepository(files: Record<string, string> = {}, venv = pythonVenv()): string {
+  const dir = scratchDir()
+  git(dir, 'init', '--quiet', '--initial-branch=main')
+  git(dir, 'config', 'user.email', 'e2e@example.com')
+  git(dir, 'config', 'user.name', 'e2e')
+  git(dir, 'config', 'commit.gpgsign', 'false')
+  writeFiles(dir, { 'pyproject.toml': pyproject, '.gitignore': '.venv\n', ...files })
+  git(dir, 'add', '--all')
+  git(dir, 'commit', '--quiet', '--message', 'start')
+  symlinkSync(venv, join(dir, '.venv'))
+  return dir
+}
+
+export const pyproject = '[tool.pytest.ini_options]\npythonpath = ["."]\n'
+
+// pythonVenv gives a venv with pytest and coverage.py, or with pytest only.
+export function pythonVenv(coverage = true): string {
+  const name = coverage ? 'E2E_PYTHON_VENV' : 'E2E_PYTHON_VENV_WITHOUT_COVERAGE'
+  const venv = process.env[name]
+  if (!venv) {
+    throw new Error(`${name} environment variable is required. globalSetup.ts sets it.`)
+  }
+  return venv
 }
 
 export interface ReportedMutant {

@@ -10,6 +10,7 @@ one test file uses, and `e2e/tests/` has the tests:
 | --- | --- |
 | `run.test.ts` | the core of `mutants run` and `mutants rerun`: the diff, the settings, the reports, the proposals and the exit codes. Its fixtures are Go code, but no test depends on how the Go adapter works. |
 | `go.test.ts` | the Go adapter: its filters, its coverage, its runner, its build cache and its caller gaps |
+| `python.test.ts` | the Python adapter: its skip rules, its coverage, its test selection, its runner and its projects, and a repository with Go and Python code |
 | `cli.test.ts` | the root command, `mutants config init` and `mutants version` |
 | `update.test.ts` | `mutants update` |
 
@@ -21,7 +22,8 @@ one test file uses, and `e2e/tests/` has the tests:
 | tuistory | Starts a program in a pseudo-terminal, sends keys to it, and gives its screen as text. |
 | node-pty | Makes the pseudo-terminal for tuistory. |
 | ghostty-opentui | The terminal emulator in tuistory. It turns the output of the CLI into a screen of text. |
-| `testUtils.ts` | Makes throwaway folders and git repositories with Go modules, starts the CLI, and deletes the folders after each test. |
+| `testUtils.ts` | Makes throwaway folders and git repositories with Go modules or Python projects, starts the CLI, and deletes the folders after each test. |
+| `globalSetup.ts` | Makes the two venvs of the Python fixtures, when the environment does not give them. |
 
 ```mermaid
 flowchart LR
@@ -87,6 +89,30 @@ Each fixture has a known answer from the design:
 | A proposed mutant after the run | `rerun` finds it by its id without the file. After its `old` changes: exit 1, "the proposal does not fit the code". |
 | A new gate, and a changed caller that wires it in but whose tests use a fake | with `--caller-gaps`: the statements of the gate in the rows and the JSON, and exit 10 |
 
+A Python test makes its repository with `pythonRepository(files)`. The repository holds `pyproject.toml`,
+which puts the root on the path of pytest, and a `.gitignore` with `.venv`. Its `.venv` is a link to a venv
+with pytest and coverage.py, or with pytest only for `pythonRepository(files, pythonVenv(false))`. The
+`.gitignore` holds `.venv` and not `.venv/`, because a pattern with `/` matches only a folder, and git then
+shows the link as an untracked file.
+
+| Fixture | Expected |
+| --- | --- |
+| Two keyword arguments with a `#` comment between them, and equal values in the test | `NAMED_VALUE_SWAP` LIVED. With different values in the test: KILLED. |
+| An error branch that no test enters | `BRANCH_IF` NOT COVERED |
+| A second test file that runs no line of the mutant | the second test runs only in the coverage run |
+| A loop over a list that a test runs with one item | `BREAK_AT_END` LIVED. With two items: KILLED. |
+| A constant that the mutant makes raise `IndexError` when the module loads | KILLED, with `IndexError` in the detail |
+| A proposal that does not compile | NOT VIABLE, and `rerun` exits 1 |
+| A loop that the mutant makes endless, in a test that starts a child process | TIMED OUT, and no child process is alive after the run |
+| An untracked new file | its mutants run, and `git status --ignored` is the same after the run |
+| A venv without coverage.py | exit 2, and a message that tells to add coverage or pytest-cov |
+| A test that fails with the real code | exit 2, and a message that names the project |
+| A project in a subfolder, with its own `pyproject.toml` and `.venv` | its mutants run with its tests |
+| A call of a logger and a type annotation | no mutant in them |
+| A Python mutant that lives | `rerun` exits 10 |
+| Go and Python code in one repository | the mutants of both, and the Stryker report gives the language of each file |
+| `exclude: ["**/*.py"]` | no mutant of a Python file |
+
 To keep each test short, a test names the operators that it needs with `--operators`.
 
 ## The update tests
@@ -118,7 +144,7 @@ tests keep the original binary.
 | Command | Where | What it needs |
 | --- | --- | --- |
 | `task test:e2e` | Docker | Docker. CI runs this command. |
-| `task test:e2e:local` | This machine | Node 24, Go, and ast-grep 0.45.0 or later |
+| `task test:e2e:local` | This machine | Node 24, Go, ast-grep 0.45.0 or later, and Python 3. The first run downloads pytest and coverage.py into `e2e/.venvs/`. |
 
 For `task test:e2e:local`, the `node` on the `PATH` must be the Node 24 that mise installs. npm builds
 node-pty for one version of Node, and vitest cannot load node-pty with another version. When an older Node
@@ -137,7 +163,8 @@ flowchart LR
         G["go build, with releaseTag set to v0.1.0"] --> BIN[/"mutants binary"/]
     end
     subgraph runner["stage 2: node:24-trixie-slim"]
-        APT["apt-get install python3 make g++ git"] --> GO["the Go toolchain from stage 1"]
+        APT["apt-get install python3 python3-venv make g++ git"] --> VENV["the two venvs of the Python fixtures"]
+        VENV --> GO["the Go toolchain from stage 1"]
         GO --> SG["npm install --global the ast-grep binary"]
         SG --> NPM["npm ci"]
         NPM --> RUN["npx vitest run"]
@@ -145,11 +172,13 @@ flowchart LR
     BIN --> RUN
 ```
 
-`python3`, `make` and `g++` let npm build node-pty when no prebuilt node-pty fits the platform. mutants
-needs git, Go and ast-grep. The image installs the platform package of ast-grep, for example
-`@ast-grep/cli-linux-arm64-gnu`, because that package holds the binary and needs no install script. The
-image runs `npm ci` when `e2e/package-lock.json` is in the repository, and `npm install` when it is not.
-Commit the lock file, so every run installs the same packages.
+`python3`, `make` and `g++` let npm build node-pty when no prebuilt node-pty fits the platform. mutants needs
+git, Go and ast-grep. The Python fixtures need two venvs: one with pytest and coverage.py, and one with pytest
+only. The image makes them with fixed versions, and gives their folders to the tests in `E2E_PYTHON_VENV` and
+`E2E_PYTHON_VENV_WITHOUT_COVERAGE`. The image installs the platform package of ast-grep, for example
+`@ast-grep/cli-linux-arm64-gnu`, because that package holds the binary and needs no install script. The image
+runs `npm ci` when `e2e/package-lock.json` is in the repository, and `npm install` when it is not. Commit the
+lock file, so every run installs the same packages.
 
 `task test:e2e` starts the container with `--init`. The init process reaps the processes that mutants
 stops, so that a test can see that they are gone.
@@ -161,7 +190,8 @@ which has Docker. The release workflow calls the CI workflow, so a release waits
 
 For a command that prints and stops:
 
-1. Make a folder with `scratchDir()`, or a git repository with a Go module with `goRepository(files)`.
+1. Make a folder with `scratchDir()`, or a git repository with a Go module with `goRepository(files)`, or
+   with a Python project with `pythonRepository(files)`.
 2. Run the command with `runCli(dir, args)`, or `mutants run` with `runMutants(dir, args)`.
 3. Check the exit status, then the output.
 
