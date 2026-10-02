@@ -576,20 +576,22 @@ the JSON on stdout.
 ## Config
 
 A repository can keep its settings in `.mutants.yml` at its root. A flag wins over the file. An unknown key
-is an error that names the key, its line and the known keys.
+is an error that names the key, its line and the known keys. The settings of one language are under the key
+of the language, so a repository with two languages keeps them apart.
 
 ```yaml
 base: origin/main
 workers: 4
-tags: [unit]
 operators: [-ERROR_CAUSE_REMOVE]
 exclude: ["**/*_gen.go", "vendor/**"]
-zero_functions: [maybe.None, caseautoresolve.Submitted]
+go:
+  tags: [unit]
+  zero_functions: [maybe.None, caseautoresolve.Submitted]
 ```
 
-`zero_functions` names the functions that return the zero value of their type, as `package.Function` with the
-name of the package, not its path. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them,
-because the removal of that field changes nothing.
+`go.zero_functions` names the functions that return the zero value of their type, as `package.Function` with
+the name of the package, not its path. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of
+them, because the removal of that field changes nothing.
 
 v1 keeps no cache. Its one state file is the store of accepted proposals, in
 `$(git rev-parse --absolute-git-dir)/mutants/`, so the work tree stays clean. The rules for a scan, the

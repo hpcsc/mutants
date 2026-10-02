@@ -94,7 +94,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		Tags:          configured.tags(cmd),
 		BuildLimit:    cmd.Duration("build-limit"),
 		Workers:       runSettings.Workers,
-		ZeroFunctions: configured.ZeroFunctions,
+		ZeroFunctions: configured.Go.ZeroFunctions,
 	}, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)

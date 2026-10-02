@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -29,21 +30,20 @@ func TestConfig(t *testing.T) {
 	t.Run("load", func(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
-			content := "base: origin/main\nworkers: 2\ntags: [unit]\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\n" +
-				"zero_functions: [maybe.None]\ncaller_gaps: true\n"
+			content := "base: origin/main\nworkers: 2\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\ncaller_gaps: true\n" +
+				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
 			loaded, err := loadConfig(root)
 
 			require.NoError(t, err)
 			require.Equal(t, config{
-				Base:          "origin/main",
-				Workers:       2,
-				Tags:          []string{"unit"},
-				Operators:     []string{"-ERROR_CAUSE_REMOVE"},
-				Exclude:       []string{"**/*_gen.go", "vendor/**"},
-				ZeroFunctions: []string{"maybe.None"},
-				CallerGaps:    true,
+				Base:       "origin/main",
+				Workers:    2,
+				Operators:  []string{"-ERROR_CAUSE_REMOVE"},
+				Exclude:    []string{"**/*_gen.go", "vendor/**"},
+				CallerGaps: true,
+				Go:         goConfig{Tags: []string{"unit"}, ZeroFunctions: []string{"maybe.None"}},
 			}, loaded)
 		})
 
@@ -60,12 +60,22 @@ func TestConfig(t *testing.T) {
 
 			_, err := loadConfig(root)
 
-			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, tags, operators, exclude, zero_functions, caller_gaps")
+			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, operators, exclude, caller_gaps, go")
+		})
+
+		t.Run("an unknown key of a language returns an error that names it with its language, its line and the keys of the language", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("base: origin/main\ngo:\n  tagz: [unit]\n"), 0o644))
+
+			_, err := loadConfig(root)
+
+			require.EqualError(t, err, "unknown key go.tagz in .mutants.yml (line 3): the keys of go are tags, zero_functions")
 		})
 
 		for _, scenario := range []struct{ name, content, message string }{
 			{"a value of the wrong type returns an error that names its line", "workers: four\n", "line 1: cannot unmarshal !!str `four` into int"},
 			{"a file that is not keys and values returns an error that lists the keys", "- base\n", ".mutants.yml must hold keys and values"},
+			{"a language that is not keys and values returns an error that names its line", "go: [unit]\n", "go in .mutants.yml (line 1) must hold keys and values, and the keys are tags, zero_functions"},
 			{"a file that is not YAML returns an error", "base: [origin/main\n", "read .mutants.yml: yaml: line 1"},
 		} {
 			t.Run(scenario.name, func(t *testing.T) {
@@ -96,7 +106,7 @@ func TestConfig(t *testing.T) {
 			tags map[string]int
 			want config
 		}{
-			{"with one tag, sets the base and the tag", "origin/main", map[string]int{"unit": 3}, config{Base: "origin/main", Tags: []string{"unit"}}},
+			{"with one tag, sets the base and the tag", "origin/main", map[string]int{"unit": 3}, config{Base: "origin/main", Go: goConfig{Tags: []string{"unit"}}}},
 			{"with more than one tag, sets the base and no tag", "origin/main", map[string]int{"unit": 3, "integration": 1}, config{Base: "origin/main"}},
 			{"with no default branch of origin and no tag, keeps each default", "", nil, config{}},
 		} {
@@ -109,8 +119,11 @@ func TestConfig(t *testing.T) {
 
 				require.NoError(t, err)
 				require.Equal(t, scenario.want, loaded)
-				for _, key := range (config{}).keys() {
+				for _, key := range keysOf(reflect.TypeFor[config]()) {
 					require.True(t, strings.Contains(text, "\n"+key+":") || strings.Contains(text, "\n# "+key+":"), key)
+				}
+				for _, key := range keysOf(reflect.TypeFor[goConfig]()) {
+					require.True(t, strings.Contains(text, "\n  "+key+":") || strings.Contains(text, "\n  # "+key+":"), key)
 				}
 			})
 		}
@@ -118,13 +131,14 @@ func TestConfig(t *testing.T) {
 		t.Run("with more than one tag, counts the files of each", func(t *testing.T) {
 			text := configTemplate("origin/main", map[string]int{"unit": 3, "integration": 1})
 
-			require.Contains(t, text, "#   integration: 1 file\n#   unit: 3 files\n")
+			require.Contains(t, text, "  #   integration: 1 file\n  #   unit: 3 files\n")
 		})
 
 		t.Run("each commented setting loads when it is uncommented, and a commented default is the real default", func(t *testing.T) {
 			root := t.TempDir()
-			commented := regexp.MustCompile(`(?m)^# (` + strings.Join((config{}).keys(), "|") + `): `)
-			text := commented.ReplaceAllString(configTemplate("", nil), "$1: ")
+			keys := append(keysOf(reflect.TypeFor[config]()), keysOf(reflect.TypeFor[goConfig]())...)
+			commented := regexp.MustCompile(`(?m)^( *)# (` + strings.Join(keys, "|") + `): `)
+			text := commented.ReplaceAllString(configTemplate("", nil), "$1$2: ")
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
 
 			loaded, err := loadConfig(root)
@@ -139,7 +153,7 @@ func TestConfig(t *testing.T) {
 
 	t.Run("settings", func(t *testing.T) {
 		t.Run("a flag of run wins over the file, and keeps the sign of each operator", func(t *testing.T) {
-			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERROR_CAUSE_REMOVE"}, CallerGaps: true}
+			loaded := config{Base: "origin/main", Workers: 2, Operators: []string{"-ERROR_CAUSE_REMOVE"}, CallerGaps: true, Go: goConfig{Tags: []string{"unit"}}}
 			command := parsed(t, newRunCommand(), "--base", "HEAD", "--workers", "8", "--tags", "integration", "--operators=-ERROR_CAUSE_REMOVE,+NAMED_VALUE_SWAP", "--caller-gaps=false")
 
 			require.Equal(t, "HEAD", loaded.base(command))
@@ -150,7 +164,7 @@ func TestConfig(t *testing.T) {
 		})
 
 		t.Run("a flag of rerun wins over the file", func(t *testing.T) {
-			loaded := config{Tags: []string{"unit"}}
+			loaded := config{Go: goConfig{Tags: []string{"unit"}}}
 
 			command := parsed(t, newRerunCommand(), "--tags", "integration")
 
@@ -158,7 +172,7 @@ func TestConfig(t *testing.T) {
 		})
 
 		t.Run("the file wins over the default", func(t *testing.T) {
-			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERROR_CAUSE_REMOVE"}, CallerGaps: true}
+			loaded := config{Base: "origin/main", Workers: 2, Operators: []string{"-ERROR_CAUSE_REMOVE"}, CallerGaps: true, Go: goConfig{Tags: []string{"unit"}}}
 			command := parsed(t, newRunCommand())
 
 			require.Equal(t, "origin/main", loaded.base(command))

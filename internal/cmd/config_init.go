@@ -71,32 +71,33 @@ func configTemplate(base string, tags map[string]int) string {
 		text.WriteString("# The clone does not know the default branch of origin, so the base is the default.\n# base: origin/HEAD\n\n")
 	}
 
-	text.WriteString("# A test file with a build tag runs only when tags names the tag. Without the tag, the mutants of its\n" +
-		"# package are NOT COVERED.\n")
-	names := slices.Sorted(maps.Keys(tags))
-	switch len(names) {
-	case 0:
-		text.WriteString("# No test file of this repository needs a build tag.\n# tags: []\n\n")
-	case 1:
-		fmt.Fprintf(&text, "# The test files need this tag:\n#   %s: %s\n", names[0], files(tags[names[0]]))
-		fmt.Fprintf(&text, "tags: [%s]\n\n", names[0])
-	default:
-		text.WriteString("# The test files need these tags:\n")
-		for _, name := range names {
-			fmt.Fprintf(&text, "#   %s: %s\n", name, files(tags[name]))
-		}
-		text.WriteString("# Name each tag whose tests run on this machine with no other service, such as a database.\n")
-		fmt.Fprintf(&text, "# tags: [%s]\n\n", strings.Join(names, ", "))
-	}
-
 	text.WriteString("# The number of mutants that run at the same time.\n# workers: 4\n\n")
 	text.WriteString("# The operators: -NAME takes one out, +NAME adds one, NAME runs only the named ones, and none runs\n" +
 		"# no operator. mutants operators lists them.\n# operators: [-NAMED_VALUE_REMOVE]\n\n")
 	text.WriteString("# The files that get no mutant, as globs from the root of the repository.\n" +
 		"# exclude: [\"**/*_gen.go\", \"vendor/**\"]\n\n")
-	text.WriteString("# The functions that return the zero value of their type, as package.Function with the name of the\n" +
-		"# package. NAMED_VALUE_REMOVE skips a field whose value is a call of one of them.\n# zero_functions: [maybe.None]\n\n")
-	text.WriteString("# Also find the changed statements that no test of a changed caller runs.\n# caller_gaps: false\n")
+	text.WriteString("# Also find the changed statements that no test of a changed caller runs.\n# caller_gaps: false\n\n")
+
+	text.WriteString("# The settings of Go.\ngo:\n")
+	text.WriteString("  # A test file with a build tag runs only when tags names the tag. Without the tag, the mutants of\n" +
+		"  # its package are NOT COVERED.\n")
+	names := slices.Sorted(maps.Keys(tags))
+	switch len(names) {
+	case 0:
+		text.WriteString("  # No test file of this repository needs a build tag.\n  # tags: []\n\n")
+	case 1:
+		fmt.Fprintf(&text, "  # The test files need this tag:\n  #   %s: %s\n", names[0], files(tags[names[0]]))
+		fmt.Fprintf(&text, "  tags: [%s]\n\n", names[0])
+	default:
+		text.WriteString("  # The test files need these tags:\n")
+		for _, name := range names {
+			fmt.Fprintf(&text, "  #   %s: %s\n", name, files(tags[name]))
+		}
+		text.WriteString("  # Name each tag whose tests run on this machine with no other service, such as a database.\n")
+		fmt.Fprintf(&text, "  # tags: [%s]\n\n", strings.Join(names, ", "))
+	}
+	text.WriteString("  # The functions that return the zero value of their type, as package.Function with the name of\n" +
+		"  # the package. NAMED_VALUE_REMOVE skips a field whose value is a call of one of them.\n  # zero_functions: [maybe.None]\n")
 	return text.String()
 }
 

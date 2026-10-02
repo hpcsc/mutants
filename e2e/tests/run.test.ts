@@ -106,7 +106,7 @@ describe('mutants run', { timeout: 240_000 }, () => {
     writeFiles(dir, {
       'calc/calc.go': maxSource,
       'calc/calc_test.go': `//go:build unit\n\n${maxTest}`,
-      '.mutants.yml': 'base: HEAD\ntags: [unit]\noperators: [CONDITIONALS_NEGATION]\n',
+      '.mutants.yml': 'base: HEAD\noperators: [CONDITIONALS_NEGATION]\ngo:\n  tags: [unit]\n',
     })
 
     const { mutants } = await runMutants(dir, [])

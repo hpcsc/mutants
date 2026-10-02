@@ -296,9 +296,9 @@ A repository can keep its settings in `.mutants.yml` at its root. A flag wins ov
 `mutants config init` writes a first `.mutants.yml` at the root of the repository:
 
 - `base` is the default branch of origin, such as `origin/main`, when the clone knows it.
-- `tags` lists the build tag of the test files when they need one tag, such as `unit`. When they need more
-  than one, the file lists each tag with its number of files, and you choose. A tag such as `integration`
-  can need a service, such as a database.
+- `go.tags` lists the build tag of the test files when they need one tag, such as `unit`. When they need
+  more than one, the file lists each tag with its number of files, and you choose. A tag such as
+  `integration` can need a service, such as a database.
 - Each other setting is a comment.
 
 `mutants config init` does not replace a `.mutants.yml` that exists, and then it exits with 2.
@@ -306,24 +306,26 @@ A repository can keep its settings in `.mutants.yml` at its root. A flag wins ov
 ```yaml
 base: origin/main
 workers: 4
-tags: [unit]
 operators: [-ERROR_CAUSE_REMOVE]
 exclude: ["**/*_gen.go", "vendor/**"]
-zero_functions: [maybe.None, caseautoresolve.Submitted]
 caller_gaps: true
+go:
+  tags: [unit]
+  zero_functions: [maybe.None, caseautoresolve.Submitted]
 ```
 
 | Key | Does |
 | --- | --- |
 | `base` | the base of the changed lines, as `--base` |
 | `workers` | the number of mutants that run at the same time, as `--workers` |
-| `tags` | the build tags, as `--tags` |
-| `operators` | the operators, as `--operators` |
-| `exclude` | the files that get no mutant, as globs from the repository root |
-| `zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them, because the removal of that field changes nothing. Use the name of the package, not its path. |
+| `operators` | the operators, as `--operators`. The names are the same in each language. |
+| `exclude` | the files that get no mutant, as globs from the repository root. `["**/*.py"]` leaves a language out of each run. |
 | `caller_gaps` | `true` looks for caller gaps in each run, as `--caller-gaps` |
+| `go.tags` | the build tags, as `--tags` |
+| `go.zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them, because the removal of that field changes nothing. Use the name of the package, not its path. |
 
-An unknown key is an error that names the key, its line and the known keys.
+The settings of one language are under the key of the language, such as `go`. An unknown key is an error
+that names the key, its line and the known keys.
 
 ## Your own operators
 

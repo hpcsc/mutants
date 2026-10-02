@@ -147,7 +147,7 @@ When you find one:
 - Take its operator out of one run: `mutants run --operators=-NAMED_VALUE_REMOVE`.
 - Take its operator out of each run in the repository, in `.mutants.yml` at the root:
   `operators: [-NAMED_VALUE_REMOVE]`.
-- Name a function that returns a zero value, such as `maybe.None`, in `.mutants.yml`:
+- Name a function that returns a zero value, such as `maybe.None`, under `go:` in `.mutants.yml`:
   `zero_functions: [maybe.None]`.
 - Skip the calls of your logger with a skip rule in `.mutants/skip/go/`, as
   [docs/usage.md](docs/usage.md#code-that-mutants-skips) tells.

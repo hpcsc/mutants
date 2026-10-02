@@ -53,7 +53,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 		Tags:          configured.tags(cmd),
 		BuildLimit:    cmd.Duration("build-limit"),
 		Workers:       1,
-		ZeroFunctions: configured.ZeroFunctions,
+		ZeroFunctions: configured.Go.ZeroFunctions,
 	}, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitNoVerdict)

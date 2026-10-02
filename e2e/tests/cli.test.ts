@@ -36,7 +36,8 @@ describe('mutants config init', () => {
     const second = await runCli(dir, ['config', 'init'])
 
     expect(first.status).toBe(0)
-    expect(written).toContain('\ntags: [unit]\n')
+    expect(written).toContain('\ngo:\n')
+    expect(written).toContain('\n  tags: [unit]\n')
     expect(written).toContain('\n# base: origin/HEAD\n')
     expect(second.status).toBe(2)
     expect(second.stderr).toContain('does not replace it')
