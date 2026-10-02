@@ -250,8 +250,8 @@ var Default = Box{Width: 1, Height: 2, Name: "box"}
 `})
 			adapter := golang.New(root, defaultSettings)
 
-			require.True(t, adapter.Keep(editOf(t, root, "shape/shape.go", "SWAP_FIELDS", "1, Height: 2", "2, Height: 1")))
-			require.False(t, adapter.Keep(editOf(t, root, "shape/shape.go", "SWAP_FIELDS", `2, Name: "box"`, `"box", Name: 2`)))
+			require.True(t, adapter.Keep(editOf(t, root, "shape/shape.go", "NAMED_VALUE_SWAP", "1, Height: 2", "2, Height: 1")))
+			require.False(t, adapter.Keep(editOf(t, root, "shape/shape.go", "NAMED_VALUE_SWAP", `2, Name: "box"`, `"box", Name: 2`)))
 		})
 
 		t.Run("drops a swap in a table of named values with constant fields, and keeps a swap of values that are not constant", func(t *testing.T) {
@@ -273,14 +273,14 @@ func Span(a, b int) struct{ Start, End Point } {
 			adapter := golang.New(root, defaultSettings)
 			table := "Reason{\"NoMatch\"},\n\tLate:    Reason{code: \"Late\"}"
 
-			require.False(t, adapter.Keep(editOf(t, root, "reason/reason.go", "SWAP_FIELDS", table, "Reason{code: \"Late\"},\n\tLate:    Reason{\"NoMatch\"}")))
-			require.True(t, adapter.Keep(editOf(t, root, "reason/reason.go", "SWAP_FIELDS", "Point{X: a}, End: Point{X: b}", "Point{X: b}, End: Point{X: a}")))
+			require.False(t, adapter.Keep(editOf(t, root, "reason/reason.go", "NAMED_VALUE_SWAP", table, "Reason{code: \"Late\"},\n\tLate:    Reason{\"NoMatch\"}")))
+			require.True(t, adapter.Keep(editOf(t, root, "reason/reason.go", "NAMED_VALUE_SWAP", "Point{X: a}, End: Point{X: b}", "Point{X: b}, End: Point{X: a}")))
 		})
 
 		t.Run("drops a swap of two values in a map literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"shape/shape.go": "package shape\n\nvar Sizes = map[string]int{\"a\": 1, \"b\": 2}\n"})
 
-			keep := golang.New(root, defaultSettings).Keep(editOf(t, root, "shape/shape.go", "SWAP_FIELDS", `1, "b": 2`, `2, "b": 1`))
+			keep := golang.New(root, defaultSettings).Keep(editOf(t, root, "shape/shape.go", "NAMED_VALUE_SWAP", `1, "b": 2`, `2, "b": 1`))
 
 			require.False(t, keep)
 		})
@@ -307,7 +307,7 @@ func Load(in input) (int, string, bool, *Item, []string, Item) {
 			zeros := map[string]string{"in.count + 1": "0", `in.label + "!"`: `""`, "!in.ok": "false", "in.current": "nil", "in.list": "nil", "in.box": "none"}
 			for value, zero := range zeros {
 				for _, candidate := range []string{"nil", "0", `""`, "false"} {
-					keep := adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ZERO", value, candidate))
+					keep := adapter.Keep(editOf(t, root, "store/store.go", "RETURN_EMPTY", value, candidate))
 
 					require.Equal(t, candidate == zero, keep, "%s -> %s", value, candidate)
 				}
@@ -333,20 +333,20 @@ func List() []int {
 `})
 			adapter := golang.New(root, defaultSettings)
 
-			require.True(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ZERO", "Trigger{kind: 1}", "Trigger{}")))
-			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ZERO", "Trigger{kind: 0}", "Trigger{}")))
-			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ZERO", "[]int{1}", "[]int{}")))
+			require.True(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_EMPTY", "Trigger{kind: 1}", "Trigger{}")))
+			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_EMPTY", "Trigger{kind: 0}", "Trigger{}")))
+			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_EMPTY", "[]int{1}", "[]int{}")))
 		})
 
 		t.Run("keeps 0 for a float slot, and drops it when the value is zero already", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nfunc Rate() float64 {\n\treturn 0.0\n}\n\nfunc Ratio(a, b float64) float64 {\n\treturn a / b\n}\n"})
 			adapter := golang.New(root, defaultSettings)
 
-			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "a / b", "0")))
-			require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "0.0", "0")))
+			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "a / b", "0")))
+			require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "0.0", "0")))
 		})
 
-		t.Run("keeps nil for an error slot, and leaves the error slot out of RETURN_ZERO", func(t *testing.T) {
+		t.Run("keeps nil for an error slot, and leaves the error slot out of RETURN_EMPTY", func(t *testing.T) {
 			root := newModule(t, map[string]string{"store/store.go": `package store
 
 import "errors"
@@ -359,9 +359,9 @@ func Load(item *Item) (*Item, error) {
 `})
 			adapter := golang.New(root, defaultSettings)
 
-			require.True(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ERROR_NIL", `errors.New("not found")`, "nil")))
-			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ZERO", `errors.New("not found")`, "nil")))
-			require.False(t, adapter.Keep(editIn(t, root, "store/store.go", "RETURN_ERROR_NIL", "return item,", "item", "nil")))
+			require.True(t, adapter.Keep(editOf(t, root, "store/store.go", "ERROR_REMOVE", `errors.New("not found")`, "nil")))
+			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_EMPTY", `errors.New("not found")`, "nil")))
+			require.False(t, adapter.Keep(editIn(t, root, "store/store.go", "ERROR_REMOVE", "return item,", "item", "nil")))
 		})
 
 		t.Run("keeps true for a bool slot only, and drops it when the value is true already", func(t *testing.T) {
@@ -441,7 +441,7 @@ func Open(now, deadline time.Time, w Window, g Gate) []bool {
 			require.True(t, adapter.Keep(edit))
 		})
 
-		t.Run("drops a FIELD_ZERO edit of a call of a function that the settings name as a zero function", func(t *testing.T) {
+		t.Run("drops a NAMED_VALUE_REMOVE edit of a call of a function that the settings name as a zero function", func(t *testing.T) {
 			root := newModule(t, map[string]string{
 				"maybe/maybe.go": `package maybe
 
@@ -475,15 +475,15 @@ func New(owner string) Case {
 			})
 			settings := golang.Settings{BuildLimit: time.Minute, Workers: 1, ZeroFunctions: []string{"maybe.None", "trigger.Submitted"}}
 			adapter := golang.New(root, settings)
-			parker := editOf(t, root, "cases/cases.go", "FIELD_ZERO", "Parker: maybe.None[string](),", "")
+			parker := editOf(t, root, "cases/cases.go", "NAMED_VALUE_REMOVE", "Parker: maybe.None[string](),", "")
 
 			require.False(t, adapter.Keep(parker))
-			require.False(t, adapter.Keep(editOf(t, root, "cases/cases.go", "FIELD_ZERO", "Trigger: trigger.Submitted()", "")))
-			require.True(t, adapter.Keep(editOf(t, root, "cases/cases.go", "FIELD_ZERO", "Owner: maybe.Some(owner),", "")))
+			require.False(t, adapter.Keep(editOf(t, root, "cases/cases.go", "NAMED_VALUE_REMOVE", "Trigger: trigger.Submitted()", "")))
+			require.True(t, adapter.Keep(editOf(t, root, "cases/cases.go", "NAMED_VALUE_REMOVE", "Owner: maybe.Some(owner),", "")))
 			require.True(t, golang.New(root, defaultSettings).Keep(parker))
 		})
 
-		t.Run("keeps a FIELD_ZERO edit in a struct literal only, and drops it when the value is zero already", func(t *testing.T) {
+		t.Run("keeps a NAMED_VALUE_REMOVE edit in a struct literal only, and drops it when the value is zero already", func(t *testing.T) {
 			root := newModule(t, map[string]string{"info/info.go": `package info
 
 type Point struct{ X int }
@@ -500,11 +500,11 @@ func Build(arrived bool, id string) (*Info, map[string]int, Info) {
 `})
 			adapter := golang.New(root, defaultSettings)
 
-			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Arrived: arrived,", "")))
-			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "ID: id", "")))
-			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", `"a": 1`, "")))
-			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Arrived: false,", "")))
-			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Inner: Point{}", "")))
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Arrived: arrived,", "")))
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "ID: id", "")))
+			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", `"a": 1`, "")))
+			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Arrived: false,", "")))
+			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Inner: Point{}", "")))
 		})
 
 		t.Run("keeps only the zero value that fits the parameter of an argument", func(t *testing.T) {
@@ -526,14 +526,14 @@ func Run(id ID) string {
 			zeros := map[string]string{"id.String()": `""`, "Point{X: 1}": "Point{}", "3": "0", "func() {}": "nil"}
 			for value, zero := range zeros {
 				for _, candidate := range []string{"nil", "0", `""`, "false", "Point{}"} {
-					keep := adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "resolve(id.String(), Point{X: 1}, 3, func() {})", value, candidate))
+					keep := adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_EMPTY", "resolve(id.String(), Point{X: 1}, 3, func() {})", value, candidate))
 
 					require.Equal(t, candidate == zero, keep, "%s -> %s", value, candidate)
 				}
 			}
 		})
 
-		t.Run("drops an ARGUMENT_ZERO edit of a builtin, a conversion or a variadic parameter, and keeps the fixed parameters of a variadic call", func(t *testing.T) {
+		t.Run("drops an ARGUMENT_EMPTY edit of a builtin, a conversion or a variadic parameter, and keeps the fixed parameters of a variadic call", func(t *testing.T) {
 			root := newModule(t, map[string]string{"client/client.go": `package client
 
 import "fmt"
@@ -544,13 +544,13 @@ func Run(xs []int, id int) (int, int64, string) {
 `})
 			adapter := golang.New(root, defaultSettings)
 
-			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "len(xs)", "xs", "nil")))
-			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "int64(id)", "id", "0")))
-			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", `"%d", id)`, "id", "0")))
-			require.True(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", `"%d"`, `""`)))
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_EMPTY", "len(xs)", "xs", "nil")))
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_EMPTY", "int64(id)", "id", "0")))
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_EMPTY", `"%d", id)`, "id", "0")))
+			require.True(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_EMPTY", `"%d"`, `""`)))
 		})
 
-		t.Run("drops an ARGUMENT_ZERO edit of a context and of the text of an error, and keeps the other arguments", func(t *testing.T) {
+		t.Run("drops an ARGUMENT_EMPTY edit of a context and of the text of an error, and keeps the other arguments", func(t *testing.T) {
 			root := newModule(t, map[string]string{"client/client.go": `package client
 
 import (
@@ -569,43 +569,43 @@ func Run(ctx context.Context, id, name string, cause error) []error {
 `})
 			adapter := golang.New(root, defaultSettings)
 
-			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "load(ctx, id)", "ctx", "nil")))
-			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", "context.Background()", "nil")))
-			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", `"not found"`, `""`)))
-			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_ZERO", `"load %s: %w"`, `""`)))
-			require.True(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "load(ctx, id)", "id", `""`)))
-			require.True(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "validate(name)", "name", `""`)))
+			require.False(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_EMPTY", "load(ctx, id)", "ctx", "nil")))
+			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_EMPTY", "context.Background()", "nil")))
+			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_EMPTY", `"not found"`, `""`)))
+			require.False(t, adapter.Keep(editOf(t, root, "client/client.go", "ARGUMENT_EMPTY", `"load %s: %w"`, `""`)))
+			require.True(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_EMPTY", "load(ctx, id)", "id", `""`)))
+			require.True(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_EMPTY", "validate(name)", "name", `""`)))
 		})
 
 		t.Run("finds the slot of a return in a function literal inside a function", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nimport \"strconv\"\n\nfunc Outer() string {\n\tf := func(n int) int { return n + 1 }\n\treturn strconv.Itoa(f(1))\n}\n"})
 			adapter := golang.New(root, defaultSettings)
 
-			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "n + 1", "0")))
-			require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "n + 1", `""`)))
+			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "n + 1", "0")))
+			require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "n + 1", `""`)))
 		})
 
-		t.Run("keeps a FIELD_ZERO and a SWAP_FIELDS edit in a literal of a slice of pointers", func(t *testing.T) {
+		t.Run("keeps a NAMED_VALUE_REMOVE and a NAMED_VALUE_SWAP edit in a literal of a slice of pointers", func(t *testing.T) {
 			root := newModule(t, map[string]string{"info/info.go": "package info\n\ntype Info struct {\n\tArrived bool\n\tID      string\n\tName    string\n}\n\nvar All = []*Info{{Arrived: true, ID: \"a\", Name: \"b\"}}\n"})
 			adapter := golang.New(root, defaultSettings)
 
-			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Arrived: true,", "")))
-			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "SWAP_FIELDS", `"a", Name: "b"`, `"b", Name: "a"`)))
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Arrived: true,", "")))
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_SWAP", `"a", Name: "b"`, `"b", Name: "a"`)))
 		})
 
-		t.Run("drops each RETURN_ZERO edit for a slot whose type is a type parameter", func(t *testing.T) {
+		t.Run("drops each RETURN_EMPTY edit for a slot whose type is a type parameter", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nfunc First[T any](xs []T) T {\n\treturn xs[0]\n}\n"})
 			adapter := golang.New(root, defaultSettings)
 
 			for _, candidate := range []string{"nil", "0", `""`, "false"} {
-				require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "xs[0]", candidate)), candidate)
+				require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "xs[0]", candidate)), candidate)
 			}
 		})
 
 		t.Run("finds the slot of a return in a function literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nvar Next = func(n int) (int, error) {\n\treturn n + 1, nil\n}\n"})
 
-			keep := golang.New(root, defaultSettings).Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "n + 1", "0"))
+			keep := golang.New(root, defaultSettings).Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "n + 1", "0"))
 
 			require.True(t, keep)
 		})

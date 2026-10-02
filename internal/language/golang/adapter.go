@@ -18,13 +18,13 @@ import (
 )
 
 const (
-	swapFields       = "SWAP_FIELDS"
-	returnZero       = "RETURN_ZERO"
-	returnErrorNil   = "RETURN_ERROR_NIL"
+	namedValueSwap   = "NAMED_VALUE_SWAP"
+	returnEmpty      = "RETURN_EMPTY"
+	errorRemove      = "ERROR_REMOVE"
 	returnTrue       = "RETURN_TRUE"
 	integerDecrement = "INTEGER_DECREMENT"
-	fieldZero        = "FIELD_ZERO"
-	argumentZero     = "ARGUMENT_ZERO"
+	namedValueRemove = "NAMED_VALUE_REMOVE"
+	argumentEmpty    = "ARGUMENT_EMPTY"
 
 	timeBoundaryRules = "CONDITIONALS_BOUNDARY/time-"
 )
@@ -108,20 +108,20 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.callsTimeMethod(path, candidate.Start, candidate.End)
 	}
 	switch candidate.Operator {
-	case swapFields:
+	case namedValueSwap:
 		return a.types.canSwap(path, candidate.Start, candidate.End)
-	case returnZero:
+	case returnEmpty:
 		zero := a.types.zeroOfSlot(path, candidate.Start, candidate.End)
 		return zero != "" && zero == candidate.Replacement
-	case returnErrorNil:
+	case errorRemove:
 		return a.types.isErrorSlot(path, candidate.Start, candidate.End)
 	case returnTrue:
 		return a.types.canBecomeTrue(path, candidate.Start, candidate.End)
 	case integerDecrement:
 		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
-	case fieldZero:
+	case namedValueRemove:
 		return a.types.canZeroField(path, candidate.Start)
-	case argumentZero:
+	case argumentEmpty:
 		zero := a.types.zeroOfParameter(path, candidate.Start, candidate.End)
 		return zero != "" && zero == candidate.Replacement
 	}

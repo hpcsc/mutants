@@ -29,7 +29,7 @@ func TestConfig(t *testing.T) {
 	t.Run("load", func(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
-			content := "base: origin/main\nworkers: 2\ntags: [unit]\noperators: [-ERRORF_WRAP]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\n" +
+			content := "base: origin/main\nworkers: 2\ntags: [unit]\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\n" +
 				"zero_functions: [maybe.None]\ncaller_gaps: true\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
@@ -40,7 +40,7 @@ func TestConfig(t *testing.T) {
 				Base:          "origin/main",
 				Workers:       2,
 				Tags:          []string{"unit"},
-				Operators:     []string{"-ERRORF_WRAP"},
+				Operators:     []string{"-ERROR_CAUSE_REMOVE"},
 				Exclude:       []string{"**/*_gen.go", "vendor/**"},
 				ZeroFunctions: []string{"maybe.None"},
 				CallerGaps:    true,
@@ -139,13 +139,13 @@ func TestConfig(t *testing.T) {
 
 	t.Run("settings", func(t *testing.T) {
 		t.Run("a flag of run wins over the file, and keeps the sign of each operator", func(t *testing.T) {
-			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}, CallerGaps: true}
-			command := parsed(t, newRunCommand(), "--base", "HEAD", "--workers", "8", "--tags", "integration", "--operators=-ERRORF_WRAP,+SWAP_FIELDS", "--caller-gaps=false")
+			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERROR_CAUSE_REMOVE"}, CallerGaps: true}
+			command := parsed(t, newRunCommand(), "--base", "HEAD", "--workers", "8", "--tags", "integration", "--operators=-ERROR_CAUSE_REMOVE,+NAMED_VALUE_SWAP", "--caller-gaps=false")
 
 			require.Equal(t, "HEAD", loaded.base(command))
 			require.Equal(t, 8, loaded.workers(command))
 			require.Equal(t, []string{"integration"}, loaded.tags(command))
-			require.Equal(t, []string{"-ERRORF_WRAP", "+SWAP_FIELDS"}, loaded.operators(command))
+			require.Equal(t, []string{"-ERROR_CAUSE_REMOVE", "+NAMED_VALUE_SWAP"}, loaded.operators(command))
 			require.False(t, loaded.callerGaps(command))
 		})
 
@@ -158,13 +158,13 @@ func TestConfig(t *testing.T) {
 		})
 
 		t.Run("the file wins over the default", func(t *testing.T) {
-			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}, CallerGaps: true}
+			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERROR_CAUSE_REMOVE"}, CallerGaps: true}
 			command := parsed(t, newRunCommand())
 
 			require.Equal(t, "origin/main", loaded.base(command))
 			require.Equal(t, 2, loaded.workers(command))
 			require.Equal(t, []string{"unit"}, loaded.tags(command))
-			require.Equal(t, []string{"-ERRORF_WRAP"}, loaded.operators(command))
+			require.Equal(t, []string{"-ERROR_CAUSE_REMOVE"}, loaded.operators(command))
 			require.True(t, loaded.callerGaps(command))
 		})
 

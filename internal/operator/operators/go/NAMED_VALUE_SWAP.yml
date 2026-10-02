@@ -1,4 +1,4 @@
-id: SWAP_FIELDS
+id: NAMED_VALUE_SWAP
 language: go
 rule:
   kind: keyed_element

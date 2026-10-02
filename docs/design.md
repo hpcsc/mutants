@@ -217,8 +217,8 @@ rule:
 fix: $A - $B
 ```
 
-A hook is Go code for an operator that needs more than one match. `SWAP_FIELDS` is a hook: a rule can swap
-the two fields of a literal with exactly two fields, but not each adjacent pair of a longer literal.
+A hook is Go code for an operator that needs more than one match. `NAMED_VALUE_SWAP` is a hook: a rule can
+swap the two fields of a literal with exactly two fields, but not each adjacent pair of a longer literal.
 
 ```go
 package operator
@@ -231,9 +231,9 @@ type Hook interface {
 ```
 
 A rule cannot know a type, so a rule gives every candidate and the type filter of the adapter chooses.
-`RETURN_ZERO` has one rule for each zero value (`nil`, `0`, `""` and `false`) and one rule that makes a struct
-literal `T{}`, and the filter keeps the one that is the zero value of the slot. `ARGUMENT_ZERO` does the same
-for the parameter of a call argument.
+`RETURN_EMPTY` has one rule for each zero value (`nil`, `0`, `""` and `false`) and one rule that makes a
+struct literal `T{}`, and the filter keeps the one that is the zero value of the slot. `ARGUMENT_EMPTY` does
+the same for the parameter of a call argument.
 
 The Go pack for v1:
 
@@ -248,16 +248,16 @@ The Go pack for v1:
 | `EXPRESSION_REMOVE` | `a && b` to `true && b` and to `a && true`, `a \|\| b` to `false \|\| b` and to `a \|\| false` | |
 | `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | the body of an `if` or an `else` to `{}`, and no statement in a `case` | finds an error branch that no test enters; skips a body that has only log calls |
 | `STATEMENT_REMOVE` | `x = expr` to `_ = expr`, and removes a call that stands alone, such as `close(done)` or `wg.Done()` | skips a log call that ends in `Msg`, `Msgf` or `Send`, also over more than one line, and `panic` |
-| `RETURN_ZERO` | a return value to the zero value of its type, and a struct literal `T{…}` to `T{}` | the type comes from `go/types` |
-| `RETURN_ERROR_NIL` | an error return value to `nil` | `go/types` finds the error slot |
-| `RETURN_TRUE` | a bool return value to `true` | `go/types` finds the bool slot; `RETURN_ZERO` already makes it `false` |
+| `RETURN_EMPTY` | a return value to the zero value of its type, and a struct literal `T{…}` to `T{}` | the type comes from `go/types` |
+| `ERROR_REMOVE` | an error return value to `nil` | `go/types` finds the error slot |
+| `RETURN_TRUE` | a bool return value to `true` | `go/types` finds the bool slot; `RETURN_EMPTY` already makes it `false` |
 | `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `n` to `(n+1)`, `(n-1)` | |
-| `RANGE_BREAK` | `break` at the start of a `range` body | |
+| `BREAK_AT_START` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
-| `SWAP_FIELDS` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |
-| `FIELD_ZERO` | removes one keyed field from a struct literal, so the field gets the zero value of its type | shows a field that no test reads |
-| `ARGUMENT_ZERO` | a call argument to the zero value of its parameter type | off by default: each argument of each call makes a mutant, so it is noisy until it has a filter |
-| `ERRORF_WRAP` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
+| `NAMED_VALUE_SWAP` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |
+| `NAMED_VALUE_REMOVE` | removes one keyed field from a struct literal, so the field gets the zero value of its type | shows a field that no test reads |
+| `ARGUMENT_EMPTY` | a call argument to the zero value of its parameter type | off by default: each argument of each call makes a mutant, so it is noisy until it has a filter |
+| `ERROR_CAUSE_REMOVE` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
 
 ### Filters
 
@@ -269,13 +269,13 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Test file | an edit in a `_test.go` file |
 | Generated code | a file with the `// Code generated ... DO NOT EDIT.` line |
 | Build tags | an edit in a file that `go list` leaves out of its package with the build tags of the run |
-| Type | a `SWAP_FIELDS` pair outside a struct literal, or whose two values do not have identical types in `go/types` |
-| Table | a `SWAP_FIELDS` pair in a table of named values, where each value is a literal of one named type with constant fields, such as `NoMatch: Reason{"NoMatch"}`. A swap there lives unless a test reads the text. |
-| Type | a `RETURN_ZERO` value that is not the zero value of its slot, that fills an error slot, or that is zero already |
-| Type | a `RETURN_ERROR_NIL` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
+| Type | a `NAMED_VALUE_SWAP` pair outside a struct literal, or whose two values do not have identical types in `go/types` |
+| Table | a `NAMED_VALUE_SWAP` pair in a table of named values, where each value is a literal of one named type with constant fields, such as `NoMatch: Reason{"NoMatch"}`. A swap there lives unless a test reads the text. |
+| Type | a `RETURN_EMPTY` value that is not the zero value of its slot, that fills an error slot, or that is zero already |
+| Type | an `ERROR_REMOVE` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
-| Type | a `FIELD_ZERO` field outside a struct literal, or whose value is zero already |
-| Type | an `ARGUMENT_ZERO` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion, of a variadic parameter or of a log chain. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
+| Type | a `NAMED_VALUE_REMOVE` field outside a struct literal, or whose value is zero already |
+| Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion, of a variadic parameter or of a log chain. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |
 
 A candidate that passes the filters and still fails to build is NOT VIABLE.
@@ -541,7 +541,7 @@ or a NOT VIABLE mutant gets no row:
 LIVED:
   internal/order/handler.go:42 BRANCH_IF: { return nil, fmt.Errorf("load the accounts ... -> {}  [internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1]
 NOT COVERED:
-  internal/order/handler.go:43 RETURN_ERROR_NIL: fmt.Errorf("load the accounts ... -> nil  [internal/order/handler.go:(*Handler).accounts:RETURN_ERROR_NIL#1]
+  internal/order/handler.go:43 ERROR_REMOVE: fmt.Errorf("load the accounts ... -> nil  [internal/order/handler.go:(*Handler).accounts:ERROR_REMOVE#1]
 mutants: 81, killed: 64, lived: 1, not covered: 3, not viable: 13 (base 1a2b3c4d5e)
 ```
 
@@ -573,14 +573,14 @@ is an error that names the key, its line and the known keys.
 base: origin/main
 workers: 4
 tags: [unit]
-operators: [-ERRORF_WRAP]
+operators: [-ERROR_CAUSE_REMOVE]
 exclude: ["**/*_gen.go", "vendor/**"]
 zero_functions: [maybe.None, caseautoresolve.Submitted]
 ```
 
 `zero_functions` names the functions that return the zero value of their type, as `package.Function` with the
-name of the package, not its path. `FIELD_ZERO` skips a field whose value is a call of one of them, because
-the removal of that field changes nothing.
+name of the package, not its path. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them,
+because the removal of that field changes nothing.
 
 v1 keeps no cache. Its one state file is the store of accepted proposals, in
 `$(git rev-parse --absolute-git-dir)/mutants/`, so the work tree stays clean. The rules for a scan, the
@@ -677,8 +677,8 @@ The end-to-end fixtures:
 
 | Fixture | Expected |
 | --- | --- |
-| Two figures of one type with equal values in the test | `SWAP_FIELDS` LIVED. With different values in the test: KILLED. |
-| An error branch that no test enters | `BRANCH_IF` LIVED and `RETURN_ERROR_NIL` NOT COVERED |
+| Two figures of one type with equal values in the test | `NAMED_VALUE_SWAP` LIVED. With different values in the test: KILLED. |
+| An error branch that no test enters | `BRANCH_IF` LIVED and `ERROR_REMOVE` NOT COVERED |
 | A condition that holds the only use of a variable and of an import | `EXPRESSION_REMOVE` LIVED, not NOT VIABLE |
 | A deadline that a test checks one hour before and one hour after | `CONDITIONALS_BOUNDARY` LIVED. With a check at the deadline itself: KILLED. |
 | A due date three calendar days after a start, the `CALENDAR_DAY` rule of [operators.md](operators.md#operators-of-your-own) in the repository, and a test in UTC | `CALENDAR_DAY` LIVED. With a test in Sydney across the start of daylight saving time: KILLED. |
@@ -751,12 +751,12 @@ costs time only for a mutant that really hangs, and such a mutant is rare.
 11 builds of one large package on the measured monorepo, under a load average of up to 111. The build of
 the real code runs under the same load, so 3 × its time fits the package and the host.
 
-**Why FIELD_ZERO runs by default.** On 12 measured PRs, it made 329 mutants, about a third more than the other
-operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example a close
-rule that loses a blocker. Three more were values that `zero_functions` now skips. So most of its survivors are
-real test gaps, and they are worth the longer run.
+**Why NAMED_VALUE_REMOVE runs by default.** On 12 measured PRs, it made 329 mutants, about a third more than
+the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example
+a close rule that loses a blocker. Three more were values that `zero_functions` now skips. So most of its
+survivors are real test gaps, and they are worth the longer run.
 
-**Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_ZERO`.
+**Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_EMPTY`.
 Without it, a guard that returns `false` gets no mutant.
 
 **Why a caller gap needs the reach of the changed lines.** A caller whose tests use a fake for its callee

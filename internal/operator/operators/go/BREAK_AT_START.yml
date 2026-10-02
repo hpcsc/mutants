@@ -1,4 +1,4 @@
-id: RANGE_BREAK
+id: BREAK_AT_START
 language: go
 rule:
   pattern: for $$$HEAD { $$$BODY }

@@ -31,7 +31,7 @@ func TestRows(t *testing.T) {
 		t.Run("groups the mutants that need a look by status, and leaves out the killed and the not viable ones", func(t *testing.T) {
 			mutants := []mutant.Mutant{
 				reported("handler.go", 50, "INVERT_LOGICAL", 1, "a && b", "a || b", mutant.Killed),
-				reported("handler.go", 43, "RETURN_ERROR_NIL", 1, "err", "nil", mutant.NotCovered),
+				reported("handler.go", 43, "ERROR_REMOVE", 1, "err", "nil", mutant.NotCovered),
 				reported("handler.go", 42, "BRANCH_IF", 1, "{ return nil, err }", "{}", mutant.Lived),
 				reported("handler.go", 60, "ARITHMETIC_BASE", 1, `"a" + b`, `"a" - b`, mutant.NotViable),
 				reported("handler.go", 70, "BREAK_AT_END", 1, "for { f() }", "for { f(); break }", mutant.TimedOut),
@@ -44,7 +44,7 @@ func TestRows(t *testing.T) {
 			require.Equal(t, `LIVED:
   handler.go:42 BRANCH_IF: { return nil, err } -> {}  [handler.go:(*Handler).accounts:BRANCH_IF#1]
 NOT COVERED:
-  handler.go:43 RETURN_ERROR_NIL: err -> nil  [handler.go:(*Handler).accounts:RETURN_ERROR_NIL#1]
+  handler.go:43 ERROR_REMOVE: err -> nil  [handler.go:(*Handler).accounts:ERROR_REMOVE#1]
 TIMED OUT:
   handler.go:70 BREAK_AT_END: for { f() } -> for { f(); break }  [handler.go:(*Handler).accounts:BREAK_AT_END#1]
 INFRA ERROR:
@@ -60,8 +60,8 @@ mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, in
 			}
 			mutants := []mutant.Mutant{
 				noTests(reported("report/main.go", 20, "BRANCH_IF", 1, "{ g() }", "{}", mutant.NotCovered)),
-				reported("handler.go", 43, "RETURN_ERROR_NIL", 1, "err", "nil", mutant.NotCovered),
-				noTests(reported("report/main.go", 10, "RETURN_ZERO", 1, "n", "0", mutant.NotCovered)),
+				reported("handler.go", 43, "ERROR_REMOVE", 1, "err", "nil", mutant.NotCovered),
+				noTests(reported("report/main.go", 10, "RETURN_EMPTY", 1, "n", "0", mutant.NotCovered)),
 				noTests(reported("report/write.go", 5, "STATEMENT_REMOVE", 1, "close(f)", "", mutant.NotCovered)),
 			}
 			var output strings.Builder
@@ -69,7 +69,7 @@ mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, in
 			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
 
 			require.Equal(t, `NOT COVERED:
-  handler.go:43 RETURN_ERROR_NIL: err -> nil  [handler.go:(*Handler).accounts:RETURN_ERROR_NIL#1]
+  handler.go:43 ERROR_REMOVE: err -> nil  [handler.go:(*Handler).accounts:ERROR_REMOVE#1]
   package report has no test files: 3 mutants
 mutants: 4, not covered: 4
 `, output.String())

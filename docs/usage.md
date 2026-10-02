@@ -122,7 +122,7 @@ LIVED:
   internal/order/handler.go:42 BRANCH_IF: { return nil, fmt.Errorf("load the accounts ... -> {}  [internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1]
 NOT COVERED:
   package cmd/report has no test files: 12 mutants
-  internal/order/handler.go:43 RETURN_ERROR_NIL: fmt.Errorf("load the accounts ... -> nil  [internal/order/handler.go:(*Handler).accounts:RETURN_ERROR_NIL#1]
+  internal/order/handler.go:43 ERROR_REMOVE: fmt.Errorf("load the accounts ... -> nil  [internal/order/handler.go:(*Handler).accounts:ERROR_REMOVE#1]
 mutants: 81, killed: 64, lived: 1, not covered: 15, not viable: 1 (base 1a2b3c4d5e)
 ```
 
@@ -307,7 +307,7 @@ A repository can keep its settings in `.mutants.yml` at its root. A flag wins ov
 base: origin/main
 workers: 4
 tags: [unit]
-operators: [-ERRORF_WRAP]
+operators: [-ERROR_CAUSE_REMOVE]
 exclude: ["**/*_gen.go", "vendor/**"]
 zero_functions: [maybe.None, caseautoresolve.Submitted]
 caller_gaps: true
@@ -320,7 +320,7 @@ caller_gaps: true
 | `tags` | the build tags, as `--tags` |
 | `operators` | the operators, as `--operators` |
 | `exclude` | the files that get no mutant, as globs from the repository root |
-| `zero_functions` | the functions that return the zero value of their type, as `package.Function`. `FIELD_ZERO` skips a field whose value is a call of one of them, because the removal of that field changes nothing. Use the name of the package, not its path. |
+| `zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them, because the removal of that field changes nothing. Use the name of the package, not its path. |
 | `caller_gaps` | `true` looks for caller gaps in each run, as `--caller-gaps` |
 
 An unknown key is an error that names the key, its line and the known keys.

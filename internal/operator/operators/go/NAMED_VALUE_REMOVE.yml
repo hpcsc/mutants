@@ -1,4 +1,4 @@
-id: FIELD_ZERO
+id: NAMED_VALUE_REMOVE
 language: go
 rule:
   kind: keyed_element

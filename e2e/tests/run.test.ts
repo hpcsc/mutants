@@ -285,12 +285,12 @@ describe('mutants run', { timeout: 240_000 }, () => {
     const different = goRepository()
     writeFiles(different, { 'figures/figures.go': figures, 'figures/figures_test.go': figuresTest(5, 7) })
 
-    const lives = await runMutants(equal, ['--base', 'HEAD', '--operators', 'SWAP_FIELDS'])
-    const dies = await runMutants(different, ['--base', 'HEAD', '--operators', 'SWAP_FIELDS'])
+    const lives = await runMutants(equal, ['--base', 'HEAD', '--operators', 'NAMED_VALUE_SWAP'])
+    const dies = await runMutants(different, ['--base', 'HEAD', '--operators', 'NAMED_VALUE_SWAP'])
 
-    expect(verdicts(lives.mutants)).toEqual(['SWAP_FIELDS paid, Owed: owed LIVED'])
+    expect(verdicts(lives.mutants)).toEqual(['NAMED_VALUE_SWAP paid, Owed: owed LIVED'])
     expect(lives.result.status).toBe(10)
-    expect(verdicts(dies.mutants)).toEqual(['SWAP_FIELDS paid, Owed: owed KILLED'])
+    expect(verdicts(dies.mutants)).toEqual(['NAMED_VALUE_SWAP paid, Owed: owed KILLED'])
     expect(dies.result.status).toBe(0)
   })
 
@@ -298,9 +298,9 @@ describe('mutants run', { timeout: 240_000 }, () => {
     const dir = goRepository()
     writeFiles(dir, { 'accounts/accounts.go': accounts, 'accounts/accounts_test.go': accountsTest })
 
-    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'BRANCH_IF,RETURN_ERROR_NIL'])
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'BRANCH_IF,ERROR_REMOVE'])
 
-    expect(mutants.map((m) => `${m.operator} ${m.line} ${m.status}`)).toEqual(['BRANCH_IF 6 LIVED', 'RETURN_ERROR_NIL 7 NOT COVERED'])
+    expect(mutants.map((m) => `${m.operator} ${m.line} ${m.status}`)).toEqual(['BRANCH_IF 6 LIVED', 'ERROR_REMOVE 7 NOT COVERED'])
   })
 
   it('stopping a loop after its first item lives when the test has one item, and dies when it has two', async () => {
@@ -712,15 +712,15 @@ func TestWait(t *testing.T) {
     const dir = goRepository()
     writeFiles(dir, { 'figures/figures.go': figures, 'figures/figures_test.go': figuresTest(5, 5) })
 
-    const rows = await runCli(dir, ['run', '--base', 'HEAD', '--operators', 'SWAP_FIELDS'])
-    const row = rows.stdout.split('\n').find((line) => line.includes('figures/figures.go:8 SWAP_FIELDS')) ?? ''
+    const rows = await runCli(dir, ['run', '--base', 'HEAD', '--operators', 'NAMED_VALUE_SWAP'])
+    const row = rows.stdout.split('\n').find((line) => line.includes('figures/figures.go:8 NAMED_VALUE_SWAP')) ?? ''
     const id = row.match(/\[(.+)\]$/)?.[1] ?? ''
     const again = await runCli(dir, ['rerun', id])
 
     expect(rows.status).toBe(10)
     expect(rows.stdout).toMatch(/^LIVED:$/m)
     expect(rows.stdout).toMatch(/^mutants: 1, lived: 1 /m)
-    expect(id).toBe('figures/figures.go:Summarise:SWAP_FIELDS#1')
+    expect(id).toBe('figures/figures.go:Summarise:NAMED_VALUE_SWAP#1')
     expect(again.status).toBe(10)
     expect(again.stdout).toContain(`[${id}]`)
   })
@@ -866,16 +866,16 @@ describe('mutants rerun', { timeout: 240_000 }, () => {
   it('exits 10 for a mutant that lives, 0 for one that dies, and 2 for an id that names no mutant', async () => {
     const equal = goRepository({ 'figures/figures.go': figures, 'figures/figures_test.go': figuresTest(5, 5) })
     const different = goRepository({ 'figures/figures.go': figures, 'figures/figures_test.go': figuresTest(5, 7) })
-    const id = 'figures/figures.go:Summarise:SWAP_FIELDS#1'
+    const id = 'figures/figures.go:Summarise:NAMED_VALUE_SWAP#1'
 
     const lives = await runCli(equal, ['rerun', id])
     const dies = await runCli(different, ['rerun', id])
-    const unknown = await runCli(equal, ['rerun', 'figures/figures.go:Summarise:SWAP_FIELDS#2'])
+    const unknown = await runCli(equal, ['rerun', 'figures/figures.go:Summarise:NAMED_VALUE_SWAP#2'])
 
     expect(lives.status).toBe(10)
-    expect(lives.stdout).toContain(`LIVED: figures/figures.go:8 SWAP_FIELDS: paid, Owed: owed -> owed, Owed: paid  [${id}]`)
+    expect(lives.stdout).toContain(`LIVED: figures/figures.go:8 NAMED_VALUE_SWAP: paid, Owed: owed -> owed, Owed: paid  [${id}]`)
     expect(dies.status).toBe(0)
-    expect(dies.stdout).toContain('KILLED: figures/figures.go:8 SWAP_FIELDS')
+    expect(dies.stdout).toContain('KILLED: figures/figures.go:8 NAMED_VALUE_SWAP')
     expect(unknown.status).toBe(2)
     expect(unknown.stderr).toContain('no mutant has this id')
   })
@@ -906,12 +906,12 @@ describe('mutants rerun', { timeout: 240_000 }, () => {
 })
 
 describe('mutants operators', () => {
-  it('lists each operator, with ERRORF_WRAP off by default', async () => {
+  it('lists each operator, with ERROR_CAUSE_REMOVE off by default', async () => {
     const result = await runCli(goRepository(), ['operators'])
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toMatch(/^SWAP_FIELDS\s+on\s+SWAP_FIELDS$/m)
-    expect(result.stdout).toMatch(/^ERRORF_WRAP\s+off\s+ERRORF_WRAP$/m)
+    expect(result.stdout).toMatch(/^NAMED_VALUE_SWAP\s+on\s+NAMED_VALUE_SWAP$/m)
+    expect(result.stdout).toMatch(/^ERROR_CAUSE_REMOVE\s+off\s+ERROR_CAUSE_REMOVE$/m)
   })
 
   it('lists a rule of the repository with the file that holds it, also from a folder below the root', async () => {

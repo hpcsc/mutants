@@ -1,4 +1,4 @@
-id: RETURN_ERROR_NIL
+id: ERROR_REMOVE
 language: go
 rule:
   any:

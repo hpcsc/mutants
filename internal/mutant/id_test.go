@@ -58,12 +58,12 @@ func TestCounter(t *testing.T) {
 			ids := []string{
 				counter.Next("a.go", "f", "BRANCH_IF").String(),
 				counter.Next("a.go", "f", "BRANCH_IF").String(),
-				counter.Next("a.go", "f", "RETURN_ZERO").String(),
+				counter.Next("a.go", "f", "RETURN_EMPTY").String(),
 				counter.Next("a.go", "g", "BRANCH_IF").String(),
 				counter.Next("b.go", "f", "BRANCH_IF").String(),
 			}
 
-			require.Equal(t, []string{"a.go:f:BRANCH_IF#1", "a.go:f:BRANCH_IF#2", "a.go:f:RETURN_ZERO#1", "a.go:g:BRANCH_IF#1", "b.go:f:BRANCH_IF#1"}, ids)
+			require.Equal(t, []string{"a.go:f:BRANCH_IF#1", "a.go:f:BRANCH_IF#2", "a.go:f:RETURN_EMPTY#1", "a.go:g:BRANCH_IF#1", "b.go:f:BRANCH_IF#1"}, ids)
 		})
 	})
 }

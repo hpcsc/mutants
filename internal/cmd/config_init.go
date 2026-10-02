@@ -91,11 +91,11 @@ func configTemplate(base string, tags map[string]int) string {
 
 	text.WriteString("# The number of mutants that run at the same time.\n# workers: 4\n\n")
 	text.WriteString("# The operators: -NAME takes one out, +NAME adds one, NAME runs only the named ones, and none runs\n" +
-		"# no operator. mutants operators lists them.\n# operators: [-FIELD_ZERO]\n\n")
+		"# no operator. mutants operators lists them.\n# operators: [-NAMED_VALUE_REMOVE]\n\n")
 	text.WriteString("# The files that get no mutant, as globs from the root of the repository.\n" +
 		"# exclude: [\"**/*_gen.go\", \"vendor/**\"]\n\n")
 	text.WriteString("# The functions that return the zero value of their type, as package.Function with the name of the\n" +
-		"# package. FIELD_ZERO skips a field whose value is a call of one of them.\n# zero_functions: [maybe.None]\n\n")
+		"# package. NAMED_VALUE_REMOVE skips a field whose value is a call of one of them.\n# zero_functions: [maybe.None]\n\n")
 	text.WriteString("# Also find the changed statements that no test of a changed caller runs.\n# caller_gaps: false\n")
 	return text.String()
 }

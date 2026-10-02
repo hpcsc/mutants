@@ -41,33 +41,33 @@ ast-grep rules of each one.
 
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
-| `RETURN_ZERO` | `return total, nil` to `return 0, nil`, and `return Trigger{kind: note}` to `return Trigger{}` | no test checks the value that the function returns |
-| `RETURN_ERROR_NIL` | `return fmt.Errorf("load: %w", err)` to `return nil` | no test checks that the function returns an error |
+| `RETURN_EMPTY` | `return total, nil` to `return 0, nil`, and `return Trigger{kind: note}` to `return Trigger{}` | no test checks the value that the function returns |
+| `ERROR_REMOVE` | `return fmt.Errorf("load: %w", err)` to `return nil` | no test checks that the function returns an error |
 | `RETURN_TRUE` | `return a < b` to `return true` | no test expects `false` from the function |
 
 ## Loops
 
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
-| `RANGE_BREAK` | `break` at the start of the body of a `range` loop | no test checks what the loop does |
+| `BREAK_AT_START` | `break` at the start of the body of a `range` loop | no test checks what the loop does |
 | `BREAK_AT_END` | `break` at the end of the body of a `for` loop | the tests give the loop only one item |
 
 ## Struct literals and calls
 
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
-| `SWAP_FIELDS` | `Totals{Paid: paid, Owed: owed}` to `Totals{Paid: owed, Owed: paid}` | the tests use two equal values, so a swap gives the same result |
-| `FIELD_ZERO` | `Info{Arrived: arrived, ID: id}` to `Info{ID: id}`, so `Arrived` gets its zero value | no test reads the field |
+| `NAMED_VALUE_SWAP` | `Totals{Paid: paid, Owed: owed}` to `Totals{Paid: owed, Owed: paid}` | the tests use two equal values, so a swap gives the same result |
+| `NAMED_VALUE_REMOVE` | `Info{Arrived: arrived, ID: id}` to `Info{ID: id}`, so `Arrived` gets its zero value | no test reads the field |
 
 ## Operators that are off by default
 
 These operators run only when `--operators` or `.mutants.yml` names them, for example
-`mutants run --operators=+ARGUMENT_ZERO`. They give more survivors that are not gaps in the tests.
+`mutants run --operators=+ARGUMENT_EMPTY`. They give more survivors that are not gaps in the tests.
 
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
-| `ARGUMENT_ZERO` | `resolve(input.ClientID.String())` to `resolve("")` | no test sends the value through the call |
-| `ERRORF_WRAP` | `fmt.Errorf("load: %w", err)` to `fmt.Errorf("load: %v", err)` | no caller checks the error with `errors.Is` or `errors.As` |
+| `ARGUMENT_EMPTY` | `resolve(input.ClientID.String())` to `resolve("")` | no test sends the value through the call |
+| `ERROR_CAUSE_REMOVE` | `fmt.Errorf("load: %w", err)` to `fmt.Errorf("load: %v", err)` | no caller checks the error with `errors.Is` or `errors.As` |
 
 ## What mutants skips
 

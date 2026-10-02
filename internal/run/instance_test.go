@@ -612,7 +612,7 @@ func TestInstance(t *testing.T) {
 		t.Run("finds a mutant of an operator that is off by default", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": "package a\n\nimport \"fmt\"\n\nfunc f(err error) error {\n\treturn fmt.Errorf(\"load: %w\", err)\n}\n"})
 
-			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "ERRORF_WRAP", Number: 1})
+			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "ERROR_CAUSE_REMOVE", Number: 1})
 
 			require.NoError(t, err)
 			require.Equal(t, `fmt.Errorf("load: %v", err)`, m.Replacement)

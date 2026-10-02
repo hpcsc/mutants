@@ -162,32 +162,32 @@ func TestPack(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Contains(t, operatorsOf(pack), "CONDITIONALS_BOUNDARY")
-			require.Contains(t, operatorsOf(pack), "SWAP_FIELDS")
-			require.NotContains(t, operatorsOf(pack), "ERRORF_WRAP")
-			require.NotContains(t, operatorsOf(pack), "ARGUMENT_ZERO")
+			require.Contains(t, operatorsOf(pack), "NAMED_VALUE_SWAP")
+			require.NotContains(t, operatorsOf(pack), "ERROR_CAUSE_REMOVE")
+			require.NotContains(t, operatorsOf(pack), "ARGUMENT_EMPTY")
 		})
 
 		t.Run("a name with - takes an operator out", func(t *testing.T) {
-			pack, err := loadPack(t, t.TempDir()).Select([]string{"-SWAP_FIELDS"})
+			pack, err := loadPack(t, t.TempDir()).Select([]string{"-NAMED_VALUE_SWAP"})
 
 			require.NoError(t, err)
 			require.Contains(t, operatorsOf(pack), "CONDITIONALS_BOUNDARY")
-			require.NotContains(t, operatorsOf(pack), "SWAP_FIELDS")
+			require.NotContains(t, operatorsOf(pack), "NAMED_VALUE_SWAP")
 		})
 
 		t.Run("a name with + adds an operator that is off by default", func(t *testing.T) {
-			pack, err := loadPack(t, t.TempDir()).Select([]string{"+ERRORF_WRAP"})
+			pack, err := loadPack(t, t.TempDir()).Select([]string{"+ERROR_CAUSE_REMOVE"})
 
 			require.NoError(t, err)
 			require.Contains(t, operatorsOf(pack), "CONDITIONALS_BOUNDARY")
-			require.Contains(t, operatorsOf(pack), "ERRORF_WRAP")
+			require.Contains(t, operatorsOf(pack), "ERROR_CAUSE_REMOVE")
 		})
 
 		t.Run("names without a sign run only those operators", func(t *testing.T) {
-			pack, err := loadPack(t, t.TempDir()).Select([]string{"BRANCH_IF", "ERRORF_WRAP"})
+			pack, err := loadPack(t, t.TempDir()).Select([]string{"BRANCH_IF", "ERROR_CAUSE_REMOVE"})
 
 			require.NoError(t, err)
-			require.ElementsMatch(t, []string{"BRANCH_IF", "ERRORF_WRAP"}, operatorsOf(pack))
+			require.ElementsMatch(t, []string{"BRANCH_IF", "ERROR_CAUSE_REMOVE"}, operatorsOf(pack))
 		})
 
 		t.Run("none runs no operator, and a name with + after it adds one", func(t *testing.T) {
@@ -195,11 +195,11 @@ func TestPack(t *testing.T) {
 
 			none, err := pack.Select([]string{operator.None})
 			require.NoError(t, err)
-			oneMore, err := pack.Select([]string{operator.None, "+ERRORF_WRAP"})
+			oneMore, err := pack.Select([]string{operator.None, "+ERROR_CAUSE_REMOVE"})
 			require.NoError(t, err)
 
 			require.Empty(t, operatorsOf(none))
-			require.Equal(t, []string{"ERRORF_WRAP"}, operatorsOf(oneMore))
+			require.Equal(t, []string{"ERROR_CAUSE_REMOVE"}, operatorsOf(oneMore))
 		})
 
 		t.Run("an unknown name returns an error that names it", func(t *testing.T) {
@@ -318,8 +318,8 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"close(done) -> ", "wg.Done() -> ", "p.apply(event) -> "}, edits)
 		})
 
-		t.Run("RETURN_ZERO gives each return value the four zero values, for the type filter to choose", func(t *testing.T) {
-			edits := editsOf(t, "RETURN_ZERO", "package a\n\nfunc f() (int, error) {\n\treturn n + 1, err\n}\n")
+		t.Run("RETURN_EMPTY gives each return value the four zero values, for the type filter to choose", func(t *testing.T) {
+			edits := editsOf(t, "RETURN_EMPTY", "package a\n\nfunc f() (int, error) {\n\treturn n + 1, err\n}\n")
 
 			require.ElementsMatch(t, []string{
 				"n + 1 -> nil", "n + 1 -> 0", `n + 1 -> ""`, "n + 1 -> false",
@@ -327,15 +327,15 @@ func TestPack(t *testing.T) {
 			}, edits)
 		})
 
-		t.Run("RETURN_ZERO empties a struct literal, for the type filter to check the slot", func(t *testing.T) {
-			edits := editsOf(t, "RETURN_ZERO", "package a\n\nfunc f() (*T, T, error) {\n\treturn &T{n: 1}, pkg.T{n: 1}, nil\n}\n")
+		t.Run("RETURN_EMPTY empties a struct literal, for the type filter to check the slot", func(t *testing.T) {
+			edits := editsOf(t, "RETURN_EMPTY", "package a\n\nfunc f() (*T, T, error) {\n\treturn &T{n: 1}, pkg.T{n: 1}, nil\n}\n")
 
 			require.Contains(t, edits, "pkg.T{n: 1} -> pkg.T{}")
 			require.NotContains(t, edits, "T{n: 1} -> T{}")
 		})
 
-		t.Run("RETURN_ERROR_NIL makes each return value nil, for the type filter to find the error", func(t *testing.T) {
-			edits := editsOf(t, "RETURN_ERROR_NIL", "package a\n\nfunc f() (*T, error) {\n\treturn t, fmt.Errorf(\"load: %w\", err)\n}\n")
+		t.Run("ERROR_REMOVE makes each return value nil, for the type filter to find the error", func(t *testing.T) {
+			edits := editsOf(t, "ERROR_REMOVE", "package a\n\nfunc f() (*T, error) {\n\treturn t, fmt.Errorf(\"load: %w\", err)\n}\n")
 
 			require.Equal(t, []string{"t -> nil", "fmt.Errorf(\"load: %w\", err) -> nil"}, edits)
 		})
@@ -353,10 +353,10 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"3 -> (3-1)"}, editsOf(t, "INTEGER_DECREMENT", source))
 		})
 
-		t.Run("RANGE_BREAK stops a range loop before its first item", func(t *testing.T) {
+		t.Run("BREAK_AT_START stops a range loop before its first item", func(t *testing.T) {
 			source := "package a\n\nfunc f(xs []int) {\n\tfor _, x := range xs {\n\t\tg(x)\n\t}\n\tfor i := 0; i < 3; i++ {\n\t\tg(i)\n\t}\n}\n"
 
-			edits := findEdits(t, "RANGE_BREAK", source)
+			edits := findEdits(t, "BREAK_AT_START", source)
 
 			require.Len(t, edits, 1)
 			require.Equal(t, formatted(t, "package a\n\nfunc f(xs []int) {\n\tfor _, x := range xs {\n\t\tbreak\n\t\tg(x)\n\t}\n\tfor i := 0; i < 3; i++ {\n\t\tg(i)\n\t}\n}\n"),
@@ -379,10 +379,10 @@ func TestPack(t *testing.T) {
 			require.Empty(t, editsOf(t, "BREAK_AT_END", source))
 		})
 
-		t.Run("SWAP_FIELDS swaps the values of each two adjacent keyed elements", func(t *testing.T) {
+		t.Run("NAMED_VALUE_SWAP swaps the values of each two adjacent keyed elements", func(t *testing.T) {
 			source := "package a\n\nvar p = P{\n\tX: 1, // the first\n\tY: Q{A: \"a\", B: \"b\"},\n\tZ: 3,\n}\n"
 
-			edits := editsOf(t, "SWAP_FIELDS", source)
+			edits := editsOf(t, "NAMED_VALUE_SWAP", source)
 
 			require.Equal(t, []string{
 				"1, // the first\n\tY: Q{A: \"a\", B: \"b\"} -> Q{A: \"a\", B: \"b\"}, // the first\n\tY: 1",
@@ -399,10 +399,10 @@ func TestPack(t *testing.T) {
 			}, edits)
 		})
 
-		t.Run("FIELD_ZERO removes each keyed element with its comma", func(t *testing.T) {
+		t.Run("NAMED_VALUE_REMOVE removes each keyed element with its comma", func(t *testing.T) {
 			source := "package a\n\nvar p = P{A: 1, B: two,\n\tC: Q{D: 3},\n}\n"
 
-			edits := findEdits(t, "FIELD_ZERO", source)
+			edits := findEdits(t, "NAMED_VALUE_REMOVE", source)
 
 			require.Len(t, edits, 4)
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{B: two,\n\tC: Q{D: 3},\n}\n"), mutated(t, source, edits[0]))
@@ -411,10 +411,10 @@ func TestPack(t *testing.T) {
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1, B: two,\n\tC: Q{},\n}\n"), mutated(t, source, edits[3]))
 		})
 
-		t.Run("ARGUMENT_ZERO gives each argument the zero values, for the type filter to choose, and skips a log chain", func(t *testing.T) {
+		t.Run("ARGUMENT_EMPTY gives each argument the zero values, for the type filter to choose, and skips a log chain", func(t *testing.T) {
 			source := "package a\n\nfunc f() {\n\tresolve(id.String(), Point{X: 1})\n\tlog.Info().Str(\"id\", id.String()).Msg(\"x\")\n}\n"
 
-			edits := editsOf(t, "ARGUMENT_ZERO", source)
+			edits := editsOf(t, "ARGUMENT_EMPTY", source)
 
 			require.ElementsMatch(t, []string{
 				"id.String() -> nil", "id.String() -> 0", `id.String() -> ""`, "id.String() -> false",
@@ -422,14 +422,14 @@ func TestPack(t *testing.T) {
 			}, edits)
 		})
 
-		t.Run("SWAP_FIELDS also swaps two values with a block comment between them", func(t *testing.T) {
-			edits := editsOf(t, "SWAP_FIELDS", "package a\n\nvar p = P{X: 1, /* c */ Y: 2}\n")
+		t.Run("NAMED_VALUE_SWAP also swaps two values with a block comment between them", func(t *testing.T) {
+			edits := editsOf(t, "NAMED_VALUE_SWAP", "package a\n\nvar p = P{X: 1, /* c */ Y: 2}\n")
 
 			require.Equal(t, []string{"1, /* c */ Y: 2 -> 2, /* c */ Y: 1"}, edits)
 		})
 
-		t.Run("ERRORF_WRAP skips an Errorf with no %w", func(t *testing.T) {
-			edits := editsOf(t, "ERRORF_WRAP", "package a\n\nfunc f() error {\n\treturn fmt.Errorf(\"load %d: %v\", n, err)\n}\n")
+		t.Run("ERROR_CAUSE_REMOVE skips an Errorf with no %w", func(t *testing.T) {
+			edits := editsOf(t, "ERROR_CAUSE_REMOVE", "package a\n\nfunc f() error {\n\treturn fmt.Errorf(\"load %d: %v\", n, err)\n}\n")
 
 			require.Empty(t, edits)
 		})
@@ -474,8 +474,8 @@ func TestPack(t *testing.T) {
 			require.ErrorContains(t, err, "the match of CONDITIONALS_BOUNDARY/lt in a.go at bytes 5 to 50 is not in the file")
 		})
 
-		t.Run("ERRORF_WRAP turns %w into %v", func(t *testing.T) {
-			edits := editsOf(t, "ERRORF_WRAP", "package a\n\nfunc f() error {\n\treturn fmt.Errorf(\"load: %w\", err)\n}\n")
+		t.Run("ERROR_CAUSE_REMOVE turns %w into %v", func(t *testing.T) {
+			edits := editsOf(t, "ERROR_CAUSE_REMOVE", "package a\n\nfunc f() error {\n\treturn fmt.Errorf(\"load: %w\", err)\n}\n")
 
 			require.Equal(t, []string{"fmt.Errorf(\"load: %w\", err) -> fmt.Errorf(\"load: %v\", err)"}, edits)
 		})

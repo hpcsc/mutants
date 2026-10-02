@@ -138,15 +138,15 @@ A mutant that a test killed, and a mutant that does not build, get no row.
 <details>
 <summary><strong>When a survivor is not a gap in the tests</strong></summary>
 
-Some mutants make no difference that a test can see. For example, `FIELD_ZERO` removes one field from a
-struct literal. When the value of that field is already its zero value, the mutant gives the same result as
-the real code. `mutants` already skips many of these mutants, such as the mutants of log lines. When you find
-one:
+Some mutants make no difference that a test can see. For example, `NAMED_VALUE_REMOVE` removes one field
+from a struct literal. When the value of that field is already its zero value, the mutant gives the same
+result as the real code. `mutants` already skips many of these mutants, such as the mutants of log lines.
+When you find one:
 
 - Leave it, and tell your reviewer why.
-- Take its operator out of one run: `mutants run --operators=-FIELD_ZERO`.
+- Take its operator out of one run: `mutants run --operators=-NAMED_VALUE_REMOVE`.
 - Take its operator out of each run in the repository, in `.mutants.yml` at the root:
-  `operators: [-FIELD_ZERO]`.
+  `operators: [-NAMED_VALUE_REMOVE]`.
 - Name a function that returns a zero value, such as `maybe.None`, in `.mutants.yml`:
   `zero_functions: [maybe.None]`.
 

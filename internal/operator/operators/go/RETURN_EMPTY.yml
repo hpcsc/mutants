@@ -1,4 +1,4 @@
-id: ARGUMENT_ZERO/nil
+id: RETURN_EMPTY/nil
 language: go
 rule:
   any:
@@ -26,19 +26,12 @@ rule:
     - kind: 'false'
     - kind: iota
   inside:
-    kind: argument_list
-  not:
+    kind: expression_list
     inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
+      kind: return_statement
 fix: 'nil'
-metadata:
-  default: off
 ---
-id: ARGUMENT_ZERO/zero
+id: RETURN_EMPTY/zero
 language: go
 rule:
   any:
@@ -66,19 +59,12 @@ rule:
     - kind: 'false'
     - kind: iota
   inside:
-    kind: argument_list
-  not:
+    kind: expression_list
     inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
+      kind: return_statement
 fix: '0'
-metadata:
-  default: off
 ---
-id: ARGUMENT_ZERO/empty
+id: RETURN_EMPTY/empty
 language: go
 rule:
   any:
@@ -106,19 +92,12 @@ rule:
     - kind: 'false'
     - kind: iota
   inside:
-    kind: argument_list
-  not:
+    kind: expression_list
     inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
+      kind: return_statement
 fix: '""'
-metadata:
-  default: off
 ---
-id: ARGUMENT_ZERO/false
+id: RETURN_EMPTY/false
 language: go
 rule:
   any:
@@ -146,19 +125,12 @@ rule:
     - kind: 'false'
     - kind: iota
   inside:
-    kind: argument_list
-  not:
+    kind: expression_list
     inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
+      kind: return_statement
 fix: 'false'
-metadata:
-  default: off
 ---
-id: ARGUMENT_ZERO/struct
+id: RETURN_EMPTY/struct
 language: go
 rule:
   kind: composite_literal
@@ -166,14 +138,7 @@ rule:
     field: type
     pattern: $TYPE
   inside:
-    kind: argument_list
-  not:
+    kind: expression_list
     inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
+      kind: return_statement
 fix: $TYPE{}
-metadata:
-  default: off

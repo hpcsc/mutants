@@ -29,7 +29,7 @@ type Pack struct {
 
 func Load(language, repository string) (Pack, error) {
 	p := Pack{language: language, hooks: map[string]Hook{}}
-	for _, hook := range []Hook{swapFields{}} {
+	for _, hook := range []Hook{namedValueSwap{}} {
 		p.hooks[hook.Operator()] = hook
 	}
 

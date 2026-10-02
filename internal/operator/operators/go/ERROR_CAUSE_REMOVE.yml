@@ -1,4 +1,4 @@
-id: ERRORF_WRAP
+id: ERROR_CAUSE_REMOVE
 language: go
 rule:
   pattern: fmt.Errorf($FORMAT, $$$ARGUMENTS)

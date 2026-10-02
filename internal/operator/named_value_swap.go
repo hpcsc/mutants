@@ -5,14 +5,14 @@ import (
 	"slices"
 )
 
-// swapFields needs the rule in SWAP_FIELDS.yml to bind the value of each keyed element to $VALUE.
-type swapFields struct{}
+// namedValueSwap needs the rule in NAMED_VALUE_SWAP.yml to bind the value of each keyed element to $VALUE.
+type namedValueSwap struct{}
 
-func (s swapFields) Operator() string {
-	return "SWAP_FIELDS"
+func (s namedValueSwap) Operator() string {
+	return "NAMED_VALUE_SWAP"
 }
 
-func (s swapFields) Edits(source []byte, matches []Match) []Edit {
+func (s namedValueSwap) Edits(source []byte, matches []Match) []Edit {
 	matches = slices.SortedFunc(slices.Values(matches), func(a, b Match) int { return a.Start - b.Start })
 	var edits []Edit
 	for i, first := range matches {
@@ -42,7 +42,7 @@ func (s swapFields) Edits(source []byte, matches []Match) []Edit {
 	return edits
 }
 
-func (s swapFields) adjacent(between []byte) bool {
+func (s namedValueSwap) adjacent(between []byte) bool {
 	commas := 0
 	for len(between) > 0 {
 		switch {

@@ -82,7 +82,8 @@ fix: $A <= $B
   `.mutants.yml` and [docs/operators.md](operators.md) mean the same thing in each language.
 - Add `metadata: {default: off}` to a rule that gives many survivors that are not gaps in the tests.
 - A rule cannot know a type. Let the rule give each candidate, and let `Keep` choose. The Go pack does this
-  for `RETURN_ZERO`: it has one rule for each zero value, and the type filter keeps the zero value of the slot.
+  for `RETURN_EMPTY`: it has one rule for each zero value, and the type filter keeps the zero value of the
+  slot.
 - Each rule needs a `fix`, unless a hook makes the edits of its operator.
 - A repository can add its own rules in `.mutants/operators/<language>/`. This works for each language with
   no more code.
@@ -90,13 +91,13 @@ fix: $A <= $B
 ### Hooks
 
 A hook is Go code that makes the edits of an operator from all the matches of its rules in one file.
-`SWAP_FIELDS` is the only hook: a rule can match each keyed value, but it cannot swap two values that are
+`NAMED_VALUE_SWAP` is the only hook: a rule can match each keyed value, but it cannot swap two values that are
 next to each other.
 
 - `operator.Load` adds each hook to the pack of each language, by the name of its operator. So a hook must
   work for each language that has its operator.
-- The `SWAP_FIELDS` hook reads only the bytes between two matches: commas, white space, and `//` and `/* */`
-  comments. It works for a language with this syntax when the rule binds each value to `$VALUE`.
+- The `NAMED_VALUE_SWAP` hook reads only the bytes between two matches: commas, white space, and `//` and
+  `/* */` comments. It works for a language with this syntax when the rule binds each value to `$VALUE`.
 
 ## Step 3: Write the adapter
 
@@ -129,7 +130,7 @@ folders.
 - an edit whose replacement is the same as the original
 - an edit in a test file or in generated code
 - an edit in a file that the build leaves out
-- an edit that a type check finds wrong, for example a `RETURN_ZERO` value that is not the zero value of its
+- an edit that a type check finds wrong, for example a `RETURN_EMPTY` value that is not the zero value of its
   slot
 
 `Keep` must depend only on the code, never on the diff. The number in an id counts the mutants after the
