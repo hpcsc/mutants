@@ -158,6 +158,7 @@ mutants run --base HEAD              # only the changes that you did not commit
 mutants run --all ./internal/order   # each line of one package; ./internal/... adds the subfolders
 mutants rerun ID                     # one mutant again, by the id at the end of its row
 mutants operators                    # each operator, and whether it runs by default
+mutants run --proposals bugs.jsonl   # also run the bugs that an agent proposes, see docs/usage.md
 ```
 
 `mutants run` exits with 0 when no mutant survives, and with 10 when a mutant survives. A CI step or a

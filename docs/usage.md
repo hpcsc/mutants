@@ -47,6 +47,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 | `--format rows\|json` | prints rows, or one JSON document. The default is rows. |
 | `--json PATH` | also writes the JSON report to `PATH` |
 | `--stryker PATH` | also writes the Stryker report to `PATH` |
+| `--proposals PATH` | also runs the mutants that the file proposes. See [Proposed mutants](#proposed-mutants). |
 
 ## Flags of mutants rerun
 
@@ -71,11 +72,11 @@ no diff, so it also works after a commit. It prints one row, and the reason for 
 | `mutants run` | 0 | no mutant survived |
 | | 10 | at least one mutant survived |
 | | 124 | the run reached `--limit` |
-| | 2 | a usage error or a tool error, for example a test that fails with the real code |
+| | 2 | a usage error or a tool error, for example a test that fails with the real code, or a file of proposals that `mutants` cannot read |
 | | 130 | an interrupt or SIGTERM stopped the run |
 | `mutants rerun` | 0 | a test killed the mutant |
 | | 10 | the mutant lived, or no test runs its line |
-| | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it |
+| | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, or the proposal of the mutant does not fit the code |
 | | 2 | no mutant has this id |
 
 ## Statuses
@@ -114,6 +115,41 @@ mutants: 81, killed: 64, lived: 1, not covered: 15, not viable: 1 (base 1a2b3c4d
 
 The progress lines and the messages go to stderr, so they do not mix with a report on stdout.
 
+## Proposed mutants
+
+An agent, or a person, can propose bugs that no operator makes, for example a condition that is too narrow
+for the rule of the business. Write each proposal as one JSON object on one line of a file:
+
+```json
+{"file": "internal/order/wait.go", "old": "waited && !note", "new": "waited && open && !note", "bug": "a note after the deadline does not stop the close"}
+```
+
+| Field | Holds |
+| --- | --- |
+| `file` | the path of the file from the repository root |
+| `old` | the exact text to replace. It must occur once in the file. |
+| `new` | the text that takes its place, or `""` to remove `old` |
+| `bug` | the bug that the edit puts in the code, in one sentence |
+
+Then give the file to the run:
+
+```shell
+mutants run --proposals proposals.jsonl
+```
+
+- Each proposal whose edit touches a changed line becomes a mutant with the operator `PROPOSED`. Its row
+  shows the bug in place of the code.
+- Each other proposal is rejected. The rows list it under `REJECTED PROPOSALS` with its reason, for
+  example `old found 3 times` or `not on a changed line`.
+- The last line counts the proposals: `proposals: 7 accepted, 1 rejected`.
+- The number in the id of a proposed mutant comes from `old` and `new`, so the id stays the same when the
+  other proposals change.
+- `mutants` keeps the accepted proposals in the git folder, so `mutants rerun ID` works without the file.
+  When `old` does not occur once in the file any more, `rerun` exits with 1 and says that the proposal does
+  not fit the code.
+
+`mutants` never calls a model itself. The agent that proposes the bugs writes the file.
+
 ## Mutant ids
 
 An id has this shape:
@@ -125,6 +161,7 @@ internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1
 
 `n` counts the mutants of that operator in that function, in the order of the code. So a change in another
 function does not change the id, and the id is the same with `--base HEAD` and with the base of the branch.
+For a proposed mutant, `n` comes from the text of its edit.
 
 ## The JSON report
 
@@ -151,7 +188,15 @@ each mutant, also the killed ones:
 ```
 
 `detail` gives the reason for the status, such as the test that failed or the build error. It is not there
-when there is no reason. The JSON encoder writes `<`, `>` and `&` in strings as `<`, `>` and
+when there is no reason. `bug` holds the bug of a proposed mutant. With `--proposals`, the document also
+holds `proposals`, with the number of accepted proposals and each rejected proposal with its reason:
+
+```json
+"proposals": {
+  "accepted": 7,
+  "rejected": [{"file": "a.go", "old": "return", "new": "", "bug": "the case never closes", "reason": "old found 3 times"}]
+}
+``` The JSON encoder writes `<`, `>` and `&` in strings as `<`, `>` and
 `&`, and a JSON parser reads them back as the same characters.
 
 ## The Stryker report

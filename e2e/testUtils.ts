@@ -106,6 +106,7 @@ export interface ReportedMutant {
   status: string
   original: string
   replacement: string
+  bug?: string
   detail?: string
 }
 

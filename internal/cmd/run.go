@@ -14,6 +14,7 @@ import (
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
 	"github.com/hpcsc/mutants/internal/operator/astgrep"
+	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/report"
 	"github.com/hpcsc/mutants/internal/run"
 	"github.com/urfave/cli/v3"
@@ -45,6 +46,7 @@ func newRunCommand() *cli.Command {
 			&cli.StringFlag{Name: "format", Value: "rows", Usage: "print rows or json"},
 			&cli.StringFlag{Name: "json", Usage: "also write the JSON report to this file"},
 			&cli.StringFlag{Name: "stryker", Usage: "also write the Stryker report to this file"},
+			&cli.StringFlag{Name: "proposals", Usage: "also run the mutants that this file proposes, one JSON object on each line"},
 		},
 		OnUsageError: usageError,
 		Action:       runMutants,
@@ -69,6 +71,10 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
+	proposals, err := readProposals(cmd.String("proposals"))
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
 	runSettings := run.Settings{
 		Base:      configured.base(cmd),
 		Folders:   folders,
@@ -76,6 +82,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		Operators: configured.operators(cmd),
 		Workers:   configured.workers(cmd),
 		Limit:     cmd.Duration("limit"),
+		Proposals: proposals,
 	}
 	instance, err := newInstance(ctx, repository, golang.Settings{
 		Tags:          configured.tags(cmd),
@@ -157,6 +164,22 @@ func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) er
 		}
 	}
 	return nil
+}
+
+func readProposals(path string) ([]proposal.Proposal, error) {
+	if path == "" {
+		return nil, nil
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("read the proposals: %w", err)
+	}
+	defer file.Close()
+	proposals, err := proposal.Read(file)
+	if err != nil {
+		return nil, fmt.Errorf("read the proposals in %s: %w", path, err)
+	}
+	return proposals, nil
 }
 
 func writeFile(path string, write func(io.Writer) error) error {

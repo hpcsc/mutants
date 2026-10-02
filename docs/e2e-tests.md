@@ -74,6 +74,8 @@ Each fixture has a known answer from the design:
 | A test file with a build tag | with `--tags`, its tests run |
 | Two runs | the same verdicts, mutant by mutant |
 | A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
+| A file of proposals, with one that lives, one that dies and one whose `old` occurs two times | LIVED and KILLED, the third rejected with "old found 2 times", and `git status` the same after the run |
+| A proposed mutant after the run | `rerun` finds it by its id without the file. After its `old` changes: exit 1, "the proposal does not fit the code". |
 
 To keep each test short, a test names the operators that it needs with `--operators`.
 

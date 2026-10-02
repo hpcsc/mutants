@@ -1,7 +1,7 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { git, goRepository, runCli, runMutants, verdicts, writeFiles } from '../testUtils'
+import { git, goRepository, runCli, runMutants, scratchDir, verdicts, writeFiles } from '../testUtils'
 
 const figures = `package figures
 
@@ -434,6 +434,69 @@ func TestWait(t *testing.T) {
       'CONDITIONALS_BOUNDARY NOT COVERED: package calc has no test files',
       'CONDITIONALS_NEGATION NOT COVERED: package calc has no test files',
     ])
+  })
+})
+
+describe('mutants run --proposals', { timeout: 240_000 }, () => {
+  const lives = {
+    file: 'calc/calc.go',
+    old: 'if a > b {',
+    new: 'if a > b && a < 100 {',
+    bug: 'a number of 100 or more is never the larger one',
+  }
+  const dies = { file: 'calc/calc.go', old: 'return b\n}', new: 'return a\n}', bug: 'the second number never wins' }
+  const twice = { file: 'calc/calc.go', old: 'return', new: 'panic(0)', bug: 'Max never returns' }
+
+  function proposalsFile(...proposals: object[]): string {
+    const path = join(scratchDir(), 'proposals.jsonl')
+    writeFileSync(path, proposals.map((p) => JSON.stringify(p)).join('\n'))
+    return path
+  }
+
+  it('runs each proposal on a changed line, rejects each other one with its reason, and leaves git status as it was', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    const before = git(dir, 'status', '--porcelain', '--untracked-files=all')
+
+    const { result, mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY', '--proposals', proposalsFile(lives, dies, twice)])
+
+    expect(mutants.map((m) => `${m.operator} ${m.status} ${m.bug ?? ''}`.trim())).toEqual([
+      'PROPOSED LIVED a number of 100 or more is never the larger one',
+      'CONDITIONALS_BOUNDARY LIVED',
+      'PROPOSED KILLED the second number never wins',
+    ])
+    expect(JSON.parse(result.stdout).proposals).toEqual({
+      accepted: 2,
+      rejected: [{ ...twice, reason: 'old found 2 times' }],
+    })
+    expect(result.status).toBe(10)
+    expect(git(dir, 'status', '--porcelain', '--untracked-files=all')).toBe(before)
+  })
+
+  it('rerun finds a proposed mutant by its id without the file, and says when the proposal does not fit the code', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY', '--proposals', proposalsFile(lives)])
+    const id = mutants.find((m) => m.operator === 'PROPOSED')?.id ?? ''
+
+    const again = await runCli(dir, ['rerun', id])
+    writeFiles(dir, { 'calc/calc.go': maxSource.replace('a > b', 'b < a') })
+    const stale = await runCli(dir, ['rerun', id])
+
+    expect(id).toMatch(/^calc\/calc\.go:Max:PROPOSED#\d{6}$/)
+    expect(again.status).toBe(10)
+    expect(again.stdout).toContain(`LIVED: calc/calc.go:4 PROPOSED: a number of 100 or more is never the larger one  [${id}]`)
+    expect(stale.status).toBe(1)
+    expect(stale.stderr).toContain('the proposal does not fit the code: old not found')
+  })
+
+  it('exits 2 when the file of proposals does not exist', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource })
+
+    const result = await runCli(dir, ['run', '--base', 'HEAD', '--proposals', join(dir, 'missing.jsonl')])
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('read the proposals')
   })
 })
 

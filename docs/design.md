@@ -292,6 +292,53 @@ So an edit in another function does not change the id, and a mutant has the same
 with the merge base of the branch. An id with a line number changes each time the code above it moves, so a
 survivor from the build step does not match a row in the audit.
 
+### Proposed mutants
+
+An operator cannot make a bug of the domain, for example a condition that is too narrow for the rule of
+the business. An agent that has the task and the diff can propose such a bug. `mutants run --proposals PATH`
+reads the proposals of the agent from a file, one JSON object on each line:
+
+```json
+{"file": "internal/order/wait.go", "old": "waited && !note", "new": "waited && open && !note", "bug": "a note after the deadline no longer stops the close"}
+```
+
+| Field | Holds |
+| --- | --- |
+| `file` | the path of the file from the repository root |
+| `old` | the exact text to replace. It must occur once in the file. |
+| `new` | the text that takes its place, or `""` to remove `old` |
+| `bug` | the bug that the edit puts in the code, in one sentence |
+
+`mutants` turns each proposal into a mutant with the operator `PROPOSED`, and runs it with the same runner,
+the same retry after an unused import or variable, and the same statuses. A proposal that cannot become a
+mutant is rejected with its reason:
+
+| Reason | When |
+| --- | --- |
+| the file is not in the repository | `file` is an absolute path, or goes above the root |
+| the go adapter does not take this file | the file is not a `.go` file |
+| the file does not exist | no file has that path |
+| old not found, old found N times | `old` does not occur exactly once |
+| old and new are the same | the edit changes nothing |
+| the go adapter drops the edit | the file is a test file, generated code, or out of the build |
+| not on a changed line | the edit does not touch a changed line |
+| the same edit as another proposal | an earlier proposal of the file has the same id |
+
+- **The id** is `<file>:<function>:PROPOSED#<n>`. `n` has six digits from a hash of `old` and `new`, so an
+  edit keeps its id when the agent proposes a different set of other edits.
+- **The store.** The run saves each accepted proposal in
+  `$(git rev-parse --absolute-git-dir)/mutants/proposals.jsonl`, so `rerun ID` finds a proposed mutant
+  without the file. A linked work tree has a git folder, and so a store, of its own.
+- **A stale proposal.** When `old` does not occur once in the file any more, `rerun` exits 1 and says that
+  the proposal does not fit the code.
+- **No silent clean result.** A file that cannot be read, a line that is not a proposal, and a file with no
+  proposal stop the run with exit 2. The rows list each rejected proposal with its reason, and a last line
+  counts the accepted and the rejected proposals.
+
+On two reviewed commits of the measured monorepo, two agents read only the code and the diff, and each
+proposed 8 mutants. On one commit 4 of 8 lived, and on the other 8 of 8 lived. Each commit had one survivor
+that a reviewer found by hand, and that no operator makes.
+
 ### The Go runner
 
 The runner builds the test binary with an overlay, and then runs the binary itself. It never runs `go test`
@@ -424,7 +471,8 @@ coverage runs of different packages run at the same time, as many as there are w
 | `mutants version`, `mutants update` | as now | |
 
 The flags of `run`: `--base`, `--workers`, `--limit`, `--build-limit`, `--tags`, `--operators`,
-`--format rows|json`, `--json PATH`, `--stryker PATH`. The flags of `rerun`: `--tags`, `--build-limit`.
+`--format rows|json`, `--json PATH`, `--stryker PATH`, `--proposals PATH`. The flags of `rerun`: `--tags`,
+`--build-limit`.
 
 `rerun` finds the mutant with all the rules of its operator, also an operator that is off by default, and
 with no diff. Then it runs the coverage and the mutant as `run` does, and prints one row with the reason
@@ -478,9 +526,10 @@ zero_functions: [maybe.None, caseautoresolve.Submitted]
 name of the package, not its path. `FIELD_ZERO` skips a field whose value is a call of one of them, because
 the removal of that field changes nothing.
 
-v1 keeps no cache and no state file. The rules for a scan, the mutated files, the overlays, the test binaries
-and the coverage profiles go to temp folders that `mutants` removes after each use. The v2 cache goes under
-`$(git rev-parse --git-dir)/mutants/`, so the work tree stays clean.
+v1 keeps no cache. Its one state file is the store of accepted proposals, in
+`$(git rev-parse --absolute-git-dir)/mutants/`, so the work tree stays clean. The rules for a scan, the
+mutated files, the overlays, the test binaries and the coverage profiles go to temp folders that `mutants`
+removes after each use. The v2 cache goes in the same folder as the store.
 
 ## Packages
 
@@ -495,6 +544,7 @@ flowchart TD
     LANG["internal/language<br/>language.Adapter"]
     GO["internal/language/golang<br/>go list, go/types, coverage, the Go runner"]
     REP["internal/report<br/>rows, JSON, Stryker"]
+    PROP["internal/proposal<br/>proposal.Proposal, proposal.Store"]
     CMD --> RUN
     CMD --> AG
     CMD --> GO
@@ -508,6 +558,8 @@ flowchart TD
     LANG --> OP
     LANG --> MUT
     REP --> MUT
+    RUN --> PROP
+    REP --> PROP
 ```
 
 An arrow means "imports". `cmd` gives the ast-grep matcher and the Go adapter to `run`, so `run` knows only
@@ -523,6 +575,7 @@ the interfaces. `cmd` writes the reports from the mutants that `run` gives back.
 | `language/golang` | the Go adapter |
 | `run` | one run: changed lines, candidates, filters, ids, scope, coverage and workers |
 | `report` | the rows, the JSON and the Stryker format |
+| `proposal` | the file format of the proposed mutants, the number of their ids, and the store that `rerun` reads |
 
 ```go
 package language
@@ -569,6 +622,8 @@ The end-to-end fixtures:
 | A test file with a build tag | with `--tags`, its tests run |
 | Two runs | the same verdicts, mutant by mutant |
 | A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
+| A file of proposals, with one that lives, one that dies and one whose `old` occurs two times | LIVED and KILLED, the third rejected with "old found 2 times", and `git status` the same after the run |
+| A proposed mutant after the run | `rerun` finds it by its id without the file. After its `old` changes: exit 1, "the proposal does not fit the code". |
 
 ## Later
 
@@ -578,6 +633,7 @@ The end-to-end fixtures:
 | v2 | **A cache.** A verdict keyed by a hash of the package files, the test files, the rules and the `mutants` version, so a second run reuses it. |
 | v3 | **TypeScript.** A rule pack, and a runner that writes each mutant into a git worktree for each worker, in a temp folder, and runs `vitest related <file> --run`. |
 | v3 | Other languages that ast-grep parses: the same shape, a rule pack and a runner. |
+| later | **A command that proposes mutants.** For CI with no agent, `.mutants.yml` names a command. The command reads a JSON request on stdin, with the changed functions and the diff, and writes proposals on stdout in the format of `--proposals`. Any model then works through its own CLI, and `mutants` still holds no key and makes no network call. |
 
 ## Decisions
 
@@ -632,6 +688,11 @@ real test gaps, and they are worth the longer run.
 
 **Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_ZERO`.
 Without it, a guard that returns `false` gets no mutant.
+
+**Why mutants reads proposals and never calls a model.** In the flow, the agent that builds the change is
+already a model, and it has the task and the diff. A model SDK, its keys and network access do not belong in
+a test tool that must give the same verdict offline, each time. A file of proposals keeps `mutants`
+deterministic: the same file and the same code give the same mutants and ids.
 
 **Why read untracked files rather than add them to the index.** A change to the index can stay behind when a
 run stops halfway, and the user then sees files that they did not stage.
