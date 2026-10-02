@@ -21,3 +21,51 @@ language: go
 rule:
   pattern: $A >= $B
 fix: $A > $B
+---
+id: CONDITIONALS_BOUNDARY/time-after
+language: go
+rule:
+  pattern:
+    context: 'func f() { _ = $A.After($B) }'
+    selector: call_expression
+  not:
+    inside:
+      kind: unary_expression
+      regex: ^!
+fix: '!$A.Before($B)'
+---
+id: CONDITIONALS_BOUNDARY/time-before
+language: go
+rule:
+  pattern:
+    context: 'func f() { _ = $A.Before($B) }'
+    selector: call_expression
+  not:
+    inside:
+      kind: unary_expression
+      regex: ^!
+fix: '!$A.After($B)'
+---
+id: CONDITIONALS_BOUNDARY/time-not-after
+language: go
+rule:
+  kind: unary_expression
+  regex: ^!
+  has:
+    field: operand
+    pattern:
+      context: 'func f() { _ = $A.After($B) }'
+      selector: call_expression
+fix: $A.Before($B)
+---
+id: CONDITIONALS_BOUNDARY/time-not-before
+language: go
+rule:
+  kind: unary_expression
+  regex: ^!
+  has:
+    field: operand
+    pattern:
+      context: 'func f() { _ = $A.Before($B) }'
+      selector: call_expression
+fix: $A.After($B)

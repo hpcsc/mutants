@@ -23,10 +23,11 @@ const (
 	returnErrorNil   = "RETURN_ERROR_NIL"
 	returnTrue       = "RETURN_TRUE"
 	integerDecrement = "INTEGER_DECREMENT"
-	timeBoundary     = "TIME_BOUNDARY"
 	calendarDay      = "CALENDAR_DAY"
 	fieldZero        = "FIELD_ZERO"
 	argumentZero     = "ARGUMENT_ZERO"
+
+	timeBoundaryRules = "CONDITIONALS_BOUNDARY/time-"
 )
 
 type Settings struct {
@@ -104,6 +105,9 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 	if err != nil || !pkg.builds(filepath.Base(path)) {
 		return false
 	}
+	if strings.HasPrefix(candidate.Rule, timeBoundaryRules) {
+		return a.types.callsTimeMethod(path, candidate.Start, candidate.End)
+	}
 	switch candidate.Operator {
 	case swapFields:
 		return a.types.canSwap(path, candidate.Start, candidate.End)
@@ -116,8 +120,6 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.canBecomeTrue(path, candidate.Start, candidate.End)
 	case integerDecrement:
 		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
-	case timeBoundary:
-		return a.types.callsTimeMethod(path, candidate.Start, candidate.End)
 	case calendarDay:
 		return a.types.callsTimeMethod(path, candidate.Start, candidate.End) && a.sources.importsTime(candidate.File)
 	case fieldZero:

@@ -313,11 +313,11 @@ describe('mutants run', { timeout: 240_000 }, () => {
     const at = goRepository()
     writeFiles(at, { 'wait/wait.go': wait, 'wait/wait_test.go': waitTest(['-time.Hour', '0', 'time.Hour']) })
 
-    const lives = await runMutants(around, ['--base', 'HEAD', '--operators', 'TIME_BOUNDARY'])
-    const dies = await runMutants(at, ['--base', 'HEAD', '--operators', 'TIME_BOUNDARY'])
+    const lives = await runMutants(around, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY'])
+    const dies = await runMutants(at, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY'])
 
-    expect(verdicts(lives.mutants)).toEqual(['TIME_BOUNDARY now.After(deadline) LIVED'])
-    expect(verdicts(dies.mutants)).toEqual(['TIME_BOUNDARY now.After(deadline) KILLED'])
+    expect(verdicts(lives.mutants)).toEqual(['CONDITIONALS_BOUNDARY now.After(deadline) LIVED'])
+    expect(verdicts(dies.mutants)).toEqual(['CONDITIONALS_BOUNDARY now.After(deadline) KILLED'])
   })
 
   it('24 hours in place of a calendar day live when the test has no change of daylight saving time, and die when it has one', async () => {

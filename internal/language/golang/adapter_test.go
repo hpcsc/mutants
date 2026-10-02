@@ -405,7 +405,7 @@ func First(xs []int) (int, []int, []int, int) {
 			require.True(t, adapter.Keep(editIn(t, root, "calc/calc.go", "INTEGER_DECREMENT", "start := 0", "0", "(0-1)")))
 		})
 
-		t.Run("keeps a TIME_BOUNDARY edit only for a method of time.Time, also through an embedded field", func(t *testing.T) {
+		t.Run("keeps a CONDITIONALS_BOUNDARY edit of After or Before only for a method of time.Time, also through an embedded field", func(t *testing.T) {
 			root := newModule(t, map[string]string{"wait/wait.go": `package wait
 
 import "time"
@@ -421,10 +421,24 @@ func Open(now, deadline time.Time, w Window, g Gate) []bool {
 }
 `})
 			adapter := golang.New(root, defaultSettings)
+			timeEdit := func(rule, original, replacement string) operator.Edit {
+				edit := editOf(t, root, "wait/wait.go", "CONDITIONALS_BOUNDARY", original, replacement)
+				edit.Rule = rule
+				return edit
+			}
 
-			require.True(t, adapter.Keep(editOf(t, root, "wait/wait.go", "TIME_BOUNDARY", "now.After(deadline)", "!now.Before(deadline)")))
-			require.True(t, adapter.Keep(editOf(t, root, "wait/wait.go", "TIME_BOUNDARY", "!w.Before(deadline)", "w.After(deadline)")))
-			require.False(t, adapter.Keep(editOf(t, root, "wait/wait.go", "TIME_BOUNDARY", "g.After(1)", "!g.Before(1)")))
+			require.True(t, adapter.Keep(timeEdit("CONDITIONALS_BOUNDARY/time-after", "now.After(deadline)", "!now.Before(deadline)")))
+			require.True(t, adapter.Keep(timeEdit("CONDITIONALS_BOUNDARY/time-not-before", "!w.Before(deadline)", "w.After(deadline)")))
+			require.False(t, adapter.Keep(timeEdit("CONDITIONALS_BOUNDARY/time-after", "g.After(1)", "!g.Before(1)")))
+		})
+
+		t.Run("keeps a CONDITIONALS_BOUNDARY edit of a comparison of two numbers", func(t *testing.T) {
+			root := newModule(t, map[string]string{"limit/limit.go": "package limit\n\nfunc Over(n int) bool {\n\treturn n > 0\n}\n"})
+			adapter := golang.New(root, defaultSettings)
+			edit := editOf(t, root, "limit/limit.go", "CONDITIONALS_BOUNDARY", "n > 0", "n >= 0")
+			edit.Rule = "CONDITIONALS_BOUNDARY/gt"
+
+			require.True(t, adapter.Keep(edit))
 		})
 
 		t.Run("keeps a CALENDAR_DAY edit only for a method of time.Time in a file that imports time by that name", func(t *testing.T) {

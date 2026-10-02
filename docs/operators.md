@@ -10,9 +10,8 @@ ast-grep rules of each one.
 
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
-| `CONDITIONALS_BOUNDARY` | `total >= 100` to `total > 100`, and `<` to `<=` | no test uses the value at the boundary, such as an order of exactly 100 |
+| `CONDITIONALS_BOUNDARY` | `total >= 100` to `total > 100`, `<` to `<=`, and `now.After(deadline)` to `!now.Before(deadline)` | no test uses the value at the boundary, such as an order of exactly 100 or the exact time of a deadline |
 | `CONDITIONALS_NEGATION` | `a == b` to `a != b`, and `<` to `>=` | no test checks the result of the comparison |
-| `TIME_BOUNDARY` | `now.After(deadline)` to `!now.Before(deadline)` | no test uses the exact time of the deadline |
 
 ## Logic
 

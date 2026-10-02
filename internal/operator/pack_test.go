@@ -207,6 +207,7 @@ func TestPack(t *testing.T) {
 
 			require.ErrorContains(t, err, "no operator NOT_AN_OPERATOR")
 		})
+
 	})
 
 	t.Run("edits", func(t *testing.T) {
@@ -390,8 +391,8 @@ func TestPack(t *testing.T) {
 			}, edits)
 		})
 
-		t.Run("TIME_BOUNDARY moves the boundary of After and Before, also under a !", func(t *testing.T) {
-			edits := editsOf(t, "TIME_BOUNDARY", "package a\n\nfunc f(a, b time.Time) []bool {\n\treturn []bool{a.After(b), a.Before(b), !a.After(b), !s.next().Before(b)}\n}\n")
+		t.Run("CONDITIONALS_BOUNDARY moves the boundary of After and Before, also under a !", func(t *testing.T) {
+			edits := editsOf(t, "CONDITIONALS_BOUNDARY", "package a\n\nfunc f(a, b time.Time) []bool {\n\treturn []bool{a.After(b), a.Before(b), !a.After(b), !s.next().Before(b)}\n}\n")
 
 			require.Equal(t, []string{
 				"a.After(b) -> !a.Before(b)", "a.Before(b) -> !a.After(b)", "!a.After(b) -> a.Before(b)", "!s.next().Before(b) -> s.next().After(b)",

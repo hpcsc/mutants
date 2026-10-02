@@ -64,7 +64,7 @@ Each fixture has a known answer from the design:
 | Two figures of one type with equal values in the test | `SWAP_FIELDS` LIVED. With different values in the test: KILLED. |
 | An error branch that no test enters | `BRANCH_IF` LIVED and `RETURN_ERROR_NIL` NOT COVERED |
 | A condition that holds the only use of a variable and of an import | `EXPRESSION_REMOVE` LIVED, not NOT VIABLE |
-| A deadline that a test checks one hour before and one hour after | `TIME_BOUNDARY` LIVED. With a check at the deadline itself: KILLED. |
+| A deadline that a test checks one hour before and one hour after | `CONDITIONALS_BOUNDARY` LIVED. With a check at the deadline itself: KILLED. |
 | A due date three calendar days after a start, with a test in UTC | `CALENDAR_DAY` LIVED. With a test in Sydney across the start of daylight saving time: KILLED. |
 | A loop over a list that a test runs with one item | `BREAK_AT_END` LIVED. With two items: KILLED. |
 | A busy loop and a removed `close` | TIMED OUT for both, and the child process of the test is not alive after the run |
