@@ -34,7 +34,7 @@ func newRunCommand() *cli.Command {
 		ArgsUsage: "[--all FOLDER...]",
 		Description: "mutants run compares the work tree with the merge base of HEAD and --base, and runs the mutants of\n" +
 			"the changed lines, committed or not. Every line of an untracked file counts.\n\n" +
-			"Exit codes: 0 no survivor, 10 survivors, 124 the limit, 2 a usage or tool error.",
+			"Exit codes: 0 no survivor, 10 survivors or caller gaps, 124 the limit, 2 a usage or tool error.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "base", Usage: "compare with the merge base of HEAD and this commit (default: " + defaultBase + ")"},
 			&cli.BoolFlag{Name: "all", Usage: "run every line of the files in each FOLDER, and in its subfolders for FOLDER/..."},
@@ -47,6 +47,7 @@ func newRunCommand() *cli.Command {
 			&cli.StringFlag{Name: "json", Usage: "also write the JSON report to this file"},
 			&cli.StringFlag{Name: "stryker", Usage: "also write the Stryker report to this file"},
 			&cli.StringFlag{Name: "proposals", Usage: "also run the mutants that this file proposes, one JSON object on each line"},
+			&cli.BoolFlag{Name: "caller-gaps", Usage: "also find the changed lines that the tests of their package run, but that no test of a changed caller runs"},
 		},
 		OnUsageError: usageError,
 		Action:       runMutants,
@@ -76,13 +77,14 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		return cli.Exit(err, exitUsage)
 	}
 	runSettings := run.Settings{
-		Base:      configured.base(cmd),
-		Folders:   folders,
-		Exclude:   configured.Exclude,
-		Operators: configured.operators(cmd),
-		Workers:   configured.workers(cmd),
-		Limit:     cmd.Duration("limit"),
-		Proposals: proposals,
+		Base:       configured.base(cmd),
+		Folders:    folders,
+		Exclude:    configured.Exclude,
+		Operators:  configured.operators(cmd),
+		Workers:    configured.workers(cmd),
+		Limit:      cmd.Duration("limit"),
+		Proposals:  proposals,
+		CallerGaps: configured.callerGaps(cmd),
 	}
 	instance, err := newInstance(ctx, repository, golang.Settings{
 		Tags:          configured.tags(cmd),
@@ -101,14 +103,14 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	case err != nil:
 		return cli.Exit(err, exitUsage)
 	}
-	if err := writeReports(cmd, repository.Root(), format, outcome); err != nil {
+	if err := writeReports(cmd, repository.Root(), format, outcome, runSettings.CallerGaps); err != nil {
 		return cli.Exit(err, exitUsage)
 	}
 
 	switch {
 	case outcome.Stopped:
 		return cli.Exit(fmt.Sprintf("mutants stopped at the limit of %s: the report holds the mutants that got a verdict", runSettings.Limit), exitLimit)
-	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Verdict.Status.IsSurvivor() }):
+	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Verdict.Status.IsSurvivor() }), len(outcome.CallerGaps) > 0:
 		return cli.Exit("", exitSurvivors)
 	}
 	return nil
@@ -126,11 +128,14 @@ func newInstance(ctx context.Context, repository *diff.Repository, settings gola
 	return run.New(repository, pack, astgrep.New(repository.Root()), adapter, status, isTerminal(status)), nil
 }
 
-func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {
+func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome, callerGaps bool) error {
 	out := cmd.Root().Writer
 	reported := report.Outcome{Base: outcome.Base, Mutants: outcome.Mutants}
 	if outcome.Proposed > 0 || len(outcome.Rejected) > 0 {
 		reported.Proposals = &report.Proposals{Accepted: outcome.Proposed, Rejected: outcome.Rejected}
+	}
+	if callerGaps {
+		reported.CallerGaps = &outcome.CallerGaps
 	}
 	if len(outcome.Mutants) == 0 && !outcome.Stopped {
 		message := fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files)
@@ -148,7 +153,7 @@ func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) er
 		if err := report.JSON(out, reported); err != nil {
 			return err
 		}
-	case len(outcome.Mutants) > 0 || outcome.Stopped || reported.Proposals != nil:
+	case len(outcome.Mutants) > 0 || outcome.Stopped || reported.Proposals != nil || reported.CallerGaps != nil:
 		if err := report.Rows(out, reported); err != nil {
 			return err
 		}

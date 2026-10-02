@@ -159,6 +159,7 @@ mutants run --all ./internal/order   # each line of one package; ./internal/... 
 mutants rerun ID                     # one mutant again, by the id at the end of its row
 mutants operators                    # each operator, and whether it runs by default
 mutants run --proposals bugs.jsonl   # also run the bugs that an agent proposes, see docs/usage.md
+mutants run --caller-gaps            # also find new code that no test of a changed caller runs
 ```
 
 `mutants run` exits with 0 when no mutant survives, and with 10 when a mutant survives. A CI step or a

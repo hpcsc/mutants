@@ -157,6 +157,93 @@ func TestDue(t *testing.T) {
 `
 }
 
+const gate = `package gate
+
+type Store interface {
+	Has(id string) bool
+}
+
+type Checker struct {
+	store Store
+}
+
+func NewChecker(store Store) *Checker {
+	return &Checker{store: store}
+}
+
+func (c *Checker) Allow(id string) bool {
+	if id == "" {
+		return false
+	}
+	return c.closing(id)
+}
+
+func (c *Checker) closing(id string) bool {
+	if c.store == nil {
+		return true
+	}
+	return c.store.Has(id)
+}
+`
+
+const gateTest = `package gate
+
+import "testing"
+
+type store map[string]bool
+
+func (s store) Has(id string) bool { return s[id] }
+
+func TestAllow(t *testing.T) {
+	if NewChecker(store{"a": true}).Allow("") || !NewChecker(store{"a": true}).Allow("a") || !NewChecker(nil).Allow("b") {
+		t.Fatal("Allow")
+	}
+}
+`
+
+const handler = `package handler
+
+import "example.com/fixture/gate"
+
+type Allower interface {
+	Allow(id string) bool
+}
+
+type Handler struct {
+	allow Allower
+}
+
+func New(allow Allower) *Handler {
+	return &Handler{allow: allow}
+}
+
+func Main() *Handler {
+	return New(gate.NewChecker(nil))
+}
+
+func (h *Handler) Handle(id string) string {
+	if h.allow.Allow(id) {
+		return "ok"
+	}
+	return "no"
+}
+`
+
+const handlerTest = `package handler
+
+import "testing"
+
+type always bool
+
+func (a always) Allow(string) bool { return bool(a) }
+
+func TestHandle(t *testing.T) {
+	if New(always(true)).Handle("a") != "ok" {
+		t.Fatal("Handle")
+	}
+}
+`
+
 const maxSource = `package calc
 
 func Max(a, b int) int {
@@ -497,6 +584,35 @@ describe('mutants run --proposals', { timeout: 240_000 }, () => {
 
     expect(result.status).toBe(2)
     expect(result.stderr).toContain('read the proposals')
+  })
+})
+
+describe('mutants run --caller-gaps', { timeout: 240_000 }, () => {
+  it('lists the changed statements of a package that no test of a changed caller with a fake runs, and exits 10', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'gate/gate.go': gate,
+      'gate/gate_test.go': gateTest,
+      'handler/handler.go': handler,
+      'handler/handler_test.go': handlerTest,
+    })
+
+    const rows = await runCli(dir, ['run', '--base', 'HEAD', '--operators', 'BRANCH_IF', '--caller-gaps'])
+    const json = await runMutants(dir, ['--base', 'HEAD', '--operators', 'BRANCH_IF', '--caller-gaps'])
+
+    expect(rows.stdout).toContain(
+      'CALLER GAPS:\n' +
+        '  gate/gate.go:12 NewChecker, not run by the tests of handler\n' +
+        '  gate/gate.go:16-17,19 (*Checker).Allow, not run by the tests of handler\n' +
+        '  gate/gate.go:23-24,26 (*Checker).closing, not run by the tests of handler\n',
+    )
+    expect(rows.stdout).toContain('caller gaps: 3\n')
+    expect(rows.status).toBe(10)
+    expect(JSON.parse(json.result.stdout).callerGaps).toEqual([
+      { file: 'gate/gate.go', function: 'NewChecker', lines: [12], callers: ['handler'] },
+      { file: 'gate/gate.go', function: '(*Checker).Allow', lines: [16, 17, 19], callers: ['handler'] },
+      { file: 'gate/gate.go', function: '(*Checker).closing', lines: [23, 24, 26], callers: ['handler'] },
+    ])
   })
 })
 

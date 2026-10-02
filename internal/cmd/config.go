@@ -27,6 +27,7 @@ type config struct {
 	Exclude   []string `yaml:"exclude"`
 	// ZeroFunctions names each function as package.Function, with the name of the package and not its path.
 	ZeroFunctions []string `yaml:"zero_functions"`
+	CallerGaps    bool     `yaml:"caller_gaps"`
 }
 
 func loadConfig(root string) (config, error) {
@@ -95,6 +96,13 @@ func (c config) tags(cmd *cli.Command) []string {
 		return cmd.StringSlice("tags")
 	}
 	return c.Tags
+}
+
+func (c config) callerGaps(cmd *cli.Command) bool {
+	if cmd.IsSet("caller-gaps") {
+		return cmd.Bool("caller-gaps")
+	}
+	return c.CallerGaps
 }
 
 func (c config) operators(cmd *cli.Command) []string {

@@ -339,6 +339,40 @@ On two reviewed commits of the measured monorepo, two agents read only the code 
 proposed 8 mutants. On one commit 4 of 8 lived, and on the other 8 of 8 lived. Each commit had one survivor
 that a reviewer found by hand, and that no operator makes.
 
+### Caller gaps
+
+A change can wire new code of one package into another changed package, while the tests of the caller use a
+fake for that code. No test then runs the new code from the caller. The tests of the new package kill each
+mutant there, so no mutant shows the gap. On a measured PR, two reactors wired in a new gate, and a reviewer
+found that no reactor test reached it.
+
+With `--caller-gaps`, or `caller_gaps: true` in `.mutants.yml`, the run looks for these gaps:
+
+1. **Callers.** A caller is a changed package that imports another changed package, its callee. `go/types`
+   gives the imports.
+2. **Reach.** The check follows each function of the callee that a changed line of the caller calls, then
+   each function that those functions call. It also follows the methods of a type that a reached function
+   returns, or builds with a composite literal. So a constructor that a changed line calls reaches each
+   method of the value that it returns. A changed line that calls only an interface of the caller reaches
+   nothing, so a caller whose tests use a fake gives no gap.
+3. **One test run for each caller.** The tests of the caller run once with `-coverpkg` on its callees.
+4. **Gaps.** A caller gap is a changed line of a reached function, where a statement starts, that the tests
+   of its own package run but that the tests of no caller that reaches the function run. The check takes
+   the line where a statement starts, because Go 1.26 starts a coverage block on the line of the brace
+   before the statement, and Go 1.27 starts it on the statement.
+
+The rows list each gap apart from the statuses of the mutants, by function:
+
+```text
+CALLER GAPS:
+  common/modules/informationsufficiency/checker.go:102-104,106 (*Checker).closingItemArrived, not run by the tests of collect/handler/CustomerCaseRequestInformation, collect/handler/EmailConversationRecordInformation
+mutants: 81, killed: 64, lived: 1, not covered: 3, not viable: 13 (base 1a2b3c4d5e)
+caller gaps: 1
+```
+
+A run that finds a caller gap exits 10, as a run with a survivor does. The check costs one more test run for
+each caller. It is off by default until its noise is measured on more PRs.
+
 ### The Go runner
 
 The runner builds the test binary with an overlay, and then runs the binary itself. It never runs `go test`
@@ -464,14 +498,15 @@ coverage runs of different packages run at the same time, as many as there are w
 
 | Command | Does | Exit |
 | --- | --- | --- |
-| `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
+| `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors or caller gaps, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
 | `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 an unknown id |
 | `mutants operators` | lists the operators and their rules | 0 |
 | `mutants version`, `mutants update` | as now | |
 
 The flags of `run`: `--base`, `--workers`, `--limit`, `--build-limit`, `--tags`, `--operators`,
-`--format rows|json`, `--json PATH`, `--stryker PATH`, `--proposals PATH`. The flags of `rerun`: `--tags`,
+`--format rows|json`, `--json PATH`, `--stryker PATH`, `--proposals PATH`, `--caller-gaps`. The flags of
+`rerun`: `--tags`,
 `--build-limit`.
 
 `rerun` finds the mutant with all the rules of its operator, also an operator that is off by default, and
@@ -590,6 +625,7 @@ type Adapter interface {
 	// Uncovered gives the mutants that no test runs. The value is empty, or a reason that holds for each
 	// mutant of one package.
 	Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error)
+	CallerGaps(ctx context.Context, changed diff.Lines) ([]CallerGap, error)
 	Runner() mutant.Runner
 }
 ```
@@ -624,6 +660,7 @@ The end-to-end fixtures:
 | A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
 | A file of proposals, with one that lives, one that dies and one whose `old` occurs two times | LIVED and KILLED, the third rejected with "old found 2 times", and `git status` the same after the run |
 | A proposed mutant after the run | `rerun` finds it by its id without the file. After its `old` changes: exit 1, "the proposal does not fit the code". |
+| A new gate, and a changed caller that wires it in but whose tests use a fake | with `--caller-gaps`: the statements of the gate in the rows and the JSON, and exit 10 |
 
 ## Later
 
@@ -688,6 +725,12 @@ real test gaps, and they are worth the longer run.
 
 **Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_ZERO`.
 Without it, a guard that returns `false` gets no mutant.
+
+**Why a caller gap needs the reach of the changed lines.** A caller whose tests use a fake for its callee
+never runs the callee, and that is often the intent: the tests of the callee test the callee. When the check
+reported each line of each callee that no caller test runs, those callers gave rows that are not gaps. A
+changed line that calls the callee directly, for example a call of a constructor in the setup of the caller, is new code that
+depends on the real callee, so its reach is where a gap matters.
 
 **Why mutants reads proposals and never calls a model.** In the flow, the agent that builds the change is
 already a model, and it has the task and the diff. A model SDK, its keys and network access do not belong in

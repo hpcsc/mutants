@@ -24,6 +24,7 @@ func withFlags(t *testing.T, arguments ...string) *cli.Command {
 			&cli.IntFlag{Name: "workers", Value: 4},
 			&cli.StringSliceFlag{Name: "tags"},
 			&cli.StringSliceFlag{Name: "operators"},
+			&cli.BoolFlag{Name: "caller-gaps"},
 		},
 		Action: func(context.Context, *cli.Command) error { return nil },
 	}
@@ -36,7 +37,7 @@ func TestConfig(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
 			content := "base: origin/main\nworkers: 2\ntags: [unit]\noperators: [-ERRORF_WRAP]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\n" +
-				"zero_functions: [maybe.None]\n"
+				"zero_functions: [maybe.None]\ncaller_gaps: true\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
 			loaded, err := loadConfig(root)
@@ -49,6 +50,7 @@ func TestConfig(t *testing.T) {
 				Operators:     []string{"-ERRORF_WRAP"},
 				Exclude:       []string{"**/*_gen.go", "vendor/**"},
 				ZeroFunctions: []string{"maybe.None"},
+				CallerGaps:    true,
 			}, loaded)
 		})
 
@@ -65,7 +67,7 @@ func TestConfig(t *testing.T) {
 
 			_, err := loadConfig(root)
 
-			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, tags, operators, exclude, zero_functions")
+			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, tags, operators, exclude, zero_functions, caller_gaps")
 		})
 
 		t.Run("an empty file gives no settings", func(t *testing.T) {
@@ -81,30 +83,33 @@ func TestConfig(t *testing.T) {
 
 	t.Run("settings", func(t *testing.T) {
 		t.Run("a flag wins over the file", func(t *testing.T) {
-			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}}
-			command := withFlags(t, "--base", "HEAD", "--workers", "8", "--tags", "integration", "--operators", "BRANCH_IF")
+			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}, CallerGaps: true}
+			command := withFlags(t, "--base", "HEAD", "--workers", "8", "--tags", "integration", "--operators", "BRANCH_IF", "--caller-gaps=false")
 
 			require.Equal(t, "HEAD", loaded.base(command))
 			require.Equal(t, 8, loaded.workers(command))
 			require.Equal(t, []string{"integration"}, loaded.tags(command))
 			require.Equal(t, []string{"BRANCH_IF"}, loaded.operators(command))
+			require.False(t, loaded.callerGaps(command))
 		})
 
 		t.Run("the file wins over the default", func(t *testing.T) {
-			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}}
+			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}, CallerGaps: true}
 			command := withFlags(t)
 
 			require.Equal(t, "origin/main", loaded.base(command))
 			require.Equal(t, 2, loaded.workers(command))
 			require.Equal(t, []string{"unit"}, loaded.tags(command))
 			require.Equal(t, []string{"-ERRORF_WRAP"}, loaded.operators(command))
+			require.True(t, loaded.callerGaps(command))
 		})
 
-		t.Run("with no flag and no file, the base is origin/HEAD and there are 4 workers", func(t *testing.T) {
+		t.Run("with no flag and no file, the base is origin/HEAD, there are 4 workers, and no check for caller gaps", func(t *testing.T) {
 			command := withFlags(t)
 
 			require.Equal(t, "origin/HEAD", config{}.base(command))
 			require.Equal(t, 4, config{}.workers(command))
+			require.False(t, config{}.callerGaps(command))
 		})
 
 		t.Run("a list of operators keeps the sign of each operator", func(t *testing.T) {

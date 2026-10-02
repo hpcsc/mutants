@@ -48,6 +48,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 | `--json PATH` | also writes the JSON report to `PATH` |
 | `--stryker PATH` | also writes the Stryker report to `PATH` |
 | `--proposals PATH` | also runs the mutants that the file proposes. See [Proposed mutants](#proposed-mutants). |
+| `--caller-gaps` | also finds the changed statements that no test of a changed caller runs. See [Caller gaps](#caller-gaps). |
 
 ## Flags of mutants rerun
 
@@ -70,7 +71,7 @@ no diff, so it also works after a commit. It prints one row, and the reason for 
 | Command | Code | Meaning |
 | --- | --- | --- |
 | `mutants run` | 0 | no mutant survived |
-| | 10 | at least one mutant survived |
+| | 10 | at least one mutant survived, or the run found a caller gap |
 | | 124 | the run reached `--limit` |
 | | 2 | a usage error or a tool error, for example a test that fails with the real code, or a file of proposals that `mutants` cannot read |
 | | 130 | an interrupt or SIGTERM stopped the run |
@@ -150,6 +151,34 @@ mutants run --proposals proposals.jsonl
 
 `mutants` never calls a model itself. The agent that proposes the bugs writes the file.
 
+## Caller gaps
+
+A change can wire new code of one package into another changed package while the tests of the caller use a
+fake, so no test runs the new code from the caller. `--caller-gaps` finds these lines:
+
+```shell
+mutants run --caller-gaps
+```
+
+- A caller is a changed package that imports another changed package.
+- `mutants` runs the tests of each caller one more time, and follows the code that the changed lines of the
+  caller reach.
+- A caller gap is a changed statement that the tests of its own package run, but that no test of a caller
+  runs.
+- When the changed lines of a caller call only an interface of the caller, the caller gives no gap.
+
+The rows list the gaps under `CALLER GAPS`, by function, and a last line counts them:
+
+```text
+CALLER GAPS:
+  gate/gate.go:16-17,19 (*Checker).Allow, not run by the tests of handler
+mutants: 3, killed: 2, lived: 1 (base 1a2b3c4d5e)
+caller gaps: 1
+```
+
+A run that finds a caller gap exits with 10. The check is off by default. Turn it on for each run with
+`caller_gaps: true` in `.mutants.yml`.
+
 ## Mutant ids
 
 An id has this shape:
@@ -188,14 +217,22 @@ each mutant, also the killed ones:
 ```
 
 `detail` gives the reason for the status, such as the test that failed or the build error. It is not there
-when there is no reason. `bug` holds the bug of a proposed mutant. With `--proposals`, the document also
-holds `proposals`, with the number of accepted proposals and each rejected proposal with its reason:
+when there is no reason. `bug` holds the bug of a proposed mutant.
+
+With `--proposals`, the document also holds `proposals`, with the number of accepted proposals and each
+rejected proposal with its reason:
 
 ```json
 "proposals": {
   "accepted": 7,
   "rejected": [{"file": "a.go", "old": "return", "new": "", "bug": "the case never closes", "reason": "old found 3 times"}]
 }
+```
+
+With `--caller-gaps`, the document also holds `callerGaps`, also when the run found none:
+
+```json
+"callerGaps": [{"file": "gate/gate.go", "function": "(*Checker).Allow", "lines": [16, 17, 19], "callers": ["handler"]}]
 ```
 
 The JSON encoder writes `<`, `>` and `&` in strings as `\u003c`, `\u003e` and `\u0026`, and a JSON parser
@@ -218,6 +255,7 @@ tags: [unit]
 operators: [-ERRORF_WRAP]
 exclude: ["**/*_gen.go", "vendor/**"]
 zero_functions: [maybe.None, caseautoresolve.Submitted]
+caller_gaps: true
 ```
 
 | Key | Does |
@@ -228,6 +266,7 @@ zero_functions: [maybe.None, caseautoresolve.Submitted]
 | `operators` | the operators, as `--operators` |
 | `exclude` | the files that get no mutant, as globs from the repository root |
 | `zero_functions` | the functions that return the zero value of their type, as `package.Function`. `FIELD_ZERO` skips a field whose value is a call of one of them, because the removal of that field changes nothing. Use the name of the package, not its path. |
+| `caller_gaps` | `true` looks for caller gaps in each run, as `--caller-gaps` |
 
 An unknown key is an error that names the key, its line and the known keys.
 
