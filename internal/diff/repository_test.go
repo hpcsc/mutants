@@ -237,6 +237,31 @@ func TestRepository(t *testing.T) {
 		})
 	})
 
+	t.Run("origin head", func(t *testing.T) {
+		t.Run("gives the default branch of origin", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("a.go", "package a\n")
+			r.commit("start")
+			r.git("update-ref", "refs/remotes/origin/trunk", "HEAD")
+			r.git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+
+			head, found := r.open().OriginHead(context.Background())
+
+			require.True(t, found)
+			require.Equal(t, "origin/trunk", head)
+		})
+
+		t.Run("a clone that does not know the default branch of origin gives false", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("a.go", "package a\n")
+			r.commit("start")
+
+			_, found := r.open().OriginHead(context.Background())
+
+			require.False(t, found)
+		})
+	})
+
 	t.Run("all", func(t *testing.T) {
 		t.Run("reads every line of the files in a folder, and not in its subfolders", func(t *testing.T) {
 			r := newGitRepository(t)

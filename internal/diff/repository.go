@@ -41,6 +41,16 @@ func (r *Repository) GitFolder(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
+// OriginHead gives the default branch of the remote origin, such as origin/main, and false when the clone
+// does not know it.
+func (r *Repository) OriginHead(ctx context.Context) (string, bool) {
+	output, err := r.git(ctx, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(string(output)), true
+}
+
 func (r *Repository) MergeBase(ctx context.Context, base string) (string, error) {
 	output, err := r.git(ctx, "merge-base", "HEAD", base)
 	if err != nil {
