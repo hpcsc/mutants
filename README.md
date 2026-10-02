@@ -6,7 +6,8 @@ changed lines of your branch, and it runs your tests after each change. When the
 
 `mutants` works on Go code in a git repository.
 
-## What mutation testing is
+<details>
+<summary><h2>What mutation testing is</h2></summary>
 
 Test coverage tells you that a test ran a line. It does not tell you that a test checked what the line
 does. Mutation testing checks the tests: it puts a small bug in the code, and a good test fails.
@@ -50,7 +51,10 @@ The test still passes, because no test uses an order of 100. This change is a mu
 Each survivor shows a gap in the tests: a test that you did not write, or an assertion that is too weak.
 When you add the test, the test kills the mutant.
 
-## Why only the changed lines
+</details>
+
+<details>
+<summary><h2>Why only the changed lines</h2></summary>
 
 Each mutant runs the tests again, so a run on a whole code base can take hours. `mutants` makes mutants
 only on the changed lines of your branch. A run then takes minutes, and you can run it before each
@@ -60,7 +64,10 @@ By default, `mutants` compares your work tree with the point where your branch l
 includes the changes that you did not commit, and each line of a new file that git does not track yet. It
 never writes to your files or to the git index.
 
-## Install
+</details>
+
+<details>
+<summary><h2>Install</h2></summary>
 
 `mutants` needs these tools on your `PATH`:
 
@@ -78,7 +85,10 @@ sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/mutants/main/scripts/ins
 The script asks for the release channel and the install folder. [docs/install.md](docs/install.md) tells
 its options, and how to update `mutants`.
 
-## Your first run
+</details>
+
+<details>
+<summary><h2>Your first run</h2></summary>
 
 1. Go to a git repository that holds a Go module, and check out your branch.
 2. Run `mutants`:
@@ -125,7 +135,10 @@ its options, and how to update `mutants`.
 
 6. Run all the mutants again. The last line is now `mutants: 10, killed: 10`.
 
-## What to do with each status
+</details>
+
+<details>
+<summary><h2>What to do with each status</h2></summary>
 
 | Status | Meaning | What to do |
 | --- | --- | --- |
@@ -136,7 +149,10 @@ its options, and how to update `mutants`.
 
 A mutant that a test killed, and a mutant that does not build, get no row.
 
-## When a survivor is not a gap in the tests
+</details>
+
+<details>
+<summary><h2>When a survivor is not a gap in the tests</h2></summary>
 
 Some mutants make no difference that a test can see. For example, `FIELD_ZERO` removes one field from a
 struct literal. When the value of that field is already its zero value, the mutant gives the same result as
@@ -150,7 +166,10 @@ one:
 - Name a function that returns a zero value, such as `maybe.None`, in `.mutants.yml`:
   `zero_functions: [maybe.None]`.
 
-## Common commands
+</details>
+
+<details>
+<summary><h2>Common commands</h2></summary>
 
 ```shell
 mutants run                          # the changed lines of your branch
@@ -165,7 +184,10 @@ mutants run --caller-gaps            # also find new code that no test of a chan
 `mutants run` exits with 0 when no mutant survives. It exits with 10 when a mutant survives, or when the run
 finds a caller gap. A CI step or a script can use this exit code.
 
-## More documents
+</details>
+
+<details>
+<summary><h2>More documents</h2></summary>
 
 | Document | Tells |
 | --- | --- |
@@ -175,3 +197,5 @@ finds a caller gap. A CI step or a script can use this exit code.
 | [docs/development.md](docs/development.md) | how to build, test and release `mutants` |
 | [docs/design.md](docs/design.md) | how `mutants` works, and why |
 | [docs/e2e-tests.md](docs/e2e-tests.md) | how the end-to-end tests work |
+
+</details>
