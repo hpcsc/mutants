@@ -41,8 +41,12 @@ func writeFile(t *testing.T, path, content string) {
 
 func editsOf(t *testing.T, operatorName, source string) []string {
 	t.Helper()
+	return changesOf(findEdits(t, operatorName, source))
+}
+
+func changesOf(edits []operator.Edit) []string {
 	var changes []string
-	for _, edit := range findEdits(t, operatorName, source) {
+	for _, edit := range edits {
 		changes = append(changes, edit.Original+" -> "+edit.Replacement)
 	}
 	return changes
@@ -158,6 +162,15 @@ func TestPack(t *testing.T) {
 			require.EqualError(t, err, "the skip rule zerolog has the id of a rule of an operator")
 		})
 
+		t.Run("a skip rule in the repository with a fix returns an error that names it", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/skip/go/print.yml"), "id: print\nlanguage: go\nrule:\n  pattern: fmt.Println($$$A)\nfix: ''\n")
+
+			_, err := operator.Load("go", repository)
+
+			require.EqualError(t, err, "read .mutants/skip/go/print.yml: the skip rule print has a fix, but a skip rule changes no code")
+		})
+
 		t.Run("a language with no operators returns an error", func(t *testing.T) {
 			_, err := operator.Load("cobol", t.TempDir())
 
@@ -265,6 +278,32 @@ func TestPack(t *testing.T) {
 			edits := editsOf(t, "CONDITIONALS_BOUNDARY", source)
 
 			require.Equal(t, []string{"a < b -> a <= b"}, edits)
+		})
+
+		t.Run("a skip rule in the repository skips the edits inside its matches", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/skip/go/slog.yml"), "id: slog\nlanguage: go\nrule:\n  kind: call_expression\n  has:\n    field: function\n    regex: ^slog\\.Info$\n")
+			writeFile(t, filepath.Join(repository, "a.go"), "package a\n\nfunc f(a int) int {\n\tslog.Info(\"total\", \"n\", a+1)\n\treturn a + 1\n}\n")
+			pack, err := loadPack(t, repository).Select([]string{"ARITHMETIC_BASE"})
+			require.NoError(t, err)
+
+			edits, err := pack.Edits(context.Background(), astgrep.New(repository), repository, []string{"a.go"})
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"a + 1 -> a - 1"}, changesOf(edits))
+		})
+
+		t.Run("a skip rule in the repository with the id of a standard skip rule replaces it", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/skip/go/zerolog.yml"), "id: zerolog\nlanguage: go\nrule:\n  pattern: log.Print($$$A)\n")
+			writeFile(t, filepath.Join(repository, "a.go"), "package a\n\nfunc f(a int) {\n\tlog.Info().Int(\"n\", a+1).Msg(\"x\")\n}\n")
+			pack, err := loadPack(t, repository).Select([]string{"ARITHMETIC_BASE"})
+			require.NoError(t, err)
+
+			edits, err := pack.Edits(context.Background(), astgrep.New(repository), repository, []string{"a.go"})
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"a+1 -> a - 1"}, changesOf(edits))
 		})
 
 		t.Run("INCREMENT_DECREMENT swaps ++ and --", func(t *testing.T) {

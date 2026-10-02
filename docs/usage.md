@@ -345,6 +345,28 @@ fix: nil
   A rule for an operator that is off by default, such as `ERROR_CAUSE_REMOVE`, is also off by default.
 - `mutants operators` lists each rule, and the file of each rule that the repository adds.
 
+## Code that mutants skips
+
+A skip rule is an [ast-grep](https://ast-grep.github.io) rule with no `fix`. `mutants` makes no mutant inside
+a match of a skip rule, and it does not empty a branch that holds only such matches. The standard skip rule
+of Go, `zerolog`, matches a zerolog call that ends in `Msg`, `Msgf` or `Send`.
+
+To skip the calls of another logger, or other code whose change no test can see, put a rule in a YAML file
+in `.mutants/skip/go/`:
+
+```yaml
+id: slog
+language: go
+rule:
+  kind: call_expression
+  has:
+    field: function
+    regex: ^slog\.(Debug|Info|Warn|Error)$
+```
+
+- A skip rule with the id of a standard skip rule replaces that rule.
+- A skip rule with a `fix` stops the run with an error, because a skip rule changes no code.
+
 ## Time limits
 
 | Limit | Value |

@@ -209,7 +209,9 @@ operator must change, such as a log call, has a skip rule: an ast-grep rule with
 `mutants` then drops each edit inside a match of a skip rule. It also drops each edit that changes only the
 code of such matches: the text of the edit has no letter and no digit outside them, for example a block that
 holds only log calls. This skip rule matches a zerolog call chain that ends in `Msg`, `Msgf` or `Send`. `\s*`
-finds a chain over more than one line, where white space comes between the dot and `Msg`:
+finds a chain over more than one line, where white space comes between the dot and `Msg`. A repository adds
+its own skip rules in `.mutants/skip/<language>/`, and a skip rule with the id of a standard skip rule
+replaces that rule.
 
 ```yaml
 # internal/operator/skip/go/zerolog.yml

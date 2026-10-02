@@ -82,7 +82,8 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 - a swap of two values with different types, or in a table of named values such as
   `NoMatch: Reason{"NoMatch"}`
 
-[The filters in the design](design.md#filters) list each case.
+[The filters in the design](design.md#filters) list each case. A repository can also skip other code, for
+example the calls of its logger, as [Code that mutants skips](usage.md#code-that-mutants-skips) tells.
 
 ## Operators of your own
 

@@ -58,6 +58,9 @@ func Load(language, repository string) (Pack, error) {
 	if _, err := readStandard(path.Join("skip", language), skips, p.addSkip); err != nil {
 		return Pack{}, err
 	}
+	if err := readRepository(repository, filepath.Join(".mutants", "skip", language), skips, p.addSkip); err != nil {
+		return Pack{}, err
+	}
 	for _, id := range slices.Sorted(maps.Keys(skips)) {
 		if _, found := rules[id]; found {
 			return Pack{}, fmt.Errorf("the skip rule %s has the id of a rule of an operator", id)
@@ -273,6 +276,9 @@ func (p Pack) addSkip(skips map[string]Rule, file, text string) error {
 		return err
 	}
 	for _, parsed := range parsedRules {
+		if parsed.hasFix {
+			return fmt.Errorf("read %s: the skip rule %s has a fix, but a skip rule changes no code", file, parsed.id)
+		}
 		skips[parsed.id] = Rule{ID: parsed.id, File: file, Text: parsed.text}
 	}
 	return nil

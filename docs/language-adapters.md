@@ -91,8 +91,8 @@ fix: $A <= $B
   for `RETURN_EMPTY`: it has one rule for each zero value, and the type filter keeps the zero value of the
   slot.
 - Each rule needs a `fix`, unless a hook makes the edits of its operator.
-- A repository can add its own rules in `.mutants/operators/<language>/`. This works for each language with
-  no more code.
+- A repository can add its own rules in `.mutants/operators/<language>/`, and its own skip rules in
+  `.mutants/skip/<language>/`. This works for each language with no more code.
 
 ### Hooks
 
