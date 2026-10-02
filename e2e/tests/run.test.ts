@@ -871,4 +871,16 @@ describe('mutants operators', () => {
     expect(result.stdout).toMatch(/^SWAP_FIELDS\s+on\s+SWAP_FIELDS$/m)
     expect(result.stdout).toMatch(/^ERRORF_WRAP\s+off\s+ERRORF_WRAP$/m)
   })
+
+  it('lists a rule of the repository with the file that holds it, also from a folder below the root', async () => {
+    const dir = goRepository({
+      '.mutants/operators/go/nil_map.yml': 'id: NIL_MAP\nlanguage: go\nmetadata: {default: off}\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n',
+      'calc/calc.go': 'package calc\n',
+    })
+
+    const result = await runCli(join(dir, 'calc'), ['operators'])
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toMatch(/^NIL_MAP\s+off\s+NIL_MAP \(from \.mutants\/operators\/go\/nil_map\.yml\)$/m)
+  })
 })
