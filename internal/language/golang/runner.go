@@ -59,17 +59,18 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
 	}
 	binary := filepath.Join(folder, "pkg.test")
-	built, err := r.build(ctx, pkg, folder, original, content, binary)
+	buildLimit := max(r.settings.BuildLimit, (baselineFactor * baseline.build).Round(time.Second))
+	built, err := r.build(ctx, pkg, folder, original, content, binary, buildLimit)
 	if err == nil && built.code != 0 {
 		if used := r.blankImports(r.useVariables(content, filepath.Base(original), built.tail), built.tail); used != content {
-			built, err = r.build(ctx, pkg, folder, original, used, binary)
+			built, err = r.build(ctx, pkg, folder, original, used, binary, buildLimit)
 		}
 	}
 	switch {
 	case err != nil:
 		return mutant.Verdict{}, err
 	case built.timedOut:
-		return mutant.Verdict{Status: mutant.InfraError, Detail: fmt.Sprintf("the build ran past %s", r.settings.BuildLimit)}, nil
+		return mutant.Verdict{Status: mutant.InfraError, Detail: fmt.Sprintf("the build ran past %s", buildLimit)}, nil
 	case built.code != 0:
 		return mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(built.tail)}, nil
 	}
@@ -77,7 +78,7 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 		return mutant.Verdict{Status: mutant.InfraError, Detail: "go test -c made no test binary: " + err.Error()}, nil
 	}
 
-	limit := baselineFactor*baseline + limitMargin
+	limit := baselineFactor*baseline.test + limitMargin
 	tested, err := r.test(ctx, pkg, binary, limit)
 	// the load of the host can grow after the baseline, so a second run with twice the limit decides
 	if err == nil && tested.timedOut {
@@ -112,7 +113,7 @@ func (r *runner) mutate(path string, m mutant.Mutant) (string, error) {
 	return string(source[:m.Start]) + m.Replacement + string(source[m.End:]), nil
 }
 
-func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, content, binary string) (exit, error) {
+func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, content, binary string, limit time.Duration) (exit, error) {
 	mutated := filepath.Join(folder, filepath.Base(original))
 	if err := os.WriteFile(mutated, []byte(content), 0o600); err != nil {
 		return exit{}, err
@@ -130,7 +131,7 @@ func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, con
 		arguments: append(append([]string{"test", "-c", "-vet=off", "-overlay", overlay, "-o", binary}, r.settings.tagArguments()...), "."),
 		folder:    pkg.Dir,
 		env:       r.settings.buildEnv(),
-		limit:     r.settings.BuildLimit,
+		limit:     limit,
 	}
 	return build.run(ctx)
 }

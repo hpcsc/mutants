@@ -26,7 +26,7 @@ func newRerunCommand() *cli.Command {
 			"internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1\n\n" +
 			"Exit codes: 0 killed, 10 lived or not covered, 1 no verdict, 2 an unknown id.",
 		Flags: []cli.Flag{
-			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "stop the build of the mutant after this time"},
+			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "the least time for the build of the mutant; it is 3 times the build of the real code when that is longer"},
 			&cli.StringSliceFlag{Name: "tags", Usage: "the build tags for go list, the coverage run and the build"},
 		},
 		OnUsageError: usageError,

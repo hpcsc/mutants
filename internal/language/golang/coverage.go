@@ -27,8 +27,12 @@ type coverageRun struct {
 	pkg      goPackage
 	noTests  bool
 	blocks   map[string][]block
-	baseline time.Duration
+	baseline baseline
 	err      error
+}
+
+type baseline struct {
+	build, test time.Duration
 }
 
 // block ends before endColumn, as in the Go coverage profile.
@@ -93,10 +97,10 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[
 	return uncovered, nil
 }
 
-func (c *coverage) baseline(ctx context.Context, folder string) (time.Duration, error) {
+func (c *coverage) baseline(ctx context.Context, folder string) (baseline, error) {
 	run, err := c.run(ctx, folder)
 	if err != nil {
-		return 0, err
+		return baseline{}, err
 	}
 	return run.baseline, nil
 }
@@ -129,9 +133,10 @@ func (c *coverage) measure(ctx context.Context, run *coverageRun) error {
 		arguments: append(append([]string{"test", "-c", "-cover", "-covermode=set", "-o", binary}, c.settings.tagArguments()...), "."),
 		folder:    run.pkg.Dir,
 		env:       c.settings.buildEnv(),
-		limit:     c.settings.BuildLimit,
 	}
+	started := time.Now()
 	built, err := build.run(ctx)
+	run.baseline.build = time.Since(started)
 	if err != nil {
 		return err
 	}
@@ -150,9 +155,9 @@ func (c *coverage) measure(ctx context.Context, run *coverageRun) error {
 		folder:    run.pkg.Dir,
 		env:       c.settings.testEnv(),
 	}
-	started := time.Now()
+	started = time.Now()
 	tested, err := test.run(ctx)
-	run.baseline = time.Since(started)
+	run.baseline.test = time.Since(started)
 	if err != nil {
 		return err
 	}

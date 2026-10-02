@@ -356,7 +356,7 @@ flowchart TD
     CV -- "yes" --> NC["NOT COVERED"]
     CV -- "no" --> BLD{"does the test binary build?"}
     BLD -- "no" --> NV["NOT VIABLE"]
-    BLD -- "past --build-limit" --> IE
+    BLD -- "past its limit" --> IE
     BLD -- "yes" --> RUN{"how did the binary end?"}
     RUN -- "the limit ended first, two times" --> TO["TIMED OUT"]
     RUN -- "exit 0" --> LV["LIVED"]
@@ -371,7 +371,7 @@ flowchart TD
 | NOT COVERED | no test runs the line | yes |
 | NOT VIABLE | the mutant does not build | no |
 | TIMED OUT | the tests ran past the limit | no |
-| INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past `--build-limit` | no |
+| INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past its limit | no |
 
 Go's coverage profile has no block for the part of a statement that comes after a function literal. A tool
 that reads "no block" as "not covered" never runs the mutants on those lines. So `mutants` marks a mutant
@@ -385,13 +385,15 @@ on the line of its `if`, and is LIVED, while the `return` inside the branch is N
 
 | Limit | Value |
 | --- | --- |
-| The build of one mutant | 120 s, or `--build-limit` |
+| The build of one mutant | the build time of the real code of its package × 3, and at least 120 s or `--build-limit` |
 | The test run of one mutant | the baseline test time of its package × 3 + 5 s, and twice that for the second run |
 | The whole run | `--limit`, none by default |
 
 `mutants` measures the baseline once for each package, with the real code, before the first mutant. The
 coverage run is the baseline, so the baseline includes the cost of `-cover`. A package whose baseline fails
 stops the run with exit 2: a red suite gives no verdict.
+
+The coverage run also measures the build of the real code, and that build has no limit of its own.
 
 The load of the host can grow after the baseline. A mutant that runs past its limit therefore runs one more
 time with twice the limit, and it is TIMED OUT only when the second run also runs past the limit.
@@ -618,6 +620,10 @@ gets two ids. The filters depend only on the code, so the ids can count after th
 verdicts on the measured monorepo, under a load average of 10 to 20: 3 × 1.2 s for a mutant that a test
 kills in 0.55 s alone. PIT adds 4 s to its factor, and Stryker adds 5 s. A second run with twice the limit
 costs time only for a mutant that really hangs, and such a mutant is rare.
+
+**Why the build limit comes from the build of the real code.** A fixed limit of 120 s gave INFRA ERROR to
+11 builds of one large package on the measured monorepo, under a load average of up to 111. The build of
+the real code runs under the same load, so 3 × its time fits the package and the host.
 
 **Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_ZERO`.
 Without it, a guard that returns `false` gets no mutant.

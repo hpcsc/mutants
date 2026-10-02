@@ -53,7 +53,7 @@ The flags of `mutants run`:
 | `--all FOLDER...` | runs every line of the files in each folder |
 | `--workers N` | tests `N` mutants at once, 4 by default |
 | `--limit DURATION` | stops the whole run, writes the mutants that got a verdict, and exits 124 |
-| `--build-limit DURATION` | stops the build of one mutant, 2 minutes by default |
+| `--build-limit DURATION` | the least time for the build of one mutant, 2 minutes by default. A package whose real code takes longer to build gives each mutant 3 times that time. |
 | `--tags a,b` | gives the build tags to `go list`, to the coverage run and to each build |
 | `--operators=-ERRORF_WRAP,+NAME` | `-NAME` takes an operator out, `+NAME` adds one, and `NAME` runs only the named operators |
 | `--format rows\|json` | prints rows, or one JSON document |

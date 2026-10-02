@@ -737,6 +737,15 @@ func TestCalc(t *testing.T) {
 			}
 		})
 
+		t.Run("a mutant build gets three times the build of the real code when that is longer than the build limit", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
+			settings := golang.Settings{BuildLimit: time.Millisecond, Workers: 1}
+
+			result := run(t, golang.New(root, settings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Killed, result.Status, result.Detail)
+		})
+
 		t.Run("a mutant that makes a test panic is KILLED", func(t *testing.T) {
 			root := newModule(t, map[string]string{
 				"calc/calc.go":      "package calc\n\nfunc First(xs []int) int {\n\tif len(xs) == 0 {\n\t\treturn 0\n\t}\n\treturn xs[0]\n}\n",
