@@ -24,6 +24,15 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
+      # The release notes start at the previous release, or at the first commit, and not at a prerelease tag.
+      - name: Find the previous release
+        id: previous
+        run: |
+          previous=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V |
+            awk -v current="$GITHUB_REF_NAME" '$0 == current { print previous; exit } { previous = $0 }')
+          echo "tag=${previous:-$(git rev-list --max-parents=0 HEAD | tail -n 1)}" >> "$GITHUB_OUTPUT"
+
+      # The commit of the tag also has a prerelease tag, and GoReleaser takes the higher tag unless it gets this one.
       - name: Release
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -32,3 +41,5 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GORELEASER_PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
