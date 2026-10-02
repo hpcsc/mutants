@@ -591,6 +591,31 @@ func Run(ctx context.Context, id, name string, cause error) []error {
 			require.True(t, adapter.Keep(editIn(t, root, "client/client.go", "ARGUMENT_ZERO", "validate(name)", "name", `""`)))
 		})
 
+		t.Run("finds the slot of a return in a function literal inside a function", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nimport \"strconv\"\n\nfunc Outer() string {\n\tf := func(n int) int { return n + 1 }\n\treturn strconv.Itoa(f(1))\n}\n"})
+			adapter := golang.New(root, defaultSettings)
+
+			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "n + 1", "0")))
+			require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "n + 1", `""`)))
+		})
+
+		t.Run("keeps a FIELD_ZERO and a SWAP_FIELDS edit in a literal of a slice of pointers", func(t *testing.T) {
+			root := newModule(t, map[string]string{"info/info.go": "package info\n\ntype Info struct {\n\tArrived bool\n\tID      string\n\tName    string\n}\n\nvar All = []*Info{{Arrived: true, ID: \"a\", Name: \"b\"}}\n"})
+			adapter := golang.New(root, defaultSettings)
+
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "FIELD_ZERO", "Arrived: true,", "")))
+			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "SWAP_FIELDS", `"a", Name: "b"`, `"b", Name: "a"`)))
+		})
+
+		t.Run("drops each RETURN_ZERO edit for a slot whose type is a type parameter", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nfunc First[T any](xs []T) T {\n\treturn xs[0]\n}\n"})
+			adapter := golang.New(root, defaultSettings)
+
+			for _, candidate := range []string{"nil", "0", `""`, "false"} {
+				require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "xs[0]", candidate)), candidate)
+			}
+		})
+
 		t.Run("finds the slot of a return in a function literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nvar Next = func(n int) (int, error) {\n\treturn n + 1, nil\n}\n"})
 
@@ -617,9 +642,13 @@ func (l *List[T]) Push() int { return 3 }
 func total() int { return 4 }
 
 var limit = 5
+
+type Pair[K comparable, V any] struct{}
+
+func (p *Pair[K, V]) Get() int { return 6 }
 `})
 			adapter := golang.New(root, defaultSettings)
-			names := map[string]string{"1": "(*Handler).accounts", "2": "Handler.name", "3": "(*List).Push", "4": "total", "5": "limit"}
+			names := map[string]string{"1": "(*Handler).accounts", "2": "Handler.name", "3": "(*List).Push", "4": "total", "5": "limit", "6": "(*Pair).Get"}
 			for value, name := range names {
 				edit := editOf(t, root, "order/handler.go", "INTEGER_INCREMENT", value, "")
 
@@ -757,6 +786,41 @@ func apply(xs []int, double func(int) int, extra int) int {
 			require.Equal(t, []language.CallerGap{
 				{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{17}, Callers: []string{"wired"}},
 				{File: "gate/gate.go", Function: "(*Checker).closing", Lines: []int{26}, Callers: []string{"wired"}},
+			}, gaps)
+		})
+
+		t.Run("gives only the changed statements of the package, not its other statements", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"gate/gate.go": gateSource, "gate/gate_test.go": gateTest,
+				"handler/handler.go": handlerSource, "handler/handler_test.go": handlerTest,
+			})
+			changed := changedFiles(t, root, "handler/handler.go")
+			changed.Add("gate/gate.go", 15, 20)
+
+			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changed)
+
+			require.NoError(t, err)
+			require.Equal(t, []language.CallerGap{
+				{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{16, 17, 19}, Callers: []string{"handler"}},
+			}, gaps)
+		})
+
+		t.Run("follows the functions that a reached function calls", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"gate/gate.go":            "package gate\n\nfunc Allow(id string) bool {\n\treturn valid(id)\n}\n\nfunc valid(id string) bool {\n\treturn id != \"\"\n}\n",
+				"gate/gate_test.go":       "package gate\n\nimport \"testing\"\n\nfunc TestAllow(t *testing.T) {\n\tif !Allow(\"a\") {\n\t\tt.Fatal(\"Allow\")\n\t}\n}\n",
+				"handler/handler.go":      "package handler\n\nimport \"example.com/fixture/gate\"\n\nvar allow = gate.Allow\n\nfunc Handle(id string, check func(string) bool) bool {\n\treturn check(id)\n}\n\nfunc Main(id string) bool {\n\treturn Handle(id, allow)\n}\n",
+				"handler/handler_test.go": "package handler\n\nimport \"testing\"\n\nfunc TestHandle(t *testing.T) {\n\tif !Handle(\"a\", func(string) bool { return true }) {\n\t\tt.Fatal(\"Handle\")\n\t}\n}\n",
+			})
+
+			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "handler/handler.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, []language.CallerGap{
+				{File: "gate/gate.go", Function: "Allow", Lines: []int{4}, Callers: []string{"handler"}},
+				{File: "gate/gate.go", Function: "valid", Lines: []int{8}, Callers: []string{"handler"}},
 			}, gaps)
 		})
 
@@ -898,6 +962,28 @@ func TestCalc(t *testing.T) {
 			result := run(t, golang.New(root, settings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
 
 			require.Equal(t, mutant.Killed, result.Status, result.Detail)
+		})
+
+		t.Run("a mutant of a file that changed after mutants read it is INFRA ERROR", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
+			m := mutantOf(t, root, "calc/calc.go", "return b", "return a")
+			require.NoError(t, os.WriteFile(filepath.Join(root, "calc/calc.go"), []byte(strings.Replace(maxSource, "return b", "return  b", 1)), 0o644))
+
+			result := run(t, golang.New(root, defaultSettings), m)
+
+			require.Equal(t, mutant.InfraError, result.Status, result.Detail)
+			require.Contains(t, result.Detail, "changed after mutants read it")
+		})
+
+		t.Run("a mutant whose tests a signal stops is INFRA ERROR, not KILLED", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      "package calc\n\nfunc Stop() bool {\n\treturn false\n}\n",
+				"calc/calc_test.go": "package calc\n\nimport (\n\t\"os\"\n\t\"syscall\"\n\t\"testing\"\n)\n\nfunc TestStop(t *testing.T) {\n\tif Stop() {\n\t\t_ = syscall.Kill(os.Getpid(), syscall.SIGKILL)\n\t}\n}\n",
+			})
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "false", "true"))
+
+			require.Equal(t, mutant.InfraError, result.Status, result.Detail)
 		})
 
 		t.Run("a mutant that makes a test panic is KILLED", func(t *testing.T) {
