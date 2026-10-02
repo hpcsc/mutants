@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/report"
@@ -118,6 +119,25 @@ mutants: 4, not covered: 4
 			require.NoError(t, report.Rows(&output, outcome))
 
 			require.Equal(t, "REJECTED PROPOSALS:\n  case.go: old found 3 times: the case never closes\nmutants: 1, killed: 1\nproposals: 1 accepted, 1 rejected\n", output.String())
+		})
+
+		t.Run("lists each caller gap with its line ranges and its callers, and counts the gaps", func(t *testing.T) {
+			gaps := []language.CallerGap{
+				{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{12, 13, 16, 17, 18, 21}, Callers: []string{"handler", "wired"}},
+			}
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, report.Outcome{CallerGaps: &gaps}))
+
+			require.Equal(t, "CALLER GAPS:\n  gate/gate.go:12-13,16-18,21 (*Checker).Allow, not run by the tests of handler, wired\nmutants: 0\ncaller gaps: 1\n", output.String())
+		})
+
+		t.Run("a run that looked for caller gaps and found none says so", func(t *testing.T) {
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, report.Outcome{CallerGaps: &[]language.CallerGap{}}))
+
+			require.Equal(t, "mutants: 0\ncaller gaps: 0\n", output.String())
 		})
 
 		t.Run("no mutant gives only the count", func(t *testing.T) {

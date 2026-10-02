@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 	"strings"
 
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/proposal"
 )
@@ -16,11 +18,13 @@ const (
 	shortContext = 12
 )
 
-// Outcome is what one run gives to the reports. Proposals is nil when the run got no proposals.
+// Outcome is what one run gives to the reports. Proposals is nil when the run got no proposals, and
+// CallerGaps is nil when the run did not look for caller gaps.
 type Outcome struct {
-	Base      string
-	Mutants   []mutant.Mutant
-	Proposals *Proposals
+	Base       string
+	Mutants    []mutant.Mutant
+	Proposals  *Proposals
+	CallerGaps *[]language.CallerGap
 }
 
 type Proposals struct {
@@ -67,9 +71,18 @@ func Rows(w io.Writer, outcome Outcome) error {
 			fmt.Fprintf(&text, "  %s: %s: %s\n", rejection.Proposal.File, rejection.Reason, rejection.Proposal.Bug)
 		}
 	}
+	if outcome.CallerGaps != nil && len(*outcome.CallerGaps) > 0 {
+		text.WriteString("CALLER GAPS:\n")
+		for _, gap := range *outcome.CallerGaps {
+			fmt.Fprintf(&text, "  %s:%s %s, not run by the tests of %s\n", gap.File, lineRanges(gap.Lines), gap.Function, strings.Join(gap.Callers, ", "))
+		}
+	}
 	text.WriteString(Counts(mutants, outcome.Base) + "\n")
 	if outcome.Proposals != nil {
 		fmt.Fprintf(&text, "proposals: %d accepted, %d rejected\n", outcome.Proposals.Accepted, len(outcome.Proposals.Rejected))
+	}
+	if outcome.CallerGaps != nil {
+		fmt.Fprintf(&text, "caller gaps: %d\n", len(*outcome.CallerGaps))
 	}
 	_, err := io.WriteString(w, text.String())
 	return err
@@ -101,6 +114,23 @@ func Counts(mutants []mutant.Mutant, base string) string {
 		line += fmt.Sprintf(" (base %s)", base[:min(len(base), 10)])
 	}
 	return line
+}
+
+func lineRanges(lines []int) string {
+	var ranges []string
+	for i := 0; i < len(lines); {
+		last := i
+		for last+1 < len(lines) && lines[last+1] == lines[last]+1 {
+			last++
+		}
+		if last == i {
+			ranges = append(ranges, strconv.Itoa(lines[i]))
+		} else {
+			ranges = append(ranges, fmt.Sprintf("%d-%d", lines[i], lines[last]))
+		}
+		i = last + 1
+	}
+	return strings.Join(ranges, ",")
 }
 
 func plural(count int, noun string) string {

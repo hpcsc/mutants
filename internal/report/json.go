@@ -35,15 +35,30 @@ type jsonProposals struct {
 	Rejected []jsonRejection `json:"rejected"`
 }
 
+type jsonCallerGap struct {
+	File     string   `json:"file"`
+	Function string   `json:"function"`
+	Lines    []int    `json:"lines"`
+	Callers  []string `json:"callers"`
+}
+
 type jsonReport struct {
-	Base      string         `json:"base,omitempty"`
-	Mutants   []jsonMutant   `json:"mutants"`
-	Proposals *jsonProposals `json:"proposals,omitempty"`
+	Base       string           `json:"base,omitempty"`
+	Mutants    []jsonMutant     `json:"mutants"`
+	Proposals  *jsonProposals   `json:"proposals,omitempty"`
+	CallerGaps *[]jsonCallerGap `json:"callerGaps,omitempty"`
 }
 
 func JSON(w io.Writer, outcome Outcome) error {
 	mutants, base := outcome.Mutants, outcome.Base
 	report := jsonReport{Base: base, Mutants: []jsonMutant{}}
+	if outcome.CallerGaps != nil {
+		gaps := []jsonCallerGap{}
+		for _, gap := range *outcome.CallerGaps {
+			gaps = append(gaps, jsonCallerGap{File: gap.File, Function: gap.Function, Lines: gap.Lines, Callers: gap.Callers})
+		}
+		report.CallerGaps = &gaps
+	}
 	if outcome.Proposals != nil {
 		report.Proposals = &jsonProposals{Accepted: outcome.Proposals.Accepted, Rejected: []jsonRejection{}}
 		for _, rejection := range outcome.Proposals.Rejected {

@@ -29,23 +29,25 @@ var ErrStaleProposal = errors.New("the proposal does not fit the code")
 var errLimit = errors.New("the run reached its limit")
 
 type Settings struct {
-	Base      string
-	Folders   []string
-	Exclude   []string
-	Operators []string
-	Workers   int
-	Limit     time.Duration
-	Proposals []proposal.Proposal
+	Base       string
+	Folders    []string
+	Exclude    []string
+	Operators  []string
+	Workers    int
+	Limit      time.Duration
+	Proposals  []proposal.Proposal
+	CallerGaps bool
 }
 
 type Outcome struct {
-	Base     string
-	Files    int
-	Lines    int
-	Mutants  []mutant.Mutant
-	Stopped  bool
-	Proposed int
-	Rejected []proposal.Rejection
+	Base       string
+	Files      int
+	Lines      int
+	Mutants    []mutant.Mutant
+	Stopped    bool
+	Proposed   int
+	Rejected   []proposal.Rejection
+	CallerGaps []language.CallerGap
 }
 
 type Instance struct {
@@ -108,6 +110,11 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 		})
 	}
 	finding.End()
+	if err == nil && settings.CallerGaps {
+		checking := progress.Start(r.stderr, r.terminal, "Running the tests of the changed callers")
+		outcome.CallerGaps, err = r.adapter.CallerGaps(ctx, lines)
+		checking.End()
+	}
 	if err != nil || len(mutants) == 0 {
 		return outcome, err
 	}

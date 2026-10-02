@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/report"
@@ -63,6 +64,17 @@ func TestJSON(t *testing.T) {
 					"rejected": [{"file": "case.go", "old": "return", "new": "", "bug": "the note is lost", "reason": "old found 3 times"}]
 				}
 			}`, output.String())
+		})
+
+		t.Run("holds each caller gap when the run looked for them, also when it found none", func(t *testing.T) {
+			gaps := []language.CallerGap{{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{16, 17}, Callers: []string{"handler"}}}
+			var found, none strings.Builder
+
+			require.NoError(t, report.JSON(&found, report.Outcome{CallerGaps: &gaps}))
+			require.NoError(t, report.JSON(&none, report.Outcome{CallerGaps: &[]language.CallerGap{}}))
+
+			require.JSONEq(t, `{"mutants": [], "callerGaps": [{"file": "gate/gate.go", "function": "(*Checker).Allow", "lines": [16, 17], "callers": ["handler"]}]}`, found.String())
+			require.JSONEq(t, `{"mutants": [], "callerGaps": []}`, none.String())
 		})
 
 		t.Run("no mutant gives an empty list", func(t *testing.T) {

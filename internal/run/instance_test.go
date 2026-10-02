@@ -260,6 +260,32 @@ func TestInstance(t *testing.T) {
 		})
 	})
 
+	t.Run("caller gaps", func(t *testing.T) {
+		t.Run("with the setting, the outcome holds the caller gaps of the adapter", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			gaps := []language.CallerGap{{File: "a.go", Function: "f", Lines: []int{7}, Callers: []string{"b"}}}
+			settings := boundary
+			settings.CallerGaps = true
+
+			outcome, err := r.instance(&fakeAdapter{callerGaps: gaps}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, gaps, outcome.CallerGaps)
+		})
+
+		t.Run("without the setting, the run does not look for caller gaps", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			gaps := []language.CallerGap{{File: "a.go", Function: "f", Lines: []int{7}, Callers: []string{"b"}}}
+
+			outcome, err := r.instance(&fakeAdapter{callerGaps: gaps}).Run(context.Background(), boundary)
+
+			require.NoError(t, err)
+			require.Nil(t, outcome.CallerGaps)
+		})
+	})
+
 	t.Run("propose", func(t *testing.T) {
 		t.Run("runs each proposal on a changed line, and rejects each other proposal with its reason", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "notes.txt": "notes\n"})
