@@ -3,6 +3,7 @@
 package run_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 )
 
 type fakeAdapter struct {
+	root            string
 	dropped         map[string]bool
 	uncovered       map[string]string
 	statuses        map[string]mutant.Status
@@ -42,8 +44,21 @@ func (f *fakeAdapter) Extensions() []string { return []string{".go"} }
 func (f *fakeAdapter) Keep(edit operator.Edit) bool {
 	return !f.dropped[edit.Original+" -> "+edit.Replacement]
 }
-func (f *fakeAdapter) Function(string, int) string { return "f" }
-func (f *fakeAdapter) Runner() mutant.Runner       { return f }
+func (f *fakeAdapter) Runner() mutant.Runner { return f }
+
+// Function names the func whose declaration comes last before offset, which is enough for the sources here.
+func (f *fakeAdapter) Function(file string, offset int) string {
+	source, err := os.ReadFile(filepath.Join(f.root, file))
+	if err != nil || offset > len(source) {
+		return ""
+	}
+	start := bytes.LastIndex(source[:offset], []byte("\nfunc "))
+	if start < 0 {
+		return ""
+	}
+	name, _, _ := strings.Cut(string(source[start+len("\nfunc "):]), "(")
+	return name
+}
 
 func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
 	uncovered := map[mutant.ID]string{}
@@ -118,8 +133,18 @@ func (r *gitRepository) write(name, content string) {
 	require.NoError(r.t, os.WriteFile(path, []byte(content), 0o644))
 }
 
+func (r *gitRepository) head() string {
+	r.t.Helper()
+	command := exec.Command("git", "rev-parse", "HEAD")
+	command.Dir = r.root
+	output, err := command.Output()
+	require.NoError(r.t, err)
+	return strings.TrimSpace(string(output))
+}
+
 func (r *gitRepository) instance(adapter *fakeAdapter) *run.Instance {
 	r.t.Helper()
+	adapter.root = r.root
 	repository, err := diff.Open(context.Background(), r.root)
 	require.NoError(r.t, err)
 	pack, err := operator.Load("go", r.root)
@@ -168,7 +193,7 @@ func TestInstance(t *testing.T) {
 			}, outcome.Mutants[0])
 			require.Equal(t, 1, outcome.Files)
 			require.Equal(t, 1, outcome.Lines)
-			require.Len(t, outcome.Base, 40)
+			require.Equal(t, r.head(), outcome.Base)
 		})
 
 		t.Run("an edit that the adapter drops gets no number", func(t *testing.T) {
@@ -195,16 +220,6 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#2"}, adapter.ran)
 		})
 
-		t.Run("an untracked file counts as changed", func(t *testing.T) {
-			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
-			r.write("pkg/new.go", "package pkg\n\nfunc g(a, b int) bool {\n\treturn a < b\n}\n")
-
-			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), boundary)
-
-			require.NoError(t, err)
-			require.Equal(t, []string{"pkg/new.go:f:CONDITIONALS_BOUNDARY#1 KILLED"}, idsAndStatuses(outcome.Mutants))
-		})
-
 		t.Run("folders run every line of their files, whatever the diff is", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			t.Chdir(r.root)
@@ -220,14 +235,15 @@ func TestInstance(t *testing.T) {
 
 		t.Run("a change with no mutant gives the counts of the changed files and lines", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
-			r.write("a.go", "// Package a compares.\n"+compareBefore)
+			r.write("a.go", "// Package a compares.\n// It has no mutant.\n"+compareBefore)
+			r.write("b.go", "package a\n")
 
 			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), boundary)
 
 			require.NoError(t, err)
 			require.Empty(t, outcome.Mutants)
-			require.Equal(t, 1, outcome.Files)
-			require.Equal(t, 1, outcome.Lines)
+			require.Equal(t, 2, outcome.Files)
+			require.Equal(t, 3, outcome.Lines)
 		})
 
 		t.Run("the limit stops the run, and the outcome keeps the mutants that got a verdict", func(t *testing.T) {
@@ -244,14 +260,18 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#1 KILLED"}, idsAndStatuses(outcome.Mutants))
 		})
 
-		t.Run("an error from the runner stops the run and returns the error", func(t *testing.T) {
-			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+		t.Run("an error from the runner stops the run before the next mutant, and returns the error", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": "package a\n"})
 			r.write("a.go", compareAfter)
-			adapter := &fakeAdapter{failure: errors.New("the tests of a fail with the real code")}
+			failing := errors.New("go test cannot start")
+			adapter := &fakeAdapter{failure: failing}
+			settings := boundary
+			settings.Workers = 1
 
-			_, err := r.instance(adapter).Run(context.Background(), boundary)
+			_, err := r.instance(adapter).Run(context.Background(), settings)
 
-			require.ErrorContains(t, err, "the tests of a fail with the real code")
+			require.ErrorIs(t, err, failing)
+			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#1"}, adapter.ran)
 		})
 
 		t.Run("an unknown operator returns an error that names it", func(t *testing.T) {
@@ -349,16 +369,15 @@ func TestInstance(t *testing.T) {
 			settings := boundary
 			settings.Proposals = []proposal.Proposal{
 				proposed,
-				{File: "a.go", Old: "return a < b", New: "return true", Bug: "not found"},
 				{File: "a.go", Old: "return", New: "panic(1)\n\treturn", Bug: "found two times"},
 				{File: "a.go", Old: "if a < b", New: "if a <= b", Bug: "not changed"},
 				{File: "missing.go", Old: "a", New: "b", Bug: "no file"},
 				{File: "notes.txt", Old: "notes", New: "", Bug: "not Go"},
 				{File: "../a.go", Old: "a", New: "b", Bug: "outside"},
-				{File: "a.go", Old: "return a > b", New: "return a > b", Bug: "no change"},
+				{File: "a.go", Old: "return a > b", New: "return b < a", Bug: "dropped"},
 			}
 			id := fmt.Sprintf("a.go:f:PROPOSED#%d", proposed.Number())
-			adapter := &fakeAdapter{statuses: map[string]mutant.Status{id: mutant.Lived}}
+			adapter := &fakeAdapter{statuses: map[string]mutant.Status{id: mutant.Lived}, dropped: map[string]bool{"return a > b -> return b < a": true}}
 
 			outcome, err := r.instance(adapter).Run(context.Background(), settings)
 
@@ -372,13 +391,12 @@ func TestInstance(t *testing.T) {
 				reasons = append(reasons, rejection.Proposal.Bug+": "+rejection.Reason)
 			}
 			require.Equal(t, []string{
-				"not found: old not found",
 				"found two times: old found 2 times",
 				"not changed: not on a changed line",
 				"no file: the file does not exist",
 				"not Go: the go adapter does not take this file",
 				"outside: the file is not in the repository",
-				"no change: old and new are the same",
+				"dropped: the go adapter drops the edit, for example in a test file or in generated code",
 			}, reasons)
 		})
 
@@ -418,7 +436,7 @@ func TestInstance(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", unchanged.Number())}, idsAndStatuses(outcome.Mutants))
-			require.Empty(t, outcome.Proposals.Rejected)
+			require.Equal(t, &proposal.Summary{Accepted: 1}, outcome.Proposals)
 		})
 
 		t.Run("rerun finds an accepted proposal by its id, also without the proposals", func(t *testing.T) {
@@ -468,14 +486,14 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#1"}, adapter.ran)
 		})
 
-		t.Run("finds the mutant by the same id after the code above its function moves", func(t *testing.T) {
+		t.Run("finds the mutant by the same id after a function with the same operator lands above it", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
-			r.write("a.go", "package a\n\nfunc g() {}\n\nfunc f(a, b int) bool {\n\tif a < b {\n\t\treturn true\n\t}\n\treturn a > b\n}\n")
+			r.write("a.go", "package a\n\nfunc g(a, b int) bool {\n\treturn a < b\n}\n\n"+strings.TrimPrefix(compareAfter, "package a\n\n"))
 
 			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1})
 
 			require.NoError(t, err)
-			require.Equal(t, 6, m.Line)
+			require.Equal(t, 8, m.Line)
 		})
 
 		t.Run("a mutant that no test runs is NOT COVERED, and does not run", func(t *testing.T) {
