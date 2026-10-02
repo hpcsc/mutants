@@ -2,7 +2,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { launchTerminal, type Session } from 'tuistory'
+import type { Session } from 'tuistory'
 import { onTestFinished } from 'vitest'
 
 export function getExecutablePath(): string {
@@ -62,6 +62,7 @@ export function runCli(
 // openCli starts the CLI in a pseudo-terminal. When the CLI stops, the shell
 // writes its exit status on the screen, so a test can wait for EXIT:0.
 export async function openCli(cwd: string, args: string[] = [], env: Record<string, string> = {}): Promise<Session> {
+  const { launchTerminal } = await import('tuistory')
   const assignments = Object.entries(env)
     .map(([name, value]) => `${name}='${value.replaceAll("'", `'\\''`)}'`)
     .join(' ')
