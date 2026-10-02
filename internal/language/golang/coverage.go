@@ -49,6 +49,10 @@ func (b block) holds(line, column int) bool {
 	return afterStart && beforeEnd
 }
 
+func (b block) runs(line int) bool {
+	return b.count > 0 && b.startLine <= line && line <= b.endLine
+}
+
 func newCoverage(root string, settings Settings, finder *packageFinder) *coverage {
 	return &coverage{root: root, settings: settings, finder: finder, runs: map[string]*coverageRun{}}
 }
@@ -84,7 +88,7 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[
 		}
 		heldByZero, lineRuns := false, false
 		for _, b := range run.blocks[m.File] {
-			if b.count > 0 && b.startLine <= m.Line && m.Line <= b.endLine {
+			if b.runs(m.Line) {
 				lineRuns = true
 			}
 			if b.count == 0 && b.holds(m.Line, m.Column) {

@@ -258,10 +258,11 @@ func (g *callerGaps) gapIn(loaded *packages.Package, file string, function *ast.
 	}
 	gap := language.CallerGap{File: file, Function: g.sources.funcName(function)}
 	for _, line := range g.statementLines(loaded, function) {
-		if !changed.Has(file, line) || !runsLine(own, line) {
+		runs := func(b block) bool { return b.runs(line) }
+		if !changed.Has(file, line) || !slices.ContainsFunc(own, runs) {
 			continue
 		}
-		if !slices.ContainsFunc(callers, func(c *caller) bool { return runsLine(c.blocks[file], line) }) {
+		if !slices.ContainsFunc(callers, func(c *caller) bool { return slices.ContainsFunc(c.blocks[file], runs) }) {
 			gap.Lines = append(gap.Lines, line)
 		}
 	}
@@ -295,8 +296,4 @@ func (g *callerGaps) relative(path string) string {
 		return path
 	}
 	return filepath.ToSlash(relative)
-}
-
-func runsLine(blocks []block, line int) bool {
-	return slices.ContainsFunc(blocks, func(b block) bool { return b.count > 0 && b.startLine <= line && line <= b.endLine })
 }
