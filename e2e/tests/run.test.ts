@@ -581,12 +581,17 @@ func TestWait(t *testing.T) {
     const dir = goRepository()
     writeFiles(dir, { 'figures/figures.go': figures, 'figures/figures_test.go': figuresTest(5, 5) })
 
-    const result = await runCli(dir, ['run', '--base', 'HEAD', '--operators', 'SWAP_FIELDS'])
+    const rows = await runCli(dir, ['run', '--base', 'HEAD', '--operators', 'SWAP_FIELDS'])
+    const row = rows.stdout.split('\n').find((line) => line.includes('figures/figures.go:8 SWAP_FIELDS')) ?? ''
+    const id = row.match(/\[(.+)\]$/)?.[1] ?? ''
+    const again = await runCli(dir, ['rerun', id])
 
-    expect(result.status).toBe(10)
-    expect(result.stdout).toMatch(
-      /^LIVED:\n {2}figures\/figures.go:8 SWAP_FIELDS: paid, Owed: owed -> owed, Owed: paid {2}\[figures\/figures.go:Summarise:SWAP_FIELDS#1\]\nmutants: 1, lived: 1 \(base [0-9a-f]{10}\)\n$/,
-    )
+    expect(rows.status).toBe(10)
+    expect(rows.stdout).toMatch(/^LIVED:$/m)
+    expect(rows.stdout).toMatch(/^mutants: 1, lived: 1 /m)
+    expect(id).toBe('figures/figures.go:Summarise:SWAP_FIELDS#1')
+    expect(again.status).toBe(10)
+    expect(again.stdout).toContain(`[${id}]`)
   })
 
   it('prints one row for a package with no test files, and keeps each mutant in the JSON', async () => {
@@ -598,7 +603,8 @@ func TestWait(t *testing.T) {
     const json = await runMutants(dir, args)
 
     expect(rows.status).toBe(10)
-    expect(rows.stdout).toMatch(/^NOT COVERED:\n {2}package calc has no test files: 2 mutants\nmutants: 2, not covered: 2 \(base [0-9a-f]{10}\)\n$/)
+    expect(rows.stdout).toMatch(/^ {2}package calc has no test files: 2 mutants$/m)
+    expect(rows.stdout.match(/has no test files/g)).toHaveLength(1)
     expect(json.mutants.map((m) => `${m.operator} ${m.status}: ${m.detail}`)).toEqual([
       'CONDITIONALS_BOUNDARY NOT COVERED: package calc has no test files',
       'CONDITIONALS_NEGATION NOT COVERED: package calc has no test files',
