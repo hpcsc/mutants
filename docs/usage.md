@@ -59,7 +59,7 @@ mutants rerun 'internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1'
 ```
 
 It finds the mutant with all the rules of its operator, also an operator that is off by default. It needs
-no diff, so it also works after a commit. It prints one row, and the reason for the status below the row.
+no diff, so it also works after a commit. It prints one row, and the detail of the status below the row.
 
 | Flag | Does |
 | --- | --- |
@@ -78,7 +78,7 @@ no diff, so it also works after a commit. It prints one row, and the reason for 
 | `mutants rerun` | 0 | a test killed the mutant |
 | | 10 | the mutant lived, or no test runs its line |
 | | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, or the proposal of the mutant does not fit the code |
-| | 2 | no mutant has this id |
+| | 2 | the text is not a mutant id, or no mutant has this id |
 
 ## Statuses
 
@@ -176,7 +176,8 @@ mutants: 3, killed: 2, lived: 1 (base 1a2b3c4d5e)
 caller gaps: 1
 ```
 
-A run that finds a caller gap exits with 10. The check is off by default. Turn it on for each run with
+A run that stops at `--limit` before the check ends lists no caller gaps. A run that finds a caller gap
+exits with 10. The check is off by default. Turn it on for each run with
 `caller_gaps: true` in `.mutants.yml`.
 
 ## Mutant ids
@@ -216,8 +217,8 @@ each mutant, also the killed ones:
 }
 ```
 
-`detail` gives the reason for the status, such as the test that failed or the build error. It is not there
-when there is no reason. `bug` holds the bug of a proposed mutant.
+`detail` tells why the mutant has its status, for example the test that failed or the build error. It is
+not there when the status has no detail. `bug` holds the bug of a proposed mutant.
 
 With `--proposals`, the document also holds `proposals`, with the number of accepted proposals and each
 rejected proposal with its reason:
@@ -229,7 +230,8 @@ rejected proposal with its reason:
 }
 ```
 
-With `--caller-gaps`, the document also holds `callerGaps`, also when the run found none:
+With `--caller-gaps`, the document also holds `callerGaps`, also when the run found none. A run that stops
+at `--limit` before the check ends has no `callerGaps`.
 
 ```json
 "callerGaps": [{"file": "gate/gate.go", "function": "(*Checker).Allow", "lines": [16, 17, 19], "callers": ["handler"]}]

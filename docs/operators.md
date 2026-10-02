@@ -1,7 +1,7 @@
 # What Each Operator of mutants Changes
 
 An operator is one kind of change. Each row of the output names the operator of its mutant. This page
-tells what each operator changes, and what a survivor of that operator usually shows.
+tells what each operator of the Go rule pack changes, and what a survivor of that operator usually shows.
 
 `mutants operators` lists the operators of your version, whether each one runs by default, and the
 ast-grep rules of each one.

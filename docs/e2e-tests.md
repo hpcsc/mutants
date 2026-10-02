@@ -111,6 +111,11 @@ tests keep the original binary.
 | `task test:e2e` | Docker | Docker. CI runs this command. |
 | `task test:e2e:local` | This machine | Node 24, Go, and ast-grep 0.45.0 or later |
 
+For `task test:e2e:local`, the `node` on the `PATH` must be the Node 24 that mise installs. npm builds
+node-pty for one version of Node, and vitest cannot load node-pty with another version. When an older Node
+comes first on the `PATH`, put the Node of mise in front, for example with
+`PATH="$(mise where node)/bin:$PATH" task test:e2e:local`.
+
 Both commands build the CLI with the tag in `E2E_TAG` in `Taskfile.test.yml`, which is `v0.1.0`. They set
 two environment variables for the tests: `EXECUTABLE`, the path of the binary, and `BUILD_TAG`, the tag.
 The `version` and `update` tests compare the output of the CLI with `BUILD_TAG`.

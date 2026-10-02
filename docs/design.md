@@ -97,10 +97,14 @@ A blue border marks a step of the core. A green border marks ast-grep. An orange
 4. **Ids.** Each candidate in the changed files gets an id that stays the same when other code moves (see
    [Mutant ids](#mutant-ids)).
 5. **Scope.** It keeps a mutant only when its edit touches a changed line.
-6. **Coverage.** One coverage run for each package marks the mutants that no test runs. Those mutants are NOT
+6. **Proposals.** With `--proposals`, each proposal becomes a mutant, or the run rejects it with a reason
+   (see [Proposed mutants](#proposed-mutants)).
+7. **Caller gaps.** With `--caller-gaps`, the adapter finds the changed lines that no test of a changed caller
+   runs (see [Caller gaps](#caller-gaps)).
+8. **Coverage.** One coverage run for each package marks the mutants that no test runs. Those mutants are NOT
    COVERED, and they do not run.
-7. **Run.** The workers give each mutant to the runner of its language. The runner returns a status.
-8. **Report.** It prints the rows, writes the files that the user asks for, and sets the exit code.
+9. **Run.** The workers give each mutant to the runner of its language. The runner returns a status.
+10. **Report.** It prints the rows, writes the files that the user asks for, and sets the exit code.
 
 ### Changed lines
 
@@ -500,18 +504,18 @@ coverage runs of different packages run at the same time, as many as there are w
 | --- | --- | --- |
 | `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors or caller gaps, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
-| `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 an unknown id |
+| `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, or an unknown id |
 | `mutants operators` | lists the operators and their rules | 0 |
-| `mutants version`, `mutants update` | as now | |
+| `mutants version` | prints the tag of the binary, or its commit when it has no tag | 0 |
+| `mutants update` | replaces the binary with the latest release, or with the latest prerelease | 0, or 1 on an error |
 
 The flags of `run`: `--base`, `--workers`, `--limit`, `--build-limit`, `--tags`, `--operators`,
 `--format rows|json`, `--json PATH`, `--stryker PATH`, `--proposals PATH`, `--caller-gaps`. The flags of
-`rerun`: `--tags`,
-`--build-limit`.
+`rerun`: `--tags`, `--build-limit`.
 
 `rerun` finds the mutant with all the rules of its operator, also an operator that is off by default, and
-with no diff. Then it runs the coverage and the mutant as `run` does, and prints one row with the reason
-for the status.
+with no diff. Then it runs the coverage and the mutant as `run` does, and prints one row with the detail of
+the status.
 
 ## Output
 
@@ -538,7 +542,9 @@ NOT COVERED:
 ```
 
 `--format json` prints every mutant as one JSON document: `base`, and `mutants` with the fields `id`, `file`,
-`line`, `column`, `operator`, `status`, `original`, `replacement` and `detail`, the reason for the status.
+`line`, `column`, `operator`, `status`, `original`, `replacement`, `bug` and `detail`. `detail` tells why the
+mutant has its status. With `--proposals` and `--caller-gaps`, the document also holds `proposals` and
+`callerGaps`, as [The JSON report](usage.md#the-json-report) shows.
 `--stryker` writes version 2 of the `mutation-testing-elements` report format, which has an HTML viewer and
 does not depend on the language. The progress lines and the messages go to stderr, so they do not mix with
 the JSON on stdout.
@@ -580,6 +586,7 @@ flowchart TD
     GO["internal/language/golang<br/>go list, go/types, coverage, the Go runner"]
     REP["internal/report<br/>rows, JSON, Stryker"]
     PROP["internal/proposal<br/>proposal.Proposal, proposal.Store"]
+    PROG["internal/progress<br/>the progress lines"]
     CMD --> RUN
     CMD --> AG
     CMD --> GO
@@ -588,17 +595,25 @@ flowchart TD
     RUN --> OP
     RUN --> LANG
     RUN --> MUT
+    RUN --> PROP
+    RUN --> PROG
     AG --> OP
     GO --> LANG
+    GO --> DIFF
+    GO --> OP
+    GO --> MUT
+    LANG --> DIFF
     LANG --> OP
     LANG --> MUT
+    REP --> LANG
     REP --> MUT
-    RUN --> PROP
     REP --> PROP
 ```
 
-An arrow means "imports". `cmd` gives the ast-grep matcher and the Go adapter to `run`, so `run` knows only
-the interfaces. `cmd` writes the reports from the mutants that `run` gives back.
+An arrow means "imports". The diagram leaves out the other imports of `cmd`, and the packages `release` and
+`version`, which only the commands `update` and `version` use. `cmd` gives the ast-grep matcher and the Go
+adapter to `run`, so `run` knows only the interfaces. `cmd` writes the reports from the mutants that `run`
+gives back.
 
 | Package | Holds |
 | --- | --- |
@@ -606,11 +621,12 @@ the interfaces. `cmd` writes the reports from the mutants that `run` gives back.
 | `operator` | the rule packs, `operator.Rule`, `operator.Hook`, `operator.Matcher`, and the hooks |
 | `operator/astgrep` | an `operator.Matcher` that calls `ast-grep scan --json` and parses its matches |
 | `mutant` | `mutant.Mutant`, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
-| `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage and its runner |
+| `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage, its caller gaps and its runner |
 | `language/golang` | the Go adapter |
-| `run` | one run: changed lines, candidates, filters, ids, scope, coverage and workers |
+| `run` | one run: changed lines, candidates, filters, ids, scope, proposals, caller gaps, coverage and workers |
 | `report` | the rows, the JSON and the Stryker format |
-| `proposal` | the file format of the proposed mutants, the place of each edit in its file, the number of their ids, and the store that `rerun` reads |
+| `proposal` | the file format of the proposed mutants, the place of each edit in its file, the number of their ids, the summary of the proposals of a run, and the store that `rerun` reads |
+| `progress` | the progress line of each step, on stderr |
 
 ```go
 package language

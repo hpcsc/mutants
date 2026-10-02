@@ -162,8 +162,8 @@ mutants run --proposals bugs.jsonl   # also run the bugs that an agent proposes,
 mutants run --caller-gaps            # also find new code that no test of a changed caller runs
 ```
 
-`mutants run` exits with 0 when no mutant survives, and with 10 when a mutant survives. A CI step or a
-script can use this exit code.
+`mutants run` exits with 0 when no mutant survives. It exits with 10 when a mutant survives, or when the run
+finds a caller gap. A CI step or a script can use this exit code.
 
 ## More documents
 
