@@ -15,14 +15,14 @@ import (
 )
 
 type typeChecker struct {
-	tags          []string
+	tagArguments  []string
 	zeroFunctions map[string]bool
 	mutex         sync.Mutex
 	packages      map[string]*packages.Package
 }
 
-func newTypeChecker(tags, zeroFunctions []string) *typeChecker {
-	checker := &typeChecker{tags: tags, zeroFunctions: map[string]bool{}, packages: map[string]*packages.Package{}}
+func newTypeChecker(tagArguments, zeroFunctions []string) *typeChecker {
+	checker := &typeChecker{tagArguments: tagArguments, zeroFunctions: map[string]bool{}, packages: map[string]*packages.Package{}}
 	for _, name := range zeroFunctions {
 		checker.zeroFunctions[name] = true
 	}
@@ -386,11 +386,9 @@ func (c *typeChecker) load(folder string) *packages.Package {
 		return loaded
 	}
 	config := &packages.Config{
-		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
-		Dir:  folder,
-	}
-	if len(c.tags) > 0 {
-		config.BuildFlags = []string{"-tags=" + strings.Join(c.tags, ",")}
+		Mode:       packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Dir:        folder,
+		BuildFlags: c.tagArguments,
 	}
 	var loaded *packages.Package
 	if found, err := packages.Load(config, "."); err == nil && len(found) == 1 && len(found[0].Errors) == 0 {

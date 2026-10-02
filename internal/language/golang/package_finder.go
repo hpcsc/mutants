@@ -24,9 +24,9 @@ func (p goPackage) builds(base string) bool {
 }
 
 type packageFinder struct {
-	tags     []string
-	mutex    sync.Mutex
-	packages map[string]foundPackage
+	tagArguments []string
+	mutex        sync.Mutex
+	packages     map[string]foundPackage
 }
 
 type foundPackage struct {
@@ -34,8 +34,8 @@ type foundPackage struct {
 	err   error
 }
 
-func newPackageFinder(tags []string) *packageFinder {
-	return &packageFinder{tags: tags, packages: map[string]foundPackage{}}
+func newPackageFinder(tagArguments []string) *packageFinder {
+	return &packageFinder{tagArguments: tagArguments, packages: map[string]foundPackage{}}
 }
 
 func (f *packageFinder) find(ctx context.Context, folder string) (goPackage, error) {
@@ -45,11 +45,8 @@ func (f *packageFinder) find(ctx context.Context, folder string) (goPackage, err
 		return result.found, result.err
 	}
 	result := foundPackage{}
-	arguments := []string{"list", "-find", "-json"}
-	if len(f.tags) > 0 {
-		arguments = append(arguments, "-tags="+strings.Join(f.tags, ","))
-	}
-	command := exec.CommandContext(ctx, "go", append(arguments, ".")...)
+	arguments := append(append([]string{"list", "-find", "-json"}, f.tagArguments...), ".")
+	command := exec.CommandContext(ctx, "go", arguments...)
 	command.Dir = folder
 	output, err := command.Output()
 	var exitError *exec.ExitError
