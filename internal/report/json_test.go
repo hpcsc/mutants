@@ -79,6 +79,14 @@ func TestJSON(t *testing.T) {
 			require.JSONEq(t, `{"mutants": [], "callerGaps": []}`, none.String())
 		})
 
+		t.Run("proposals with no rejection give an empty list of rejections", func(t *testing.T) {
+			var output strings.Builder
+
+			require.NoError(t, report.JSON(&output, report.Outcome{Proposals: &proposal.Summary{Accepted: 2}}))
+
+			require.JSONEq(t, `{"mutants": [], "proposals": {"accepted": 2, "rejected": []}}`, output.String())
+		})
+
 		t.Run("no mutant gives an empty list", func(t *testing.T) {
 			var output strings.Builder
 

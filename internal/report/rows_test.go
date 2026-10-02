@@ -140,6 +140,27 @@ mutants: 4, not covered: 4
 			require.Equal(t, "mutants: 0\ncaller gaps: 0\n", output.String())
 		})
 
+		t.Run("lists the mutants of one status in the order of their lines", func(t *testing.T) {
+			mutants := []mutant.Mutant{
+				reported("a.go", 9, "BRANCH_IF", 2, "{ h() }", "{}", mutant.Lived),
+				reported("a.go", 3, "BRANCH_IF", 1, "{ g() }", "{}", mutant.Lived),
+			}
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+
+			require.Equal(t, "LIVED:\n  a.go:3 BRANCH_IF: { g() } -> {}  [a.go:(*Handler).accounts:BRANCH_IF#1]\n"+
+				"  a.go:9 BRANCH_IF: { h() } -> {}  [a.go:(*Handler).accounts:BRANCH_IF#2]\nmutants: 2, lived: 2\n", output.String())
+		})
+
+		t.Run("proposals with no rejection give the count and no empty list", func(t *testing.T) {
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, report.Outcome{Proposals: &proposal.Summary{Accepted: 2}}))
+
+			require.Equal(t, "mutants: 0\nproposals: 2 accepted, 0 rejected\n", output.String())
+		})
+
 		t.Run("no mutant gives only the count", func(t *testing.T) {
 			var output strings.Builder
 

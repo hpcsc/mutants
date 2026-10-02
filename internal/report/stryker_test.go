@@ -3,6 +3,8 @@
 package report_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,6 +55,30 @@ func TestStryker(t *testing.T) {
 					}
 				}
 			}`, output.String())
+		})
+
+		t.Run("names the other statuses the way the schema does, with the detail as the reason", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644))
+			var mutants []mutant.Mutant
+			for i, status := range []mutant.Status{mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError} {
+				m := reported("a.go", 1, "BRANCH_IF", i+1, "{ g() }", "{}", status)
+				m.Verdict.Detail = fmt.Sprintf("detail %d", i+1)
+				mutants = append(mutants, m)
+			}
+			var output strings.Builder
+
+			require.NoError(t, report.Stryker(&output, root, "go", mutants))
+
+			var document struct {
+				Files map[string]struct {
+					Mutants []struct{ Status, StatusReason string }
+				}
+			}
+			require.NoError(t, json.Unmarshal([]byte(output.String()), &document))
+			require.Equal(t, []struct{ Status, StatusReason string }{
+				{"NoCoverage", "detail 1"}, {"CompileError", "detail 2"}, {"Timeout", "detail 3"}, {"RuntimeError", "detail 4"},
+			}, document.Files["a.go"].Mutants)
 		})
 	})
 }
