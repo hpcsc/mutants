@@ -196,8 +196,10 @@ holds `proposals`, with the number of accepted proposals and each rejected propo
   "accepted": 7,
   "rejected": [{"file": "a.go", "old": "return", "new": "", "bug": "the case never closes", "reason": "old found 3 times"}]
 }
-``` The JSON encoder writes `<`, `>` and `&` in strings as `<`, `>` and
-`&`, and a JSON parser reads them back as the same characters.
+```
+
+The JSON encoder writes `<`, `>` and `&` in strings as `\u003c`, `\u003e` and `\u0026`, and a JSON parser
+reads them back as the same characters.
 
 ## The Stryker report
 
