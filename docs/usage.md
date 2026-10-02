@@ -44,7 +44,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 | `mutants run` | runs the mutants of the changed lines |
 | `mutants run --all FOLDER...` | runs the mutants of each line in the folders |
 | `mutants rerun ID` | runs one mutant again, by its id, with no diff and no cache |
-| `mutants operators` | lists each operator, whether it runs by default, and its rules |
+| `mutants operators` | lists each operator of each language, whether it runs by default, and its rules |
 | `mutants config init` | writes a first `.mutants.yml`, see [Settings in .mutants.yml](#settings-in-mutantsyml) |
 | `mutants version` | prints the version, see [docs/install.md](install.md) |
 | `mutants update` | installs the latest release, see [docs/install.md](install.md) |
@@ -312,6 +312,8 @@ caller_gaps: true
 go:
   tags: [unit]
   zero_functions: [maybe.None, caseautoresolve.Submitted]
+python:
+  command: [uv, run, python]
 ```
 
 | Key | Does |
@@ -322,6 +324,7 @@ go:
 | `exclude` | the files that get no mutant, as globs from the repository root. `["**/*.py"]` leaves a language out of each run. |
 | `caller_gaps` | `true` looks for caller gaps in each run, as `--caller-gaps` |
 | `go.tags` | the build tags, as `--tags` |
+| `python.command` | the command that starts the Python of a project, in the folder of the project. See [Python](#python). |
 | `go.zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them, because the removal of that field changes nothing. Use the name of the package, not its path. |
 
 The settings of one language are under the key of the language, such as `go`. An unknown key is an error
@@ -351,7 +354,9 @@ fix: nil
 
 A skip rule is an [ast-grep](https://ast-grep.github.io) rule with no `fix`. `mutants` makes no mutant inside
 a match of a skip rule, and it does not empty a branch that holds only such matches. The standard skip rule
-of Go, `zerolog`, matches a zerolog call that ends in `Msg`, `Msgf` or `Send`.
+of Go, `zerolog`, matches a zerolog call that ends in `Msg`, `Msgf` or `Send`. The standard skip rules of
+Python match a call of a logger, such as `logger.info(...)`, a type annotation, an `if TYPE_CHECKING:` block,
+a test file, and a file whose first comments say that it is generated.
 
 To skip the calls of another logger, or other code whose change no test can see, put a rule in a YAML file
 in `.mutants/skip/go/`:
@@ -368,6 +373,31 @@ rule:
 
 - A skip rule with the id of a standard skip rule replaces that rule.
 - A skip rule with a `fix` stops the run with an error, because a skip rule changes no code.
+
+## Python
+
+`mutants` runs the tests of Python code with pytest.
+
+- **The project.** The project of a file is the nearest folder above it with `pyproject.toml`, `setup.cfg`,
+  `setup.py`, `pytest.ini` or `tox.ini`, or else the root of the repository. pytest runs in the folder of
+  the project, so a repository can hold more than one Python project.
+- **The Python of a project.** `python.command` in `.mutants.yml` starts it, for example
+  `command: [uv, run, python]`, or `command: [poetry, run, python]` for a venv that Poetry keeps outside the
+  project. Without the setting, `mutants` takes `.venv/bin/python` of the project when it exists, and
+  `python3` when it does not.
+- **pytest and coverage.py.** The environment of the tests must have both. pytest-cov installs coverage.py.
+  Without coverage.py, the run stops with exit 2, and the message names the project.
+- **The code of the repository.** The tests must import the files of the repository, for example through an
+  editable install or `pythonpath` in the settings of pytest. A test that imports a copy in `site-packages`
+  tests no mutant.
+- **The tests of a mutant.** `mutants` runs the tests of each project one time with coverage.py, and then
+  gives each mutant only the tests that run its line. A line that runs when its module loads, such as a
+  constant, runs each test of the project.
+- **pytest-xdist.** `mutants` turns pytest-xdist off, because its own workers already test mutants at the
+  same time. When `addopts` holds `-n`, pytest stops with a usage error. Take `-n` out of `addopts`.
+- **Limits.** A comparison chain such as `0 < x < 10` gets no `CONDITIONALS_BOUNDARY` or
+  `CONDITIONALS_NEGATION` mutant. A line that runs only in a process that a test starts is NOT COVERED,
+  because coverage.py does not measure that process. `--caller-gaps` looks at Go code only.
 
 ## Time limits
 

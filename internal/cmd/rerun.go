@@ -9,6 +9,7 @@ import (
 
 	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/language/golang"
+	"github.com/hpcsc/mutants/internal/language/python"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/report"
 	"github.com/hpcsc/mutants/internal/run"
@@ -54,7 +55,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 		BuildLimit:    cmd.Duration("build-limit"),
 		Workers:       1,
 		ZeroFunctions: configured.Go.ZeroFunctions,
-	}, cmd.Root().ErrWriter)
+	}, python.Settings{Command: configured.Python.Command, Workers: 1}, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitNoVerdict)
 	}

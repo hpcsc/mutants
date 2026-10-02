@@ -312,12 +312,13 @@ describe('mutants rerun', { timeout: 240_000 }, () => {
 })
 
 describe('mutants operators', () => {
-  it('lists each operator, with ERROR_CAUSE_REMOVE off by default', async () => {
+  it('lists each operator of each language, with ERROR_CAUSE_REMOVE off by default', async () => {
     const result = await runCli(goRepository(), ['operators'])
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toMatch(/^NAMED_VALUE_SWAP\s+on\s+NAMED_VALUE_SWAP$/m)
-    expect(result.stdout).toMatch(/^ERROR_CAUSE_REMOVE\s+off\s+ERROR_CAUSE_REMOVE$/m)
+    expect(result.stdout).toMatch(/^go\s+NAMED_VALUE_SWAP\s+on\s+NAMED_VALUE_SWAP$/m)
+    expect(result.stdout).toMatch(/^go\s+ERROR_CAUSE_REMOVE\s+off\s+ERROR_CAUSE_REMOVE$/m)
+    expect(result.stdout).toMatch(/^python\s+NAMED_VALUE_SWAP\s+on\s+NAMED_VALUE_SWAP$/m)
   })
 
   it('lists a rule of the repository with the file that holds it, also from a folder below the root', async () => {
@@ -329,6 +330,6 @@ describe('mutants operators', () => {
     const result = await runCli(join(dir, 'calc'), ['operators'])
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toMatch(/^NIL_MAP\s+off\s+NIL_MAP \(from \.mutants\/operators\/go\/nil_map\.yml\)$/m)
+    expect(result.stdout).toMatch(/^go\s+NIL_MAP\s+off\s+NIL_MAP \(from \.mutants\/operators\/go\/nil_map\.yml\)$/m)
   })
 })

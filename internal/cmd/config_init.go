@@ -97,7 +97,11 @@ func configTemplate(base string, tags map[string]int) string {
 		fmt.Fprintf(&text, "  # tags: [%s]\n\n", strings.Join(names, ", "))
 	}
 	text.WriteString("  # The functions that return the zero value of their type, as package.Function with the name of\n" +
-		"  # the package. NAMED_VALUE_REMOVE skips a field whose value is a call of one of them.\n  # zero_functions: [maybe.None]\n")
+		"  # the package. NAMED_VALUE_REMOVE skips a field whose value is a call of one of them.\n  # zero_functions: [maybe.None]\n\n")
+
+	text.WriteString("# The settings of Python.\npython:\n")
+	text.WriteString("  # The command that starts the Python of a project, in the folder of the project. The default is\n" +
+		"  # .venv/bin/python of the project when it exists, and python3 when it does not.\n  # command: [uv, run, python]\n")
 	return text.String()
 }
 

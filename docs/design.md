@@ -4,9 +4,9 @@
 time, a mutant, and runs the tests after each one. When the tests still pass, the mutant lives, and that
 shows a behaviour that no test pins.
 
-Go is the first language. ast-grep finds the code to change, and `mutants` runs the tests and reports the
-result. The design keeps the language out of the core, so that a second language needs a rule pack and a
-language adapter, and no change to the core. [docs/language-adapters.md](language-adapters.md) tells how to
+Go is the first language, and Python is the second. ast-grep finds the code to change, and `mutants` runs the
+tests and reports the result. The design keeps the language out of the core, so that a new language needs a
+rule pack and a language adapter, and no change to the core. [docs/language-adapters.md](language-adapters.md) tells how to
 add one.
 
 ## What it must do

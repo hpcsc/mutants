@@ -107,7 +107,9 @@ next to each other.
 
 ## Step 3: Write the adapter
 
-Make a package `internal/language/<language>`, and follow the Go adapter in `internal/language/golang`:
+Make a package `internal/language/<language>`, and follow the Go adapter in `internal/language/golang`, or the
+Python adapter in `internal/language/python`. The Python adapter is smaller: its runner has no build, and its
+skip rules do most of its filters.
 
 - `New(root string, settings Settings) language.Adapter` builds the adapter. `root` is the root of the
   repository.
@@ -200,8 +202,10 @@ The runner must:
 - Set the time limits from a baseline run of the real code, as [Time limits](design.md#time-limits) tells.
 - Give an error only when the whole run must stop. A problem with one mutant is an INFRA ERROR verdict.
 
-The [Later](design.md#later) section of the design plans a TypeScript runner that keeps the work tree clean.
-It writes each mutant into a git worktree for each worker, in a temp folder.
+The Python runner keeps the work tree clean with an import hook, as
+[The Python runner](design.md#the-python-runner) tells. The [Later](design.md#later) section of the design
+plans a TypeScript runner that keeps the work tree clean. It writes each mutant into a git worktree for each
+worker, in a temp folder.
 
 ## Step 4: Connect the adapter in the commands
 

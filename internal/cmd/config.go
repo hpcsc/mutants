@@ -20,18 +20,24 @@ const (
 )
 
 type config struct {
-	Base       string   `yaml:"base"`
-	Workers    int      `yaml:"workers"`
-	Operators  []string `yaml:"operators"`
-	Exclude    []string `yaml:"exclude"`
-	CallerGaps bool     `yaml:"caller_gaps"`
-	Go         goConfig `yaml:"go"`
+	Base       string       `yaml:"base"`
+	Workers    int          `yaml:"workers"`
+	Operators  []string     `yaml:"operators"`
+	Exclude    []string     `yaml:"exclude"`
+	CallerGaps bool         `yaml:"caller_gaps"`
+	Go         goConfig     `yaml:"go"`
+	Python     pythonConfig `yaml:"python"`
 }
 
 type goConfig struct {
 	Tags []string `yaml:"tags"`
 	// ZeroFunctions names each function as package.Function, with the name of the package and not its path.
 	ZeroFunctions []string `yaml:"zero_functions"`
+}
+
+type pythonConfig struct {
+	// Command starts the Python of a project in the folder of the project, such as [uv, run, python].
+	Command []string `yaml:"command"`
 }
 
 func loadConfig(root string) (config, error) {

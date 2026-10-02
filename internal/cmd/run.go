@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/language/golang"
+	"github.com/hpcsc/mutants/internal/language/python"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
 	"github.com/hpcsc/mutants/internal/operator/astgrep"
@@ -95,7 +97,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		BuildLimit:    cmd.Duration("build-limit"),
 		Workers:       runSettings.Workers,
 		ZeroFunctions: configured.Go.ZeroFunctions,
-	}, cmd.Root().ErrWriter)
+	}, python.Settings{Command: configured.Python.Command, Workers: runSettings.Workers}, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
@@ -121,20 +123,30 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-func newInstance(ctx context.Context, repository *diff.Repository, settings golang.Settings, status io.Writer) (*run.Instance, error) {
+func newInstance(ctx context.Context, repository *diff.Repository, goSettings golang.Settings, pythonSettings python.Settings, status io.Writer) (*run.Instance, error) {
 	if err := astgrep.CheckVersion(ctx); err != nil {
 		return nil, err
 	}
 	if executable, err := os.Executable(); err == nil {
-		settings.CacheProgram = []string{executable, "build-cache"}
+		goSettings.CacheProgram = []string{executable, "build-cache"}
 	}
-	adapter := golang.New(repository.Root(), settings)
-	pack, err := operator.Load(adapter.Name(), repository.Root())
+	languages, err := newLanguages(repository.Root(), goSettings, pythonSettings)
 	if err != nil {
 		return nil, err
 	}
-	languages := []run.Language{{Adapter: adapter, Pack: pack}}
 	return run.New(repository, languages, astgrep.New(repository.Root()), status, isTerminal(status)), nil
+}
+
+func newLanguages(root string, goSettings golang.Settings, pythonSettings python.Settings) ([]run.Language, error) {
+	var languages []run.Language
+	for _, adapter := range []language.Adapter{golang.New(root, goSettings), python.New(root, pythonSettings)} {
+		pack, err := operator.Load(adapter.Name(), root)
+		if err != nil {
+			return nil, err
+		}
+		languages = append(languages, run.Language{Adapter: adapter, Pack: pack})
+	}
+	return languages, nil
 }
 
 func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {

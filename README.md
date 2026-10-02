@@ -4,7 +4,7 @@
 changed lines of your branch, and it runs your tests after each change. When the tests still pass,
 `mutants` shows the line and the change, so you know which test to add.
 
-- It works on Go code in a git repository.
+- It works on Go and Python code in a git repository. One run tests each language that your branch changes.
 - It tests only the lines that your branch changes. A run then takes minutes, so you can run it before each
   review.
 - By default, it compares your work tree with the point where your branch left `origin/HEAD`. So it also
@@ -60,9 +60,11 @@ The test still passes, because no test uses an order of 100. This change is a mu
 `mutants` needs these tools on your `PATH`:
 
 - git 2.30 or later
-- Go
 - [ast-grep](https://ast-grep.github.io/guide/quick-start.html) 0.45.0 or later, for example from
   `brew install ast-grep`
+- Go, for Go code
+- for Python code: pytest and coverage.py in the environment of your tests. pytest-cov installs
+  coverage.py. [docs/usage.md](docs/usage.md#python) tells how `mutants` finds that environment.
 
 Install the latest release of `mutants` with this script:
 
@@ -75,7 +77,7 @@ its options, and how to update `mutants`.
 
 ## Your first run
 
-1. Go to a git repository that holds a Go module, and check out your branch.
+1. Go to a git repository that holds Go or Python code, and check out your branch.
 2. Run `mutants`:
 
    ```shell

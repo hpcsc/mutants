@@ -61,6 +61,28 @@ ast-grep rules of each one.
 | `NAMED_VALUE_SWAP` | `Totals{Paid: paid, Owed: owed}` to `Totals{Paid: owed, Owed: paid}` | the tests use two equal values, so a swap gives the same result |
 | `NAMED_VALUE_REMOVE` | `Info{Arrived: arrived, ID: id}` to `Info{ID: id}`, so `Arrived` gets its zero value | no test reads the field |
 
+## In Python
+
+The operators make the same changes in Python:
+
+| Operator | Example in Python |
+| --- | --- |
+| `CONDITIONALS_BOUNDARY` | `total >= 100` to `total > 100`. A chain such as `0 < x < 10` gets no mutant. |
+| `CONDITIONALS_NEGATION` | `a == b` to `a != b`, `a is None` to `a is not None`, and `a in xs` to `a not in xs` |
+| `INVERT_LOGICAL`, `EXPRESSION_REMOVE`, `REMOVE_LOGICAL_NOT` | `a and b` to `a or b`, `a and b` to `True and b`, and `not ok` to `ok` |
+| `ARITHMETIC_BASE` | `a + b` to `a - b`, and `a // b` to `a * b`. A `+` or `*` with a string, such as `"id: " + x`, and the `%` of `"%s" % x` get no mutant, because the change always raises `TypeError`. |
+| `INCREMENT_DECREMENT` | `count += 1` to `count -= 1` |
+| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)` |
+| `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | the body of an `if`, an `elif`, an `else` or a `case` to `pass` |
+| `STATEMENT_REMOVE` | `self.total = s` to `_ = s` and `s = s + item` to `_ = s + item` in a function, and a call that stands alone, such as `client.close()`, to `pass`. An assignment gets no mutant when its name has no value before it in the function: no parameter, no earlier assignment, no `for` or `with` target, and no `global` or `nonlocal`. The next read of the name then raises `NameError`. |
+| `RETURN_EMPTY` | `return total` to `return 0` in a function with `-> int`, and to `return None` in a function with no return type |
+| `ERROR_REMOVE` | `raise ValueError(x)` to `return` in a function |
+| `RETURN_TRUE` | `return a < b` to `return True` |
+| `BREAK_AT_START`, `BREAK_AT_END` | `break` at the start of the body of a `for` loop, and at the end of the body of a `for` or `while` loop |
+| `NAMED_VALUE_SWAP`, `NAMED_VALUE_REMOVE` | `Totals(paid=paid, owed=owed)` to `Totals(paid=owed, owed=paid)`, and to `Totals(owed=owed)` |
+| `ARGUMENT_EMPTY` (off by default) | `resolve(client_id)` to `resolve(None)` |
+| `ERROR_CAUSE_REMOVE` (off by default) | `raise LoadError(x) from err` to `raise LoadError(x)` |
+
 ## Operators that are off by default
 
 These operators run only when `--operators` or `.mutants.yml` names them, for example
@@ -77,7 +99,8 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 
 - a change in a zerolog line that ends in `Msg`, `Msgf` or `Send`, and the removal of a branch that holds
   only such lines
-- a change in a `_test.go` file or in generated code
+- a change in a `_test.go` file, in a Python test file, or in generated code
+- a change in a call of a Python logger, in a type annotation, or in an `if TYPE_CHECKING:` block
 - a value that is already the zero value of its type
 - a swap of two values with different types, or in a table of named values such as
   `NoMatch: Reason{"NoMatch"}`

@@ -31,7 +31,7 @@ func TestConfig(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
 			content := "base: origin/main\nworkers: 2\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\ncaller_gaps: true\n" +
-				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\n"
+				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\npython:\n  command: [uv, run, python]\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
 			loaded, err := loadConfig(root)
@@ -44,6 +44,7 @@ func TestConfig(t *testing.T) {
 				Exclude:    []string{"**/*_gen.go", "vendor/**"},
 				CallerGaps: true,
 				Go:         goConfig{Tags: []string{"unit"}, ZeroFunctions: []string{"maybe.None"}},
+				Python:     pythonConfig{Command: []string{"uv", "run", "python"}},
 			}, loaded)
 		})
 
@@ -60,7 +61,7 @@ func TestConfig(t *testing.T) {
 
 			_, err := loadConfig(root)
 
-			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, operators, exclude, caller_gaps, go")
+			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, operators, exclude, caller_gaps, go, python")
 		})
 
 		t.Run("an unknown key of a language returns an error that names it with its language, its line and the keys of the language", func(t *testing.T) {
@@ -122,7 +123,7 @@ func TestConfig(t *testing.T) {
 				for _, key := range keysOf(reflect.TypeFor[config]()) {
 					require.True(t, strings.Contains(text, "\n"+key+":") || strings.Contains(text, "\n# "+key+":"), key)
 				}
-				for _, key := range keysOf(reflect.TypeFor[goConfig]()) {
+				for _, key := range append(keysOf(reflect.TypeFor[goConfig]()), keysOf(reflect.TypeFor[pythonConfig]())...) {
 					require.True(t, strings.Contains(text, "\n  "+key+":") || strings.Contains(text, "\n  # "+key+":"), key)
 				}
 			})
@@ -136,7 +137,7 @@ func TestConfig(t *testing.T) {
 
 		t.Run("each commented setting loads when it is uncommented, and a commented default is the real default", func(t *testing.T) {
 			root := t.TempDir()
-			keys := append(keysOf(reflect.TypeFor[config]()), keysOf(reflect.TypeFor[goConfig]())...)
+			keys := append(append(keysOf(reflect.TypeFor[config]()), keysOf(reflect.TypeFor[goConfig]())...), keysOf(reflect.TypeFor[pythonConfig]())...)
 			commented := regexp.MustCompile(`(?m)^( *)# (` + strings.Join(keys, "|") + `): `)
 			text := commented.ReplaceAllString(configTemplate("", nil), "$1$2: ")
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
