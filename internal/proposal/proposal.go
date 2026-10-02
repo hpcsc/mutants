@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 )
 
@@ -31,6 +32,26 @@ type Rejection struct {
 func (p Proposal) Number() int {
 	sum := sha256.Sum256([]byte(p.Old + "\x00" + p.New))
 	return int(binary.BigEndian.Uint32(sum[:4])%900000) + 100000
+}
+
+func (p Proposal) RepositoryFile() (file, reason string) {
+	file = filepath.ToSlash(filepath.Clean(p.File))
+	if filepath.IsAbs(file) || file == ".." || strings.HasPrefix(file, "../") {
+		return "", "the file is not in the repository"
+	}
+	return file, ""
+}
+
+func (p Proposal) Start(source []byte) (start int, reason string) {
+	switch count := strings.Count(string(source), p.Old); {
+	case count == 0:
+		return 0, "old not found"
+	case count > 1:
+		return 0, fmt.Sprintf("old found %d times", count)
+	case p.Old == p.New:
+		return 0, "old and new are the same"
+	}
+	return strings.Index(string(source), p.Old), ""
 }
 
 func Read(r io.Reader) ([]Proposal, error) {

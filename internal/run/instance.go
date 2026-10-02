@@ -249,9 +249,9 @@ func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, i
 // proposed gives a reason when the proposal cannot become a mutant, and the last line that the edit changes
 // when it can.
 func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (mutant.Mutant, int, string, error) {
-	file := filepath.ToSlash(filepath.Clean(p.File))
-	if filepath.IsAbs(file) || file == ".." || strings.HasPrefix(file, "../") {
-		return mutant.Mutant{}, 0, "the file is not in the repository", nil
+	file, reason := p.RepositoryFile()
+	if reason != "" {
+		return mutant.Mutant{}, 0, reason, nil
 	}
 	if !slices.Contains(r.adapter.Extensions(), filepath.Ext(file)) {
 		return mutant.Mutant{}, 0, fmt.Sprintf("the %s adapter does not take this file", r.adapter.Name()), nil
@@ -267,15 +267,10 @@ func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (mut
 		}
 		source, sources[file] = content, content
 	}
-	switch count := strings.Count(string(source), p.Old); {
-	case count == 0:
-		return mutant.Mutant{}, 0, "old not found", nil
-	case count > 1:
-		return mutant.Mutant{}, 0, fmt.Sprintf("old found %d times", count), nil
-	case p.Old == p.New:
-		return mutant.Mutant{}, 0, "old and new are the same", nil
+	start, reason := p.Start(source)
+	if reason != "" {
+		return mutant.Mutant{}, 0, reason, nil
 	}
-	start := strings.Index(string(source), p.Old)
 	edit := operator.Edit{
 		File:        file,
 		Operator:    proposal.Operator,

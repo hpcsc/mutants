@@ -610,7 +610,7 @@ the interfaces. `cmd` writes the reports from the mutants that `run` gives back.
 | `language/golang` | the Go adapter |
 | `run` | one run: changed lines, candidates, filters, ids, scope, coverage and workers |
 | `report` | the rows, the JSON and the Stryker format |
-| `proposal` | the file format of the proposed mutants, the number of their ids, and the store that `rerun` reads |
+| `proposal` | the file format of the proposed mutants, the place of each edit in its file, the number of their ids, and the store that `rerun` reads |
 
 ```go
 package language

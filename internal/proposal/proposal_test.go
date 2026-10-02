@@ -73,6 +73,68 @@ func TestProposal(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("repository file", func(t *testing.T) {
+		t.Run("gives the file as a clean path from the root of the repository", func(t *testing.T) {
+			p := proposal.Proposal{File: "./order/../case/wait.go", Old: "a", New: "b", Bug: "c"}
+
+			file, reason := p.RepositoryFile()
+
+			require.Empty(t, reason)
+			require.Equal(t, "case/wait.go", file)
+		})
+
+		t.Run("a file above the root is not in the repository", func(t *testing.T) {
+			p := proposal.Proposal{File: "case/../../wait.go", Old: "a", New: "b", Bug: "c"}
+
+			_, reason := p.RepositoryFile()
+
+			require.Equal(t, "the file is not in the repository", reason)
+		})
+
+		t.Run("an absolute file is not in the repository", func(t *testing.T) {
+			p := proposal.Proposal{File: "/case/wait.go", Old: "a", New: "b", Bug: "c"}
+
+			_, reason := p.RepositoryFile()
+
+			require.Equal(t, "the file is not in the repository", reason)
+		})
+	})
+
+	t.Run("start", func(t *testing.T) {
+		t.Run("gives the byte offset where old starts in the source", func(t *testing.T) {
+			p := proposal.Proposal{File: "a.go", Old: "waited && !note", New: "waited && open && !note", Bug: "c"}
+
+			start, reason := p.Start([]byte("package a\n\nvar closed = waited && !note\n"))
+
+			require.Empty(t, reason)
+			require.Equal(t, 24, start)
+		})
+
+		t.Run("old that the source does not hold is not found", func(t *testing.T) {
+			p := proposal.Proposal{File: "a.go", Old: "waited || note", New: "waited", Bug: "c"}
+
+			_, reason := p.Start([]byte("package a\n\nvar closed = waited && !note\n"))
+
+			require.Equal(t, "old not found", reason)
+		})
+
+		t.Run("old that the source holds more than one time gives the count", func(t *testing.T) {
+			p := proposal.Proposal{File: "a.go", Old: "return", New: "panic(1)", Bug: "c"}
+
+			_, reason := p.Start([]byte("package a\n\nfunc f() {\n\treturn\n}\n\nfunc g() {\n\treturn\n}\n"))
+
+			require.Equal(t, "old found 2 times", reason)
+		})
+
+		t.Run("old that is the same as new is no edit", func(t *testing.T) {
+			p := proposal.Proposal{File: "a.go", Old: "waited && !note", New: "waited && !note", Bug: "c"}
+
+			_, reason := p.Start([]byte("package a\n\nvar closed = waited && !note\n"))
+
+			require.Equal(t, "old and new are the same", reason)
+		})
+	})
 }
 
 func TestStore(t *testing.T) {
