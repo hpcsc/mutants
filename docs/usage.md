@@ -7,6 +7,21 @@ settings that a repository keeps in `.mutants.yml`. The [README](../README.md) s
 
 `mutants run` makes mutants only on the changed lines:
 
+```mermaid
+gitGraph
+    commit id: "A"
+    commit id: "B, the merge base"
+    branch your-branch
+    commit id: "C"
+    commit id: "D, HEAD"
+    commit id: "changes that you did not commit" type: HIGHLIGHT
+    checkout main
+    commit id: "E, origin/HEAD"
+```
+
+In this example, the run tests the lines that changed from B to the work tree. E came to the base after B,
+so its lines do not count.
+
 - It compares the work tree with the merge base of `HEAD` and the base. The merge base is the point where
   the branch left the base, so commits that land on the base later do not count.
 - The base is `origin/HEAD`, unless `--base` or `.mutants.yml` sets another one.
@@ -159,6 +174,25 @@ fake, so no test runs the new code from the caller. `--caller-gaps` finds these 
 ```shell
 mutants run --caller-gaps
 ```
+
+```mermaid
+flowchart LR
+    subgraph handler["package handler, changed"]
+        W["a changed line calls gate.New"]
+        HT["the tests of handler"]
+    end
+    subgraph gate["package gate, changed"]
+        A["(*Checker).Allow"]
+        GT["the tests of gate"]
+    end
+    W -- "reaches" --> A
+    GT -- "run" --> A
+    HT -- "run" --> F["a fake checker"]
+```
+
+In this example, the tests of `gate` run `Allow`, so the mutants of `Allow` die. A changed line of `handler`
+calls `gate.New`, so `handler` reaches `Allow`. But the tests of `handler` use a fake checker, so no test of
+a caller runs `Allow`. The changed statements of `Allow` are a caller gap.
 
 - A caller is a changed package that imports another changed package.
 - `mutants` runs the tests of each caller one more time, and follows the code that the changed lines of the

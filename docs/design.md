@@ -66,10 +66,12 @@ flowchart LR
         C --> F["filters<br/>Go: go/types"]
         F --> G["ids"]
         G --> E["keep the mutants on changed lines"]
+        P["proposals<br/>with --proposals"] --> E
     end
     subgraph RUN["2. run them"]
         direction TB
-        H["coverage of each package<br/>NOT COVERED without a test run"] --> I["workers"]
+        CG["caller gaps<br/>with --caller-gaps"] --> H["coverage of each package<br/>NOT COVERED without a test run"]
+        H --> I["workers"]
         I --> J["runner<br/>Go: overlay build, then the test binary"]
         J --> K["status of each mutant"]
     end
@@ -77,11 +79,11 @@ flowchart LR
         direction TB
         L["rows, JSON, Stryker"] --> X["exit code"]
     end
-    E --> H
+    E --> CG
     K --> L
-    class A,E,G,I,K,L,X core
+    class A,E,G,I,K,L,X,P core
     class C astg
-    class F,H,J lang
+    class F,H,J,CG lang
     classDef core stroke:#4a6fd1,stroke-width:3px
     classDef astg stroke:#3f9a55,stroke-width:3px
     classDef lang stroke:#d07a2d,stroke-width:3px
