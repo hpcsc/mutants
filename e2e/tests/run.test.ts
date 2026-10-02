@@ -837,6 +837,30 @@ describe('mutants rerun', { timeout: 240_000 }, () => {
     expect(unknown.status).toBe(2)
     expect(unknown.stderr).toContain('no mutant has this id')
   })
+
+  it('exits 1 for a mutant that gets no verdict, because it does not build', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    const proposals = join(scratchDir(), 'proposals.jsonl')
+    writeFileSync(proposals, JSON.stringify({ file: 'calc/calc.go', old: 'return b\n}', new: 'return "b"\n}', bug: 'Max returns text' }))
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators=none', '--proposals', proposals, '--proposals-anywhere'])
+
+    const rerun = await runCli(dir, ['rerun', mutants[0].id])
+
+    expect(mutants.map((m) => m.status)).toEqual(['NOT VIABLE'])
+    expect(rerun.status).toBe(1)
+    expect(rerun.stdout).toMatch(/^NOT VIABLE: /)
+  })
+
+  it.each([
+    [[], 'rerun needs one mutant id'],
+    [['not-an-id'], 'is not a mutant id'],
+    [['--nope'], 'flag provided but not defined: -nope'],
+  ])('rerun %j exits 2 and says why', async (args, message) => {
+    const result = await runCli(goRepository(), ['rerun', ...args])
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain(message)
+  })
 })
 
 describe('mutants operators', () => {
