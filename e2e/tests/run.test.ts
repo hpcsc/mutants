@@ -577,6 +577,15 @@ describe('mutants run --proposals', { timeout: 240_000 }, () => {
     expect(stale.stderr).toContain('the proposal does not fit the code: old not found')
   })
 
+  it('rerun of a proposed id that the store does not hold says that no mutant has the id', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource })
+
+    const result = await runCli(dir, ['rerun', 'calc/calc.go:Max:PROPOSED#000000'])
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('no mutant has this id')
+  })
+
   it('exits 2 when the file of proposals does not exist', async () => {
     const dir = goRepository({ 'calc/calc.go': maxSource })
 

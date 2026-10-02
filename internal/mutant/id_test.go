@@ -33,8 +33,15 @@ func TestID(t *testing.T) {
 			require.Equal(t, mutant.ID{File: "a:b.go", Function: "f", Operator: "ARITHMETIC_BASE", Number: 2}, id)
 		})
 
+		t.Run("reads a number that no mutant has, such as 0, so that the lookup says that no mutant has the id", func(t *testing.T) {
+			id, err := mutant.ParseID("a.go:f:PROPOSED#000000")
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.ID{File: "a.go", Function: "f", Operator: "PROPOSED", Number: 0}, id)
+		})
+
 		t.Run("text that is not an id returns an error that shows the form of an id", func(t *testing.T) {
-			for _, text := range []string{"", "handler.go:42", "handler.go:f:BRANCH_IF", "handler.go:f:BRANCH_IF#0", "f:BRANCH_IF#1", ":f:BRANCH_IF#1"} {
+			for _, text := range []string{"", "handler.go:42", "handler.go:f:BRANCH_IF", "handler.go:f:BRANCH_IF#-1", "handler.go:f:BRANCH_IF#+1", "f:BRANCH_IF#1", ":f:BRANCH_IF#1"} {
 				_, err := mutant.ParseID(text)
 
 				require.ErrorContains(t, err, "<file>:<function>:<operator>#<number>", text)

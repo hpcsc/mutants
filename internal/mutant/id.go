@@ -17,7 +17,7 @@ func ParseID(text string) (ID, error) {
 	invalid := fmt.Errorf("%q is not a mutant id: an id is <file>:<function>:<operator>#<number>", text)
 	place, number, found := cutLast(text, "#")
 	n, err := strconv.Atoi(number)
-	if !found || err != nil || n < 1 {
+	if !found || err != nil || number == "" || strings.Trim(number, "0123456789") != "" {
 		return ID{}, invalid
 	}
 	fileAndFunction, operator, found := cutLast(place, ":")
