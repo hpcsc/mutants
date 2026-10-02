@@ -147,6 +147,7 @@ for the rule of the business. Write each proposal as one JSON object on one line
 | `old` | the exact text to replace. It must occur once in the file. |
 | `new` | the text that takes its place, or `""` to remove `old` |
 | `bug` | the bug that the edit puts in the code, in one sentence |
+| `ref` | optional: a text that the JSON report gives back on the mutant, so a tool can match each result to its source, for example a review finding |
 
 Then give the file to the run:
 
@@ -159,6 +160,8 @@ mutants run --proposals proposals.jsonl
 - Each other proposal is rejected. The rows list it under `REJECTED PROPOSALS` with its reason, for
   example `old found 3 times` or `not on a changed line`.
 - The last line counts the proposals: `proposals: 7 accepted, 1 rejected`.
+- Proposals with the same edit make one mutant. Each of them counts as accepted, and the mutant carries the
+  `ref` of each in `refs` in the JSON report. A rejected proposal keeps its `ref` in the JSON report too.
 - `--proposals-anywhere` accepts a proposal on any line, for example to check a review finding about a test
   that the diff made weaker. The operators still mutate only the changed lines.
 - The number in the id of a proposed mutant comes from `old` and `new`, so the id stays the same when the

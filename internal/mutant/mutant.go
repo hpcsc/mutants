@@ -14,5 +14,6 @@ type Mutant struct {
 	Original    string
 	Replacement string
 	Bug         string
+	Refs        []string
 	Verdict     Verdict
 }

@@ -107,6 +107,7 @@ export interface ReportedMutant {
   original: string
   replacement: string
   bug?: string
+  refs?: string[]
   detail?: string
 }
 

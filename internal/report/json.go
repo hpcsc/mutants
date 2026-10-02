@@ -10,16 +10,17 @@ import (
 )
 
 type jsonMutant struct {
-	ID          string `json:"id"`
-	File        string `json:"file"`
-	Line        int    `json:"line"`
-	Column      int    `json:"column"`
-	Operator    string `json:"operator"`
-	Status      string `json:"status"`
-	Original    string `json:"original"`
-	Replacement string `json:"replacement"`
-	Bug         string `json:"bug,omitempty"`
-	Detail      string `json:"detail,omitempty"`
+	ID          string   `json:"id"`
+	File        string   `json:"file"`
+	Line        int      `json:"line"`
+	Column      int      `json:"column"`
+	Operator    string   `json:"operator"`
+	Status      string   `json:"status"`
+	Original    string   `json:"original"`
+	Replacement string   `json:"replacement"`
+	Bug         string   `json:"bug,omitempty"`
+	Refs        []string `json:"refs,omitempty"`
+	Detail      string   `json:"detail,omitempty"`
 }
 
 type jsonRejection struct {
@@ -27,6 +28,7 @@ type jsonRejection struct {
 	Old    string `json:"old"`
 	New    string `json:"new"`
 	Bug    string `json:"bug"`
+	Ref    string `json:"ref,omitempty"`
 	Reason string `json:"reason"`
 }
 
@@ -67,6 +69,7 @@ func JSON(w io.Writer, outcome Outcome) error {
 				Old:    rejection.Proposal.Old,
 				New:    rejection.Proposal.New,
 				Bug:    rejection.Proposal.Bug,
+				Ref:    rejection.Proposal.Ref,
 				Reason: rejection.Reason,
 			})
 		}
@@ -85,6 +88,7 @@ func JSON(w io.Writer, outcome Outcome) error {
 			Original:    m.Original,
 			Replacement: m.Replacement,
 			Bug:         m.Bug,
+			Refs:        m.Refs,
 			Detail:      m.Verdict.Detail,
 		})
 	}

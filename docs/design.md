@@ -315,6 +315,7 @@ reads the proposals of the agent from a file, one JSON object on each line:
 | `old` | the exact text to replace. It must occur once in the file. |
 | `new` | the text that takes its place, or `""` to remove `old` |
 | `bug` | the bug that the edit puts in the code, in one sentence |
+| `ref` | optional: a text that the JSON report gives back on the mutant, so a tool can match each result to its source, for example a review finding |
 
 `mutants` turns each proposal into a mutant with the operator `PROPOSED`, and runs it with the same runner,
 the same retry after an unused import or variable, and the same statuses. A proposal that cannot become a
@@ -329,10 +330,11 @@ mutant is rejected with its reason:
 | old and new are the same | the edit changes nothing |
 | the go adapter drops the edit | the file is a test file, generated code, or out of the build |
 | not on a changed line | the edit does not touch a changed line, and the run has no `--proposals-anywhere` |
-| the same edit as another proposal | an earlier proposal of the file has the same id |
 
 - **The id** is `<file>:<function>:PROPOSED#<n>`. `n` has six digits from a hash of `old` and `new`, so an
   edit keeps its id when the agent proposes a different set of other edits.
+- **The same edit.** Proposals with the same edit have the same id, so they make one mutant. Each of them
+  counts as accepted, and the mutant carries the `ref` of each, so no source of a proposal loses its verdict.
 - **The store.** The run saves each accepted proposal in
   `$(git rev-parse --absolute-git-dir)/mutants/proposals.jsonl`, so `rerun ID` finds a proposed mutant
   without the file. A linked work tree has a git folder, and so a store, of its own.
@@ -678,6 +680,7 @@ The end-to-end fixtures:
 | Two runs | the same verdicts, mutant by mutant |
 | A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
 | A file of proposals, with one that lives, one that dies and one whose `old` occurs two times | LIVED and KILLED, the third rejected with "old found 2 times", and `git status` the same after the run |
+| A committed file, with `--operators=none` and `--proposals-anywhere`, and two proposals with the same edit and different refs | one mutant with both refs, the rejected proposal with its ref, and exit 2 for `--operators=none` alone |
 | A proposed mutant after the run | `rerun` finds it by its id without the file. After its `old` changes: exit 1, "the proposal does not fit the code". |
 | A new gate, and a changed caller that wires it in but whose tests use a fake | with `--caller-gaps`: the statements of the gate in the rows and the JSON, and exit 10 |
 

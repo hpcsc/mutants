@@ -356,7 +356,6 @@ func TestInstance(t *testing.T) {
 				{File: "notes.txt", Old: "notes", New: "", Bug: "not Go"},
 				{File: "../a.go", Old: "a", New: "b", Bug: "outside"},
 				{File: "a.go", Old: "return a > b", New: "return a > b", Bug: "no change"},
-				proposed,
 			}
 			id := fmt.Sprintf("a.go:f:PROPOSED#%d", proposed.Number())
 			adapter := &fakeAdapter{statuses: map[string]mutant.Status{id: mutant.Lived}}
@@ -380,8 +379,23 @@ func TestInstance(t *testing.T) {
 				"not Go: the go adapter does not take this file",
 				"outside: the file is not in the repository",
 				"no change: old and new are the same",
-				"equal values count as greater: the same edit as another proposal",
 			}, reasons)
+		})
+
+		t.Run("makes one mutant of the proposals with the same edit, with the ref of each", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			first := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "equal values count as greater", Ref: "finding-1"}
+			second := first
+			second.Bug, second.Ref = "the boundary moves", "finding-2"
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 2, Proposals: []proposal.Proposal{first, second, first}}
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", first.Number())}, idsAndStatuses(outcome.Mutants))
+			require.Equal(t, []string{"finding-1", "finding-2"}, outcome.Mutants[0].Refs)
+			require.Equal(t, &proposal.Summary{Accepted: 3}, outcome.Proposals)
 		})
 
 		t.Run("a run without proposals gives no summary of proposals", func(t *testing.T) {

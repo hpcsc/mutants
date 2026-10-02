@@ -43,10 +43,11 @@ func TestJSON(t *testing.T) {
 			}, document)
 		})
 
-		t.Run("holds the bug of a proposed mutant, and each rejected proposal with its reason", func(t *testing.T) {
+		t.Run("holds the bug and the refs of a proposed mutant, and each rejected proposal with its ref and reason", func(t *testing.T) {
 			proposed := reported("case.go", 91, "PROPOSED", 418273, "a", "b", mutant.Lived)
 			proposed.Bug = "the case never closes"
-			rejected := proposal.Rejection{Proposal: proposal.Proposal{File: "case.go", Old: "return", New: "", Bug: "the note is lost"}, Reason: "old found 3 times"}
+			proposed.Refs = []string{"finding-1", "finding-2"}
+			rejected := proposal.Rejection{Proposal: proposal.Proposal{File: "case.go", Old: "return", New: "", Bug: "the note is lost", Ref: "finding-3"}, Reason: "old found 3 times"}
 			var output strings.Builder
 
 			require.NoError(t, report.JSON(&output, report.Outcome{
@@ -57,11 +58,12 @@ func TestJSON(t *testing.T) {
 			require.JSONEq(t, `{
 				"mutants": [{
 					"id": "case.go:(*Handler).accounts:PROPOSED#418273", "file": "case.go", "line": 91, "column": 2,
-					"operator": "PROPOSED", "status": "LIVED", "original": "a", "replacement": "b", "bug": "the case never closes"
+					"operator": "PROPOSED", "status": "LIVED", "original": "a", "replacement": "b", "bug": "the case never closes",
+					"refs": ["finding-1", "finding-2"]
 				}],
 				"proposals": {
 					"accepted": 1,
-					"rejected": [{"file": "case.go", "old": "return", "new": "", "bug": "the note is lost", "reason": "old found 3 times"}]
+					"rejected": [{"file": "case.go", "old": "return", "new": "", "bug": "the note is lost", "ref": "finding-3", "reason": "old found 3 times"}]
 				}
 			}`, output.String())
 		})

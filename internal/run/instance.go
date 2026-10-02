@@ -114,8 +114,9 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 		if settings.ProposalsAnywhere {
 			inScope = func(string, int, int) bool { return true }
 		}
-		if proposed, rejected, err = r.propose(ctx, settings.Proposals, inScope); err == nil {
-			outcome.Proposals = &proposal.Summary{Accepted: len(proposed), Rejected: rejected}
+		var accepted int
+		if proposed, accepted, rejected, err = r.propose(ctx, settings.Proposals, inScope); err == nil {
+			outcome.Proposals = &proposal.Summary{Accepted: accepted, Rejected: rejected}
 		}
 		mutants = append(mutants, proposed...)
 		slices.SortStableFunc(mutants, func(a, b mutant.Mutant) int {
@@ -229,18 +230,19 @@ func (r *Instance) findProposed(ctx context.Context, id mutant.ID) (mutant.Mutan
 	return m, nil
 }
 
-func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, inScope func(file string, first, last int) bool) ([]mutant.Mutant, []proposal.Rejection, error) {
+// propose makes one mutant of the proposals with the same edit, with the ref of each, and counts each of them
+// as accepted.
+func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, inScope func(file string, first, last int) bool) ([]mutant.Mutant, int, []proposal.Rejection, error) {
 	sources := map[string][]byte{}
-	accepted := map[string]proposal.Proposal{}
+	saved := map[string]proposal.Proposal{}
+	positions := map[string]int{}
 	var mutants []mutant.Mutant
 	var rejected []proposal.Rejection
+	accepted := 0
 	for _, p := range proposals {
 		m, last, reason, err := r.proposed(p, sources)
 		if err != nil {
-			return nil, nil, err
-		}
-		if _, same := accepted[m.ID.String()]; reason == "" && same {
-			reason = "the same edit as another proposal"
+			return nil, 0, nil, err
 		}
 		if reason == "" && !inScope(m.File, m.Line, last) {
 			reason = "not on a changed line"
@@ -249,17 +251,25 @@ func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, i
 			rejected = append(rejected, proposal.Rejection{Proposal: p, Reason: reason})
 			continue
 		}
-		accepted[m.ID.String()] = p
-		mutants = append(mutants, m)
+		accepted++
+		position, same := positions[m.ID.String()]
+		if !same {
+			position = len(mutants)
+			positions[m.ID.String()], saved[m.ID.String()] = position, p
+			mutants = append(mutants, m)
+		}
+		if p.Ref != "" && !slices.Contains(mutants[position].Refs, p.Ref) {
+			mutants[position].Refs = append(mutants[position].Refs, p.Ref)
+		}
 	}
-	if len(accepted) == 0 {
-		return mutants, rejected, nil
+	if len(saved) == 0 {
+		return mutants, accepted, rejected, nil
 	}
 	store, err := r.store(ctx)
 	if err == nil {
-		err = store.Save(accepted)
+		err = store.Save(saved)
 	}
-	return mutants, rejected, err
+	return mutants, accepted, rejected, err
 }
 
 // proposed gives a reason when the proposal cannot become a mutant, and the last line that the edit changes

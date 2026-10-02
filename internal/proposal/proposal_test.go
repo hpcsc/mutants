@@ -27,6 +27,19 @@ func TestProposal(t *testing.T) {
 			}, proposals)
 		})
 
+		t.Run("reads an optional ref", func(t *testing.T) {
+			proposals, err := proposal.Read(strings.NewReader(`{"file": "a.go", "old": "a", "new": "b", "bug": "c", "ref": "finding-7"}`))
+
+			require.NoError(t, err)
+			require.Equal(t, []proposal.Proposal{{File: "a.go", Old: "a", New: "b", Bug: "c", Ref: "finding-7"}}, proposals)
+		})
+
+		t.Run("a ref that is not a string returns an error", func(t *testing.T) {
+			_, err := proposal.Read(strings.NewReader(`{"file": "a.go", "old": "a", "new": "b", "bug": "c", "ref": 7}`))
+
+			require.ErrorContains(t, err, "line 1: a proposal is one JSON object")
+		})
+
 		t.Run("reads the last line also without a line end", func(t *testing.T) {
 			proposals, err := proposal.Read(strings.NewReader(`{"file": "a.go", "old": "a", "new": "b", "bug": "c"}`))
 

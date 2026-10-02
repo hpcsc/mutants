@@ -540,6 +540,22 @@ describe('mutants run --proposals', { timeout: 240_000 }, () => {
     return path
   }
 
+  it('with --operators=none and --proposals-anywhere, runs only the proposals, also on committed lines, and returns the ref of each', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    const file = proposalsFile({ ...lives, ref: 'finding-1' }, { ...lives, bug: 'the boundary moves', ref: 'finding-2' }, { ...twice, ref: 'finding-3' })
+
+    const { result, mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators=none', '--proposals', file, '--proposals-anywhere'])
+    const nothing = await runCli(dir, ['run', '--base', 'HEAD', '--operators=none'])
+
+    expect(mutants.map((m) => `${m.operator} ${m.status} ${m.refs?.join(',')}`)).toEqual(['PROPOSED LIVED finding-1,finding-2'])
+    expect(JSON.parse(result.stdout).proposals).toEqual({
+      accepted: 2,
+      rejected: [{ ...twice, ref: 'finding-3', reason: 'old found 2 times' }],
+    })
+    expect(nothing.status).toBe(2)
+    expect(nothing.stderr).toContain('the run has no operator, no proposal and no check for caller gaps')
+  })
+
   it('runs each proposal on a changed line, rejects each other one with its reason, and leaves git status as it was', async () => {
     const dir = goRepository()
     writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })

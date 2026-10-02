@@ -21,6 +21,7 @@ type Proposal struct {
 	Old  string `json:"old"`
 	New  string `json:"new"`
 	Bug  string `json:"bug"`
+	Ref  string `json:"ref,omitempty"`
 }
 
 type Rejection struct {
@@ -90,6 +91,7 @@ func parse(line string) (Proposal, error) {
 		Old  *string `json:"old"`
 		New  *string `json:"new"`
 		Bug  *string `json:"bug"`
+		Ref  string  `json:"ref"`
 	}
 	if err := json.Unmarshal([]byte(line), &fields); err != nil {
 		return Proposal{}, fmt.Errorf("a proposal is one JSON object: %w", err)
@@ -105,5 +107,5 @@ func parse(line string) (Proposal, error) {
 	if *fields.Old == "" {
 		return Proposal{}, errors.New(`"old" is empty`)
 	}
-	return Proposal{File: *fields.File, Old: *fields.Old, New: *fields.New, Bug: *fields.Bug}, nil
+	return Proposal{File: *fields.File, Old: *fields.Old, New: *fields.New, Bug: *fields.Bug, Ref: fields.Ref}, nil
 }
