@@ -336,12 +336,12 @@ func List() []int {
 			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ZERO", "[]int{1}", "[]int{}")))
 		})
 
-		t.Run("drops a zero value when the value is zero already", func(t *testing.T) {
-			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nfunc Rate() float64 {\n\treturn 0.0\n}\n"})
+		t.Run("keeps 0 for a float slot, and drops it when the value is zero already", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nfunc Rate() float64 {\n\treturn 0.0\n}\n\nfunc Ratio(a, b float64) float64 {\n\treturn a / b\n}\n"})
+			adapter := golang.New(root, defaultSettings)
 
-			keep := golang.New(root, defaultSettings).Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "0.0", "0"))
-
-			require.False(t, keep)
+			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "a / b", "0")))
+			require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_ZERO", "0.0", "0")))
 		})
 
 		t.Run("keeps nil for an error slot, and leaves the error slot out of RETURN_ZERO", func(t *testing.T) {
@@ -359,7 +359,7 @@ func Load(item *Item) (*Item, error) {
 
 			require.True(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ERROR_NIL", `errors.New("not found")`, "nil")))
 			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ZERO", `errors.New("not found")`, "nil")))
-			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "RETURN_ERROR_NIL", "item,", "nil")))
+			require.False(t, adapter.Keep(editIn(t, root, "store/store.go", "RETURN_ERROR_NIL", "return item,", "item", "nil")))
 		})
 
 		t.Run("keeps true for a bool slot only, and drops it when the value is true already", func(t *testing.T) {
@@ -696,15 +696,18 @@ func apply(xs []int, double func(int) int, extra int) int {
 			require.ErrorContains(t, err, "the tests of example.com/fixture/calc fail with the real code")
 		})
 
-		t.Run("finds the package of a folder whose name differs from its package name", func(t *testing.T) {
+		t.Run("reads the coverage of a folder whose name differs from its package name", func(t *testing.T) {
 			t.Parallel()
-			root := newModule(t, map[string]string{"handlers/max.go": maxSource, "handlers/max_test.go": maxTest})
-			m := mutantOf(t, root, "handlers/max.go", "return b", "return a")
+			root := newModule(t, map[string]string{
+				"handlers/check.go":      "package calc\n\nimport \"errors\"\n\nfunc Check(n int) error {\n\tif n < 0 {\n\t\treturn errors.New(\"negative\")\n\t}\n\treturn nil\n}\n",
+				"handlers/check_test.go": "package calc\n\nimport \"testing\"\n\nfunc TestCheck(t *testing.T) {\n\tif Check(1) != nil {\n\t\tt.Fatal(\"1 is not negative\")\n\t}\n}\n",
+			})
+			value := mutantOf(t, root, "handlers/check.go", `errors.New("negative")`, "nil")
 
-			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{m})
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{value})
 
 			require.NoError(t, err)
-			require.Empty(t, uncovered)
+			require.Equal(t, map[mutant.ID]string{value.ID: ""}, uncovered)
 		})
 
 		t.Run("with the tags, a test file with a build tag runs", func(t *testing.T) {
@@ -967,15 +970,14 @@ func TestCount(t *testing.T) {
 
 		t.Run("the tests run in the package folder, so they read their testdata", func(t *testing.T) {
 			root := newModule(t, map[string]string{
-				"calc/calc.go":           "package calc\n\nfunc Greeting() string {\n\treturn \"hello\"\n}\n",
+				"calc/calc.go":           "package calc\n\nfunc Greeting() string {\n\treturn \"hello\"\n}\n\nfunc Shout() string {\n\treturn \"HEY\"\n}\n",
 				"calc/testdata/greeting": "hello",
 				"calc/calc_test.go":      "package calc\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\nfunc TestGreeting(t *testing.T) {\n\twant, err := os.ReadFile(\"testdata/greeting\")\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n\tif Greeting() != string(want) {\n\t\tt.Fatal(\"wrong greeting\")\n\t}\n}\n",
 			})
 
-			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", `"hello"`, `""`))
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", `"HEY"`, `""`))
 
-			require.Equal(t, mutant.Killed, result.Status, result.Detail)
-			require.Contains(t, result.Detail, "--- FAIL: TestGreeting")
+			require.Equal(t, mutant.Lived, result.Status, result.Detail)
 		})
 	})
 }
