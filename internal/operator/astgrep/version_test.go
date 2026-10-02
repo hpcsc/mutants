@@ -23,7 +23,7 @@ func pathWithAstGrep(t *testing.T, version string) {
 func TestCheckVersion(t *testing.T) {
 	t.Run("check", func(t *testing.T) {
 		t.Run("the minimum version and later versions pass", func(t *testing.T) {
-			for _, version := range []string{astgrep.MinimumVersion, "0.45.3", "0.46.0", "1.0.0"} {
+			for _, version := range []string{astgrep.MinimumVersion, "0.45.3", "0.46.0", "0.100.0", "1.0.0"} {
 				pathWithAstGrep(t, version)
 
 				require.NoError(t, astgrep.CheckVersion(context.Background()), version)
@@ -36,6 +36,14 @@ func TestCheckVersion(t *testing.T) {
 			err := astgrep.CheckVersion(context.Background())
 
 			require.ErrorContains(t, err, "needs ast-grep "+astgrep.MinimumVersion+" or later, and the PATH has 0.39.5")
+		})
+
+		t.Run("compares versions by number and not by text, and refuses a version with fewer parts", func(t *testing.T) {
+			for _, version := range []string{"0.9.9", "0.45"} {
+				pathWithAstGrep(t, version)
+
+				require.ErrorContains(t, astgrep.CheckVersion(context.Background()), "the PATH has "+version, version)
+			}
 		})
 
 		t.Run("no ast-grep on the PATH returns an error", func(t *testing.T) {
