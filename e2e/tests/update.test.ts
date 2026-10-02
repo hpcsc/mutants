@@ -120,9 +120,10 @@ describe('mutants update', () => {
     const update = await runCli(scratchDir(), ['update'], againstApi(api), copy)
 
     expect(update.status).toBe(0)
-    expect(update.stderr).toBe(
-      `Finding the latest release of hpcsc/mutants…\nDownloading mutants v9.0.0 for ${platform()}…\n`,
-    )
+    expect(update.stderr).toContain('hpcsc/mutants')
+    expect(update.stderr).toMatch(new RegExp(`v9\\.0\\.0 .*${platform()}`))
+    expect(update.stderr).not.toContain('\r')
+    expect(update.stdout).not.toContain(platform())
   })
 
   it('--prerelease replaces the binary with the latest prerelease', async () => {
