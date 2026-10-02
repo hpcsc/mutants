@@ -91,11 +91,14 @@ function copyOfCli(): string {
 describe('mutants update', () => {
   it('--check reports a newer release and changes nothing', async () => {
     const api = await fakeRelease('v9.0.0', '#!/bin/sh\necho "the new mutants"\n')
+    const copy = copyOfCli()
 
-    const result = await runCli(scratchDir(), ['update', '--check'], againstApi(api))
+    const result = await runCli(scratchDir(), ['update', '--check'], againstApi(api), copy)
+    const kept = await runCli(scratchDir(), ['version'], {}, copy)
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain(`mutants v9.0.0 is available. This is ${buildTag()}.`)
+    expect(kept.stdout.trim()).toBe(buildTag())
   })
 
   it('replaces the binary with the newer release', async () => {
@@ -152,12 +155,15 @@ describe('mutants update', () => {
     expect(replaced.stdout).toContain('the release')
   })
 
-  it('says so when the binary is the latest release', async () => {
+  it('says so when the binary is the latest release, and keeps the binary', async () => {
     const api = await fakeRelease(buildTag(), '#!/bin/sh\necho "never installed"\n')
+    const copy = copyOfCli()
 
-    const result = await runCli(scratchDir(), ['update'], againstApi(api))
+    const result = await runCli(scratchDir(), ['update'], againstApi(api), copy)
+    const kept = await runCli(scratchDir(), ['version'], {}, copy)
 
     expect(result.status).toBe(0)
     expect(result.stdout).toContain(`mutants ${buildTag()} is the latest release.`)
+    expect(kept.stdout.trim()).toBe(buildTag())
   })
 })
