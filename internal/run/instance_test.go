@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -35,6 +36,8 @@ type fakeAdapter struct {
 	failure         error
 	callerGaps      []language.CallerGap
 	callerGapsWaits bool
+	coverageFailure error
+	onWait          func()
 	mutex           sync.Mutex
 	ran             []string
 }
@@ -61,6 +64,9 @@ func (f *fakeAdapter) Function(file string, offset int) string {
 }
 
 func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
+	if f.coverageFailure != nil {
+		return nil, f.coverageFailure
+	}
 	uncovered := map[mutant.ID]string{}
 	for _, m := range mutants {
 		if detail, found := f.uncovered[m.ID.String()]; found {
@@ -83,6 +89,9 @@ func (f *fakeAdapter) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict,
 	f.ran = append(f.ran, m.ID.String())
 	f.mutex.Unlock()
 	if f.waits[m.ID.String()] {
+		if f.onWait != nil {
+			f.onWait()
+		}
 		<-ctx.Done()
 		return mutant.Verdict{}, ctx.Err()
 	}
@@ -274,6 +283,46 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#1"}, adapter.ran)
 		})
 
+		t.Run("tests that fail with the real code stop the run before any mutant runs", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			failing := errors.New("the tests of a fail with the real code")
+			adapter := &fakeAdapter{coverageFailure: failing}
+
+			_, err := r.instance(adapter).Run(context.Background(), boundary)
+
+			require.ErrorIs(t, err, failing)
+			require.Empty(t, adapter.ran)
+		})
+
+		t.Run("an excluded file gets no mutant and does not count as changed", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			settings := boundary
+			settings.Exclude = []string{"a.go"}
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Empty(t, outcome.Mutants)
+			require.Equal(t, 0, outcome.Files)
+		})
+
+		t.Run("an interrupt returns context.Canceled, and the run does not count as stopped at its limit", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			adapter := &fakeAdapter{waits: map[string]bool{"a.go:f:CONDITIONALS_BOUNDARY#2": true}, onWait: cancel}
+			settings := boundary
+			settings.Limit = time.Hour
+
+			outcome, err := r.instance(adapter).Run(ctx, settings)
+
+			require.ErrorIs(t, err, context.Canceled)
+			require.False(t, outcome.Stopped)
+		})
+
 		t.Run("an unknown operator returns an error that names it", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
 			settings := boundary
@@ -296,6 +345,19 @@ func TestInstance(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", proposed.Number())}, idsAndStatuses(outcome.Mutants))
+		})
+
+		t.Run("with only the check for caller gaps, gives the gaps and no mutant", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			gaps := []language.CallerGap{{File: "a.go", Function: "f", Lines: []int{7}, Callers: []string{"b"}}}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, CallerGaps: true}
+
+			outcome, err := r.instance(&fakeAdapter{callerGaps: gaps}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Empty(t, outcome.Mutants)
+			require.Equal(t, &gaps, outcome.CallerGaps)
 		})
 
 		t.Run("with no proposal and no check for caller gaps, returns ErrNothingToRun", func(t *testing.T) {
@@ -398,6 +460,46 @@ func TestInstance(t *testing.T) {
 				"outside: the file is not in the repository",
 				"dropped: the go adapter drops the edit, for example in a test file or in generated code",
 			}, reasons)
+		})
+
+		t.Run("a proposal is on a changed line when one of its lines changed, and not through its line end", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			spans := proposal.Proposal{File: "a.go", Old: "\t}\n\treturn a > b", New: "\t}\n\treturn a >= b", Bug: "lines 6 and 7"}
+			lineEnd := proposal.Proposal{File: "a.go", Old: "\t\treturn true\n\t}\n", New: "\t\treturn false\n\t}\n", Bug: "lines 5 and 6, up to the start of line 7"}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, Proposals: []proposal.Proposal{spans, lineEnd}}
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", spans.Number())}, idsAndStatuses(outcome.Mutants))
+			require.Equal(t, &proposal.Summary{Accepted: 1, Rejected: []proposal.Rejection{{Proposal: lineEnd, Reason: "not on a changed line"}}}, outcome.Proposals)
+		})
+
+		t.Run("gives the summary of the proposals also when the run accepts none of them", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			dropped := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "in generated code"}
+			adapter := &fakeAdapter{dropped: map[string]bool{"return a > b -> return a >= b": true}}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, Proposals: []proposal.Proposal{dropped}}
+
+			outcome, err := r.instance(adapter).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Empty(t, outcome.Mutants)
+			require.Equal(t, &proposal.Summary{Rejected: []proposal.Rejection{{Proposal: dropped, Reason: "the go adapter drops the edit, for example in a test file or in generated code"}}}, outcome.Proposals)
+		})
+
+		t.Run("a store that cannot keep the proposals returns its error", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			r.write(".git/mutants", "not a folder")
+			proposed := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "equal values count as greater"}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, Proposals: []proposal.Proposal{proposed}}
+
+			_, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.ErrorIs(t, err, syscall.ENOTDIR)
 		})
 
 		t.Run("makes one mutant of the proposals with the same edit, with the ref of each", func(t *testing.T) {

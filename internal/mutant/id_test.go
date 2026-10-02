@@ -41,7 +41,7 @@ func TestID(t *testing.T) {
 		})
 
 		t.Run("text that is not an id returns an error that shows the form of an id", func(t *testing.T) {
-			for _, text := range []string{"", "handler.go:42", "handler.go:f:BRANCH_IF", "handler.go:f:BRANCH_IF#-1", "handler.go:f:BRANCH_IF#+1", "f:BRANCH_IF#1", ":f:BRANCH_IF#1"} {
+			for _, text := range []string{"", "handler.go:42", "handler.go:f:BRANCH_IF", "handler.go:f:BRANCH_IF#-1", "handler.go:f:BRANCH_IF#+1", "handler.go:f:#1", "f:BRANCH_IF#1", ":f:BRANCH_IF#1"} {
 				_, err := mutant.ParseID(text)
 
 				require.ErrorContains(t, err, "<file>:<function>:<operator>#<number>", text)
