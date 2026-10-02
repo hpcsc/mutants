@@ -498,11 +498,12 @@ func TestWait(t *testing.T) {
 
   it('says so in one line when the changed files give no mutant', async () => {
     const dir = goRepository({ 'calc/calc.go': maxSource })
+    writeFiles(dir, { 'calc/calc.go': maxWithComments })
 
     const result = await runCli(dir, ['run', '--base', 'HEAD'])
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toMatch(/^no mutant: 0 changed lines in 0 files \(base [0-9a-f]{10}\)\n$/)
+    expect(result.stdout).toBe(`no mutant: 2 changed lines in 1 files (base ${git(dir, 'rev-parse', '--short=10', 'HEAD')})\n`)
   })
 
   it('with --format json and no mutant, writes only JSON on stdout and the count on stderr', async () => {
