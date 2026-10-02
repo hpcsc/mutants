@@ -1,7 +1,7 @@
 # Build, Test and Release mutants
 
 This page is for people who change the code of `mutants`. [docs/design.md](design.md) tells how the code
-works.
+works, and [docs/language-adapters.md](language-adapters.md) tells how to add a language.
 
 ## Tools
 

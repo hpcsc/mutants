@@ -196,6 +196,7 @@ finds a caller gap. A CI step or a script can use this exit code.
 | [docs/install.md](docs/install.md) | the options of the install script, the update of `mutants` and its version |
 | [docs/development.md](docs/development.md) | how to build, test and release `mutants` |
 | [docs/design.md](docs/design.md) | how `mutants` works, and why |
+| [docs/language-adapters.md](docs/language-adapters.md) | how to add a language to `mutants` |
 | [docs/e2e-tests.md](docs/e2e-tests.md) | how the end-to-end tests work |
 
 </details>
