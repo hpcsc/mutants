@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -73,6 +74,44 @@ func TestConfig(t *testing.T) {
 		t.Run("an empty file gives no settings", func(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("# no settings\n"), 0o644))
+
+			loaded, err := loadConfig(root)
+
+			require.NoError(t, err)
+			require.Equal(t, config{}, loaded)
+		})
+	})
+
+	t.Run("template", func(t *testing.T) {
+		t.Run("with one tag, sets the base and the tag, names each other key, and loads with no error", func(t *testing.T) {
+			root := t.TempDir()
+			text := configTemplate("origin/main", map[string]int{"unit": 3})
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
+
+			loaded, err := loadConfig(root)
+
+			require.NoError(t, err)
+			require.Equal(t, config{Base: "origin/main", Tags: []string{"unit"}}, loaded)
+			for _, key := range (config{}).keys() {
+				require.True(t, strings.Contains(text, "\n"+key+":") || strings.Contains(text, "\n# "+key+":"), key)
+			}
+		})
+
+		t.Run("with more than one tag, sets no tag and counts the files of each", func(t *testing.T) {
+			root := t.TempDir()
+			text := configTemplate("origin/main", map[string]int{"unit": 3, "integration": 1})
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
+
+			loaded, err := loadConfig(root)
+
+			require.NoError(t, err)
+			require.Equal(t, config{Base: "origin/main"}, loaded)
+			require.Contains(t, text, "#   integration: 1 file\n#   unit: 3 files\n")
+		})
+
+		t.Run("with no default branch of origin, keeps the default base", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(configTemplate("", nil)), 0o644))
 
 			loaded, err := loadConfig(root)
 

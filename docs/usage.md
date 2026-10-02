@@ -45,6 +45,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 | `mutants run --all FOLDER...` | runs the mutants of each line in the folders |
 | `mutants rerun ID` | runs one mutant again, by its id, with no diff and no cache |
 | `mutants operators` | lists each operator, whether it runs by default, and its rules |
+| `mutants config init` | writes a first `.mutants.yml`, see [Settings in .mutants.yml](#settings-in-mutantsyml) |
 | `mutants version` | prints the version, see [docs/install.md](install.md) |
 | `mutants update` | installs the latest release, see [docs/install.md](install.md) |
 
@@ -289,6 +290,16 @@ Its HTML viewer shows each mutant in the code of its file.
 ## Settings in .mutants.yml
 
 A repository can keep its settings in `.mutants.yml` at its root. A flag wins over the file.
+
+`mutants config init` writes a first `.mutants.yml` at the root of the repository:
+
+- `base` is the default branch of origin, such as `origin/main`, when the clone knows it.
+- `tags` lists the build tag of the test files when they need one tag, such as `unit`. When they need more
+  than one, the file lists each tag with its number of files, and you choose. A tag such as `integration`
+  can need a service, such as a database.
+- Each other setting is a comment.
+
+`mutants config init` does not replace a `.mutants.yml` that exists, and then it exits with 2.
 
 ```yaml
 base: origin/main

@@ -160,6 +160,7 @@ mutants run --base HEAD              # only the changes that you did not commit
 mutants run --all ./internal/order   # each line of one package; ./internal/... adds the subfolders
 mutants rerun ID                     # one mutant again, by the id at the end of its row
 mutants operators                    # each operator, and whether it runs by default
+mutants config init                  # write a first .mutants.yml, with the base and the test tags
 mutants run --proposals bugs.jsonl   # also run the bugs that an agent proposes, see docs/usage.md
 mutants run --caller-gaps            # also find new code that no test of a changed caller runs
 ```

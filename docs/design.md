@@ -511,6 +511,7 @@ coverage runs of different packages run at the same time, as many as there are w
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
 | `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, or an unknown id |
 | `mutants operators` | lists the operators and their rules | 0 |
+| `mutants config init` | writes a first `.mutants.yml`, with the default branch of origin and the build tags of the tests | 0 written, 2 the file exists |
 | `mutants version` | prints the tag of the binary, or its commit when it has no tag | 0 |
 | `mutants update` | replaces the binary with the latest release, or with the latest prerelease | 0, or 1 on an error |
 

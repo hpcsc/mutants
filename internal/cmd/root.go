@@ -43,6 +43,7 @@ func newCommand() *cli.Command {
 			newRunCommand(),
 			newRerunCommand(),
 			newOperatorsCommand(),
+			newConfigCommand(),
 			newVersionCommand(),
 			newUpdateCommand(),
 		},
