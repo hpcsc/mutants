@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildTag, goRepository, runCli, scratchDir } from '../testUtils'
+import { buildTag, git, goRepository, runCli, scratchDir } from '../testUtils'
 
 describe('the root command', () => {
   it('lists the commands', async () => {
@@ -31,6 +31,16 @@ describe('mutants config init', () => {
     expect(second.status).toBe(2)
     expect(second.stderr).toContain('does not replace it')
     expect(readFileSync(join(dir, '.mutants.yml'), 'utf8')).toBe(written)
+  })
+
+  it('in a folder below the root of a clone, writes .mutants.yml at the root with the default branch of origin as the base', async () => {
+    const clone = scratchDir()
+    git(clone, 'clone', '--quiet', goRepository({ 'calc/calc.go': 'package calc\n' }), '.')
+
+    const result = await runCli(join(clone, 'calc'), ['config', 'init'])
+
+    expect(result.status).toBe(0)
+    expect(readFileSync(join(clone, '.mutants.yml'), 'utf8')).toMatch(/^base: origin\/main$/m)
   })
 })
 
