@@ -27,6 +27,13 @@ export function scratchDir(): string {
   return dir
 }
 
+function withoutDeveloperSettings(env: Record<string, string> = {}): NodeJS.ProcessEnv {
+  const inherited = { ...process.env }
+  delete inherited.GOFLAGS
+  delete inherited.GOWORK
+  return { ...inherited, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', ...env }
+}
+
 export interface Result {
   stdout: string
   stderr: string
@@ -42,7 +49,7 @@ export function runCli(
   executable = getExecutablePath(),
 ): Promise<Result> {
   return new Promise((done, fail) => {
-    const child = spawn(executable, args, { cwd, env: { ...process.env, ...env } })
+    const child = spawn(executable, args, { cwd, env: withoutDeveloperSettings(env) })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk) => (stdout += chunk))
@@ -74,7 +81,7 @@ export async function openCli(cwd: string, args: string[] = [], env: Record<stri
 }
 
 export function git(dir: string, ...args: string[]): string {
-  return execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
+  return execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: withoutDeveloperSettings() }).trim()
 }
 
 export function writeFiles(dir: string, files: Record<string, string>): void {
