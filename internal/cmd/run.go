@@ -103,14 +103,15 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	case err != nil:
 		return cli.Exit(err, exitUsage)
 	}
-	if err := writeReports(cmd, repository.Root(), format, outcome, runSettings.CallerGaps); err != nil {
+	if err := writeReports(cmd, repository.Root(), format, outcome); err != nil {
 		return cli.Exit(err, exitUsage)
 	}
 
 	switch {
 	case outcome.Stopped:
 		return cli.Exit(fmt.Sprintf("mutants stopped at the limit of %s: the report holds the mutants that got a verdict", runSettings.Limit), exitLimit)
-	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Verdict.Status.IsSurvivor() }), len(outcome.CallerGaps) > 0:
+	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Verdict.Status.IsSurvivor() }),
+		outcome.CallerGaps != nil && len(*outcome.CallerGaps) > 0:
 		return cli.Exit("", exitSurvivors)
 	}
 	return nil
@@ -128,14 +129,11 @@ func newInstance(ctx context.Context, repository *diff.Repository, settings gola
 	return run.New(repository, pack, astgrep.New(repository.Root()), adapter, status, isTerminal(status)), nil
 }
 
-func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome, callerGaps bool) error {
+func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {
 	out := cmd.Root().Writer
-	reported := report.Outcome{Base: outcome.Base, Mutants: outcome.Mutants}
+	reported := report.Outcome{Base: outcome.Base, Mutants: outcome.Mutants, CallerGaps: outcome.CallerGaps}
 	if outcome.Proposed > 0 || len(outcome.Rejected) > 0 {
 		reported.Proposals = &report.Proposals{Accepted: outcome.Proposed, Rejected: outcome.Rejected}
-	}
-	if callerGaps {
-		reported.CallerGaps = &outcome.CallerGaps
 	}
 	if len(outcome.Mutants) == 0 && !outcome.Stopped {
 		message := fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files)

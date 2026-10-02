@@ -26,14 +26,15 @@ import (
 )
 
 type fakeAdapter struct {
-	dropped    map[string]bool
-	uncovered  map[string]string
-	statuses   map[string]mutant.Status
-	waits      map[string]bool
-	failure    error
-	callerGaps []language.CallerGap
-	mutex      sync.Mutex
-	ran        []string
+	dropped         map[string]bool
+	uncovered       map[string]string
+	statuses        map[string]mutant.Status
+	waits           map[string]bool
+	failure         error
+	callerGaps      []language.CallerGap
+	callerGapsWaits bool
+	mutex           sync.Mutex
+	ran             []string
 }
 
 func (f *fakeAdapter) Name() string         { return "go" }
@@ -54,7 +55,11 @@ func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map
 	return uncovered, nil
 }
 
-func (f *fakeAdapter) CallerGaps(context.Context, diff.Lines) ([]language.CallerGap, error) {
+func (f *fakeAdapter) CallerGaps(ctx context.Context, _ diff.Lines) ([]language.CallerGap, error) {
+	if f.callerGapsWaits {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	return f.callerGaps, nil
 }
 
@@ -271,7 +276,34 @@ func TestInstance(t *testing.T) {
 			outcome, err := r.instance(&fakeAdapter{callerGaps: gaps}).Run(context.Background(), settings)
 
 			require.NoError(t, err)
-			require.Equal(t, gaps, outcome.CallerGaps)
+			require.NotNil(t, outcome.CallerGaps)
+			require.Equal(t, gaps, *outcome.CallerGaps)
+		})
+
+		t.Run("with the setting and no gap, the outcome says that the run looked for caller gaps", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			settings := boundary
+			settings.CallerGaps = true
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.NotNil(t, outcome.CallerGaps)
+			require.Empty(t, *outcome.CallerGaps)
+		})
+
+		t.Run("a run that stops at the limit before the check ends gives no caller gaps", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			settings := boundary
+			settings.CallerGaps, settings.Limit = true, 500*time.Millisecond
+
+			outcome, err := r.instance(&fakeAdapter{callerGapsWaits: true}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.True(t, outcome.Stopped)
+			require.Nil(t, outcome.CallerGaps)
 		})
 
 		t.Run("without the setting, the run does not look for caller gaps", func(t *testing.T) {

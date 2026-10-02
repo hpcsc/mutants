@@ -39,6 +39,7 @@ type Settings struct {
 	CallerGaps bool
 }
 
+// CallerGaps is nil when the run did not look for caller gaps.
 type Outcome struct {
 	Base       string
 	Files      int
@@ -47,7 +48,7 @@ type Outcome struct {
 	Stopped    bool
 	Proposed   int
 	Rejected   []proposal.Rejection
-	CallerGaps []language.CallerGap
+	CallerGaps *[]language.CallerGap
 }
 
 type Instance struct {
@@ -112,7 +113,10 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	finding.End()
 	if err == nil && settings.CallerGaps {
 		checking := progress.Start(r.stderr, r.terminal, "Running the tests of the changed callers")
-		outcome.CallerGaps, err = r.adapter.CallerGaps(ctx, lines)
+		var gaps []language.CallerGap
+		if gaps, err = r.adapter.CallerGaps(ctx, lines); err == nil {
+			outcome.CallerGaps = &gaps
+		}
 		checking.End()
 	}
 	if err != nil || len(mutants) == 0 {
