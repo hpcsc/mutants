@@ -54,13 +54,13 @@ func (s Settings) testEnv() []string {
 }
 
 type adapter struct {
-	root     string
-	finder   *packageFinder
-	sources  *sourceFiles
-	types    *typeChecker
-	coverage *coverage
-	callers  *callerGaps
-	runner   *runner
+	root       string
+	finder     *packageFinder
+	sources    *sourceFiles
+	types      *typeChecker
+	coverage   *coverage
+	callerGaps *callerGaps
+	runner     *runner
 }
 
 func New(root string, settings Settings) language.Adapter {
@@ -69,13 +69,13 @@ func New(root string, settings Settings) language.Adapter {
 	sources := newSourceFiles(root)
 	types := newTypeChecker(settings.tagArguments(), settings.ZeroFunctions)
 	return &adapter{
-		root:     root,
-		finder:   finder,
-		sources:  sources,
-		types:    types,
-		coverage: coverage,
-		callers:  &callerGaps{root: root, settings: settings, finder: finder, coverage: coverage, types: types, sources: sources},
-		runner:   &runner{root: root, settings: settings, finder: finder, coverage: coverage},
+		root:       root,
+		finder:     finder,
+		sources:    sources,
+		types:      types,
+		coverage:   coverage,
+		callerGaps: &callerGaps{root: root, settings: settings, finder: finder, coverage: coverage, types: types, sources: sources},
+		runner:     &runner{root: root, settings: settings, finder: finder, coverage: coverage},
 	}
 }
 
@@ -134,7 +134,7 @@ func (a *adapter) Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[m
 }
 
 func (a *adapter) CallerGaps(ctx context.Context, changed diff.Lines) ([]language.CallerGap, error) {
-	return a.callers.find(ctx, changed)
+	return a.callerGaps.find(ctx, changed)
 }
 
 func (a *adapter) Runner() mutant.Runner {
