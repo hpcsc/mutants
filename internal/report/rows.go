@@ -144,8 +144,11 @@ func shorten(original, replacement string) (string, string) {
 	start := 0
 	if max(len(a), len(b)) > shortText && same > shortText-shortContext {
 		start = same - shortContext
-		for start > 0 && a[start-1] != ' ' {
-			start--
+		for back := start; back > max(0, start-shortContext); back-- {
+			if a[back-1] == ' ' {
+				start = back
+				break
+			}
 		}
 	}
 	return cut(a, start), cut(b, start)

@@ -97,6 +97,18 @@ mutants: 4, not covered: 4
 			require.Equal(t, "LIVED:\n  a.go:5 BREAK_AT_END: ... total += item } -> ... total += item break }  [a.go:(*Handler).accounts:BREAK_AT_END#1]\nmutants: 1, lived: 1\n", output.String())
 		})
 
+		t.Run("a long mutant whose common start has no space still shows the first difference", func(t *testing.T) {
+			mutants := []mutant.Mutant{
+				reported("a.go", 450, "CALENDAR_DAY", 1, "waitUntil.In(customer.ReferenceAddress.LocalTimeLocation()).AddDate(0, 0, -1)",
+					"waitUntil.In(customer.ReferenceAddress.LocalTimeLocation()).Add(time.Duration(-1) * 24 * time.Hour)", mutant.Lived),
+			}
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+
+			require.Equal(t, "LIVED:\n  a.go:450 CALENDAR_DAY: ... ation()).AddDate(0, 0, -1) -> ... ation()).Add(time.Duration(-1) * 24 * ti ...  [a.go:(*Handler).accounts:CALENDAR_DAY#1]\nmutants: 1, lived: 1\n", output.String())
+		})
+
 		t.Run("a proposed mutant shows its bug in place of the code", func(t *testing.T) {
 			proposed := reported("case.go", 91, "PROPOSED", 418273, "waited && !note", "waited && open && !note", mutant.Lived)
 			proposed.Bug = "a note after the deadline no longer stops the close"
