@@ -343,9 +343,10 @@ func TestInstance(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, []string{id + " LIVED", "a.go:f:CONDITIONALS_BOUNDARY#2 KILLED"}, idsAndStatuses(outcome.Mutants))
 			require.Equal(t, "equal values count as greater", outcome.Mutants[0].Bug)
-			require.Equal(t, 1, outcome.Proposed)
+			require.NotNil(t, outcome.Proposals)
+			require.Equal(t, 1, outcome.Proposals.Accepted)
 			var reasons []string
-			for _, rejection := range outcome.Rejected {
+			for _, rejection := range outcome.Proposals.Rejected {
 				reasons = append(reasons, rejection.Proposal.Bug+": "+rejection.Reason)
 			}
 			require.Equal(t, []string{
@@ -358,6 +359,16 @@ func TestInstance(t *testing.T) {
 				"no change: old and new are the same",
 				"equal values count as greater: the same edit as another proposal",
 			}, reasons)
+		})
+
+		t.Run("a run without proposals gives no summary of proposals", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), boundary)
+
+			require.NoError(t, err)
+			require.Nil(t, outcome.Proposals)
 		})
 
 		t.Run("rerun finds an accepted proposal by its id, also without the proposals", func(t *testing.T) {

@@ -39,15 +39,15 @@ type Settings struct {
 	CallerGaps bool
 }
 
-// CallerGaps is nil when the run did not look for caller gaps.
+// Proposals is nil when the run got no proposals, and CallerGaps is nil when the run did not look for caller
+// gaps.
 type Outcome struct {
 	Base       string
 	Files      int
 	Lines      int
 	Mutants    []mutant.Mutant
 	Stopped    bool
-	Proposed   int
-	Rejected   []proposal.Rejection
+	Proposals  *proposal.Summary
 	CallerGaps *[]language.CallerGap
 }
 
@@ -103,8 +103,10 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	mutants, err := r.find(ctx, pack, lines.Files(), lines.Touches)
 	if err == nil && len(settings.Proposals) > 0 {
 		var proposed []mutant.Mutant
-		proposed, outcome.Rejected, err = r.propose(ctx, settings.Proposals, lines.Touches)
-		outcome.Proposed = len(proposed)
+		var rejected []proposal.Rejection
+		if proposed, rejected, err = r.propose(ctx, settings.Proposals, lines.Touches); err == nil {
+			outcome.Proposals = &proposal.Summary{Accepted: len(proposed), Rejected: rejected}
+		}
 		mutants = append(mutants, proposed...)
 		slices.SortStableFunc(mutants, func(a, b mutant.Mutant) int {
 			return cmp.Or(strings.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start))

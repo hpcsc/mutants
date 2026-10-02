@@ -23,13 +23,8 @@ const (
 type Outcome struct {
 	Base       string
 	Mutants    []mutant.Mutant
-	Proposals  *Proposals
+	Proposals  *proposal.Summary
 	CallerGaps *[]language.CallerGap
-}
-
-type Proposals struct {
-	Accepted int
-	Rejected []proposal.Rejection
 }
 
 func Rows(w io.Writer, outcome Outcome) error {

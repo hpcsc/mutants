@@ -110,7 +110,7 @@ mutants: 4, not covered: 4
 		t.Run("lists each rejected proposal with its reason, and counts the proposals", func(t *testing.T) {
 			outcome := report.Outcome{
 				Mutants: []mutant.Mutant{reported("case.go", 91, "PROPOSED", 418273, "a", "b", mutant.Killed)},
-				Proposals: &report.Proposals{Accepted: 1, Rejected: []proposal.Rejection{
+				Proposals: &proposal.Summary{Accepted: 1, Rejected: []proposal.Rejection{
 					{Proposal: proposal.Proposal{File: "case.go", Old: "return", New: "", Bug: "the case never closes"}, Reason: "old found 3 times"},
 				}},
 			}

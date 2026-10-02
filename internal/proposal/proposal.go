@@ -28,6 +28,11 @@ type Rejection struct {
 	Reason   string
 }
 
+type Summary struct {
+	Accepted int
+	Rejected []Rejection
+}
+
 // Number gives the same edit the same number, whatever the other proposals are.
 func (p Proposal) Number() int {
 	sum := sha256.Sum256([]byte(p.Old + "\x00" + p.New))

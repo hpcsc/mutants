@@ -131,10 +131,7 @@ func newInstance(ctx context.Context, repository *diff.Repository, settings gola
 
 func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {
 	out := cmd.Root().Writer
-	reported := report.Outcome{Base: outcome.Base, Mutants: outcome.Mutants, CallerGaps: outcome.CallerGaps}
-	if outcome.Proposed > 0 || len(outcome.Rejected) > 0 {
-		reported.Proposals = &report.Proposals{Accepted: outcome.Proposed, Rejected: outcome.Rejected}
-	}
+	reported := report.Outcome{Base: outcome.Base, Mutants: outcome.Mutants, Proposals: outcome.Proposals, CallerGaps: outcome.CallerGaps}
 	if len(outcome.Mutants) == 0 && !outcome.Stopped {
 		message := fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files)
 		if outcome.Base != "" {

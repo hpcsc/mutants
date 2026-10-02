@@ -51,7 +51,7 @@ func TestJSON(t *testing.T) {
 
 			require.NoError(t, report.JSON(&output, report.Outcome{
 				Mutants:   []mutant.Mutant{proposed},
-				Proposals: &report.Proposals{Accepted: 1, Rejected: []proposal.Rejection{rejected}},
+				Proposals: &proposal.Summary{Accepted: 1, Rejected: []proposal.Rejection{rejected}},
 			}))
 
 			require.JSONEq(t, `{
