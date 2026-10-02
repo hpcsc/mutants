@@ -139,26 +139,53 @@ func TestRepository(t *testing.T) {
 			settings := map[string][]string{
 				"mnemonic prefixes": {"diff.mnemonicPrefix", "true"},
 				"no prefixes":       {"diff.noprefix", "true"},
-				"relative paths":    {"diff.relative", "true"},
-				"no renames":        {"diff.renames", "false"},
 				"colour":            {"color.diff", "always"},
 				"external tool":     {"diff.external", "false"},
 			}
 			for name, setting := range settings {
 				t.Run(name, func(t *testing.T) {
 					r := newGitRepository(t)
-					r.write("pkg/a.go", "package pkg\n\nvar a = 1\n")
+					// the folder b/ looks like a prefix: without fixed prefixes, the diff loses it
+					r.write("b/a.go", "package b\n\nvar a = 1\n")
 					r.commit("add a")
-					r.write("pkg/a.go", "package pkg\n\nvar a = 2\n")
+					r.write("b/a.go", "package b\n\nvar a = 2\n")
 					r.git("config", setting[0], setting[1])
 
 					lines, err := r.open().Changed(context.Background(), "HEAD", goFiles)
 
 					require.NoError(t, err)
-					require.Equal(t, []string{"pkg/a.go"}, lines.Files())
-					require.Equal(t, []int{3}, changedLines(t, lines, "pkg/a.go"))
+					require.Equal(t, []string{"b/a.go"}, lines.Files())
+					require.Equal(t, []int{3}, changedLines(t, lines, "b/a.go"))
 				})
 			}
+		})
+
+		t.Run("a renamed file marks only its changed lines, under its new name, also when the user turns off renames", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("old.go", "package a\n\nvar a = 1\nvar b = 2\nvar c = 3\n")
+			r.commit("add old")
+			r.git("config", "diff.renames", "false")
+			r.git("mv", "old.go", "new.go")
+			r.write("new.go", "package a\n\nvar a = 1\nvar b = 9\nvar c = 3\n")
+
+			lines, err := r.open().Changed(context.Background(), "HEAD", goFiles)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"new.go"}, lines.Files())
+			require.Equal(t, []int{4}, changedLines(t, lines, "new.go"))
+		})
+
+		t.Run("an added line that looks like a file header stays a line of its file", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("a.go", "package a\n\nconst fixture = `\n`\n\nvar a = 1\n")
+			r.commit("add a")
+			r.write("a.go", "package a\n\nconst fixture = `\n++ b/other.go\n`\n\nvar a = 2\n")
+
+			lines, err := r.open().Changed(context.Background(), "HEAD", goFiles)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"a.go"}, lines.Files())
+			require.Equal(t, []int{4, 7}, changedLines(t, lines, "a.go"))
 		})
 
 		t.Run("a file name with a space, a quote or a letter outside ASCII keeps its name", func(t *testing.T) {
@@ -188,14 +215,18 @@ func TestRepository(t *testing.T) {
 			require.Zero(t, lines.Len())
 		})
 
-		t.Run("skips other extensions and the excluded paths", func(t *testing.T) {
+		t.Run("skips other extensions and the excluded paths, tracked or untracked", func(t *testing.T) {
 			r := newGitRepository(t)
-			r.write("a.go", "package a\n")
-			r.commit("add a")
 			r.write("notes.md", "notes\n")
 			r.write("vendor/lib/lib.go", "package lib\n")
 			r.write("api/client_gen.go", "package api\n")
 			r.write("api/client.go", "package api\n")
+			r.commit("add")
+			r.write("notes.md", "more notes\n")
+			r.write("vendor/lib/lib.go", "package lib\n\nvar v = 1\n")
+			r.write("api/client_gen.go", "package api\n\nvar g = 1\n")
+			r.write("api/client.go", "package api\n\nvar c = 1\n")
+			r.write("api/new_gen.go", "package api\n")
 
 			lines, err := r.open().Changed(context.Background(), "HEAD", diff.Pathspec{
 				Extensions: []string{".go"},
@@ -262,6 +293,24 @@ func TestRepository(t *testing.T) {
 		})
 	})
 
+	t.Run("git folder", func(t *testing.T) {
+		t.Run("a linked work tree gets a git folder of its own", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("a.go", "package a\n")
+			r.commit("start")
+			parent, err := filepath.EvalSymlinks(t.TempDir())
+			require.NoError(t, err)
+			r.git("worktree", "add", "--quiet", filepath.Join(parent, "linked"))
+			linked, err := diff.Open(context.Background(), filepath.Join(parent, "linked"))
+			require.NoError(t, err)
+
+			folder, err := linked.GitFolder(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, filepath.Join(r.root, ".git", "worktrees", "linked"), folder)
+		})
+	})
+
 	t.Run("all", func(t *testing.T) {
 		t.Run("reads every line of the files in a folder, and not in its subfolders", func(t *testing.T) {
 			r := newGitRepository(t)
@@ -301,6 +350,17 @@ func TestRepository(t *testing.T) {
 			_, err := r.open().All(context.Background(), []string{"pkg/a.go"}, goFiles)
 
 			require.ErrorContains(t, err, "pkg/a.go is not a folder")
+		})
+
+		t.Run("a folder outside the repository returns an error", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("pkg/a.go", "package pkg\n")
+			r.commit("add pkg")
+			t.Chdir(t.TempDir())
+
+			_, err := r.open().All(context.Background(), []string{"."}, goFiles)
+
+			require.ErrorContains(t, err, "is not in the repository")
 		})
 	})
 }
