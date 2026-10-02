@@ -149,6 +149,15 @@ func TestPack(t *testing.T) {
 			require.ErrorContains(t, err, "read .mutants/operators/go/bad.yml: a rule has no id")
 		})
 
+		t.Run("a rule of an operator with the id of a skip rule returns an error that names it", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/log.yml"), "id: zerolog\nlanguage: go\nrule:\n  pattern: log.Print($A)\nfix: log.Print()\n")
+
+			_, err := operator.Load("go", repository)
+
+			require.EqualError(t, err, "the skip rule zerolog has the id of a rule of an operator")
+		})
+
 		t.Run("a language with no operators returns an error", func(t *testing.T) {
 			_, err := operator.Load("cobol", t.TempDir())
 
@@ -248,6 +257,14 @@ func TestPack(t *testing.T) {
 			edits := editsOf(t, "ARITHMETIC_BASE", source)
 
 			require.Empty(t, edits)
+		})
+
+		t.Run("each operator skips its edits inside a zerolog chain", func(t *testing.T) {
+			source := "package a\n\nfunc f(a, b int) bool {\n\tlog.Info().Bool(\"late\", a < b).Msg(\"x\")\n\treturn a < b\n}\n"
+
+			edits := editsOf(t, "CONDITIONALS_BOUNDARY", source)
+
+			require.Equal(t, []string{"a < b -> a <= b"}, edits)
 		})
 
 		t.Run("INCREMENT_DECREMENT swaps ++ and --", func(t *testing.T) {

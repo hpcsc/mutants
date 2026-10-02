@@ -12,6 +12,7 @@ name Go. [docs/design.md](design.md) tells how a run works.
 | Part | Where | Does |
 | --- | --- | --- |
 | Rule pack | `internal/operator/operators/<language>/` | holds the ast-grep rules of each operator of the catalog |
+| Skip rules | `internal/operator/skip/<language>/` | hold the ast-grep rules of the code that no operator changes, for example log calls |
 | Hook | `internal/operator/` | makes the edits of an operator that a rule cannot express. Most operators need none. |
 | Adapter | `internal/language/<language>/` | holds the filters, the function names of the ids, the coverage, the runner and the caller gaps |
 | Connection | `internal/cmd/` | builds the adapter from the flags and `.mutants.yml`, and gives it to the run |
@@ -84,6 +85,8 @@ fix: $A <= $B
 - Do not add an operator to the catalog when only one language can make its change. Such a change is a
   rule of a repository, as [docs/operators.md](operators.md#operators-of-your-own) shows for `CALENDAR_DAY`.
 - The catalog says whether each operator runs by default, so a pack does not set it.
+- Put the code that no operator must change, for example the log calls of the language, in a skip rule in
+  `internal/operator/skip/<language>/`, not in the rule of each operator. A skip rule has no `fix`.
 - A rule cannot know a type. Let the rule give each candidate, and let `Keep` choose. The Go pack does this
   for `RETURN_EMPTY`: it has one rule for each zero value, and the type filter keeps the zero value of the
   slot.

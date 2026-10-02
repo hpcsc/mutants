@@ -75,7 +75,8 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 
 `mutants` does not make a mutant that cannot build, or that changes nothing a test can see. For example:
 
-- a log line that ends in `Msg`, `Msgf` or `Send`, and a branch that holds only log lines
+- a change in a zerolog line that ends in `Msg`, `Msgf` or `Send`, and the removal of a branch that holds
+  only such lines
 - a change in a `_test.go` file or in generated code
 - a value that is already the zero value of its type
 - a swap of two values with different types, or in a table of named values such as

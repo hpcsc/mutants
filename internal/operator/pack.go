@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"fmt"
@@ -12,11 +13,12 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"go.yaml.in/yaml/v3"
 )
 
-//go:embed operators
+//go:embed operators skip
 var standard embed.FS
 
 var documentSeparator = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
@@ -24,6 +26,7 @@ var documentSeparator = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
 type Pack struct {
 	language string
 	rules    []Rule
+	skips    []Rule
 	hooks    map[string]Hook
 }
 
@@ -33,46 +36,71 @@ func Load(language, repository string) (Pack, error) {
 		p.hooks[hook.Operator()] = hook
 	}
 
-	standardFiles, err := fs.Glob(standard, path.Join("operators", language, "*.yml"))
+	rules := map[string]Rule{}
+	found, err := readStandard(path.Join("operators", language), rules, p.add)
 	if err != nil {
 		return Pack{}, err
 	}
-	if len(standardFiles) == 0 {
+	if found == 0 {
 		return Pack{}, fmt.Errorf("mutants has no operators for %s", language)
-	}
-	rules := map[string]Rule{}
-	for _, file := range standardFiles {
-		text, err := standard.ReadFile(file)
-		if err != nil {
-			return Pack{}, err
-		}
-		if err := p.add(rules, file, string(text)); err != nil {
-			return Pack{}, err
-		}
 	}
 	if err := p.checkCatalog(rules); err != nil {
 		return Pack{}, err
 	}
-
-	folder := filepath.Join(".mutants", "operators", language)
-	repositoryFiles, err := filepath.Glob(filepath.Join(repository, folder, "*.y*ml"))
-	if err != nil {
+	if err := readRepository(repository, filepath.Join(".mutants", "operators", language), rules, p.add); err != nil {
 		return Pack{}, err
 	}
-	for _, file := range repositoryFiles {
-		text, err := os.ReadFile(file)
-		if err != nil {
-			return Pack{}, err
-		}
-		if err := p.add(rules, filepath.Join(folder, filepath.Base(file)), string(text)); err != nil {
-			return Pack{}, err
-		}
-	}
-
 	for _, id := range slices.Sorted(maps.Keys(rules)) {
 		p.rules = append(p.rules, rules[id])
 	}
+
+	skips := map[string]Rule{}
+	if _, err := readStandard(path.Join("skip", language), skips, p.addSkip); err != nil {
+		return Pack{}, err
+	}
+	for _, id := range slices.Sorted(maps.Keys(skips)) {
+		if _, found := rules[id]; found {
+			return Pack{}, fmt.Errorf("the skip rule %s has the id of a rule of an operator", id)
+		}
+		p.skips = append(p.skips, skips[id])
+	}
 	return p, nil
+}
+
+type addRules func(rules map[string]Rule, file, text string) error
+
+func readStandard(folder string, rules map[string]Rule, add addRules) (int, error) {
+	files, err := fs.Glob(standard, path.Join(folder, "*.yml"))
+	if err != nil {
+		return 0, err
+	}
+	for _, file := range files {
+		text, err := standard.ReadFile(file)
+		if err != nil {
+			return 0, err
+		}
+		if err := add(rules, file, string(text)); err != nil {
+			return 0, err
+		}
+	}
+	return len(files), nil
+}
+
+func readRepository(repository, folder string, rules map[string]Rule, add addRules) error {
+	files, err := filepath.Glob(filepath.Join(repository, folder, "*.y*ml"))
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		text, err := os.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		if err := add(rules, filepath.Join(folder, filepath.Base(file)), string(text)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p Pack) Rules() []Rule {
@@ -120,7 +148,7 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 	if len(p.rules) == 0 || len(files) == 0 {
 		return nil, nil
 	}
-	matches, err := matcher.Match(ctx, p.rules, files)
+	matches, err := matcher.Match(ctx, append(slices.Clone(p.rules), p.skips...), files)
 	if err != nil {
 		return nil, err
 	}
@@ -129,8 +157,17 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 	for _, rule := range p.rules {
 		rules[rule.ID] = rule
 	}
+	skips := map[string]bool{}
+	for _, skip := range p.skips {
+		skips[skip.ID] = true
+	}
 	matchesOfFile := map[string][]Match{}
+	skippedOfFile := map[string][]Span{}
 	for _, match := range matches {
+		if skips[match.Rule] {
+			skippedOfFile[match.File] = append(skippedOfFile[match.File], Span{Start: match.Start, End: match.End})
+			continue
+		}
 		matchesOfFile[match.File] = append(matchesOfFile[match.File], match)
 	}
 
@@ -140,6 +177,7 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 		if err != nil {
 			return nil, err
 		}
+		var fileEdits []Edit
 		hookMatches := map[string][]Match{}
 		for _, match := range matchesOfFile[file] {
 			rule, found := rules[match.Rule]
@@ -150,7 +188,7 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 				hookMatches[rule.Operator] = append(hookMatches[rule.Operator], match)
 				continue
 			}
-			edits = append(edits, Edit{
+			fileEdits = append(fileEdits, Edit{
 				File:        file,
 				Operator:    rule.Operator,
 				Rule:        rule.ID,
@@ -161,10 +199,29 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 			})
 		}
 		for _, operator := range slices.Sorted(maps.Keys(hookMatches)) {
-			edits = append(edits, p.hooks[operator].Edits(source, hookMatches[operator])...)
+			fileEdits = append(fileEdits, p.hooks[operator].Edits(source, hookMatches[operator])...)
 		}
+		edits = append(edits, slices.DeleteFunc(fileEdits, func(edit Edit) bool { return skipped(edit, skippedOfFile[file]) })...)
 	}
 	return edits, nil
+}
+
+func skipped(edit Edit, skippedCode []Span) bool {
+	rest := []byte(edit.Original)
+	changesSkippedCode := false
+	for _, span := range skippedCode {
+		if span.Start <= edit.Start && edit.End <= span.End {
+			return true
+		}
+		if edit.Start <= span.Start && span.End <= edit.End {
+			changesSkippedCode = true
+			for i := span.Start; i < span.End; i++ {
+				rest[i-edit.Start] = ' '
+			}
+		}
+	}
+	// the braces and separators around the skipped code have no letter and no digit
+	return changesSkippedCode && !bytes.ContainsFunc(rest, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) })
 }
 
 func (p Pack) checkCatalog(standardRules map[string]Rule) error {
@@ -189,6 +246,47 @@ func (p Pack) unsigned(name string) bool {
 }
 
 func (p Pack) add(rules map[string]Rule, file, text string) error {
+	parsedRules, err := p.parse(file, text)
+	if err != nil {
+		return err
+	}
+	for _, parsed := range parsedRules {
+		operator, _, _ := strings.Cut(parsed.id, "/")
+		_, hasHook := p.hooks[operator]
+		if !parsed.hasFix && !hasHook {
+			return fmt.Errorf("read %s: the rule %s has no fix", file, parsed.id)
+		}
+		rules[parsed.id] = Rule{
+			ID:           parsed.id,
+			Operator:     operator,
+			File:         file,
+			OffByDefault: parsed.metadata["default"] == "off" || catalog[operator] == offByDefault,
+			Text:         parsed.text,
+		}
+	}
+	return nil
+}
+
+func (p Pack) addSkip(skips map[string]Rule, file, text string) error {
+	parsedRules, err := p.parse(file, text)
+	if err != nil {
+		return err
+	}
+	for _, parsed := range parsedRules {
+		skips[parsed.id] = Rule{ID: parsed.id, File: file, Text: parsed.text}
+	}
+	return nil
+}
+
+type parsedRule struct {
+	id       string
+	hasFix   bool
+	metadata map[string]any
+	text     string
+}
+
+func (p Pack) parse(file, text string) ([]parsedRule, error) {
+	var parsedRules []parsedRule
 	for _, document := range documentSeparator.Split(text, -1) {
 		if strings.TrimSpace(document) == "" {
 			continue
@@ -200,26 +298,15 @@ func (p Pack) add(rules map[string]Rule, file, text string) error {
 			Metadata map[string]any `yaml:"metadata"`
 		}
 		if err := yaml.Unmarshal([]byte(document), &fields); err != nil {
-			return fmt.Errorf("read %s: %w", file, err)
+			return nil, fmt.Errorf("read %s: %w", file, err)
 		}
 		if fields.ID == "" {
-			return fmt.Errorf("read %s: a rule has no id", file)
+			return nil, fmt.Errorf("read %s: a rule has no id", file)
 		}
 		if !strings.EqualFold(fields.Language, p.language) {
-			return fmt.Errorf("read %s: the rule %s is for %q, not for %s", file, fields.ID, fields.Language, p.language)
+			return nil, fmt.Errorf("read %s: the rule %s is for %q, not for %s", file, fields.ID, fields.Language, p.language)
 		}
-		operator, _, _ := strings.Cut(fields.ID, "/")
-		_, hasHook := p.hooks[operator]
-		if fields.Fix == nil && !hasHook {
-			return fmt.Errorf("read %s: the rule %s has no fix", file, fields.ID)
-		}
-		rules[fields.ID] = Rule{
-			ID:           fields.ID,
-			Operator:     operator,
-			File:         file,
-			OffByDefault: fields.Metadata["default"] == "off" || catalog[operator] == offByDefault,
-			Text:         document,
-		}
+		parsedRules = append(parsedRules, parsedRule{id: fields.ID, hasFix: fields.Fix != nil, metadata: fields.Metadata, text: document})
 	}
-	return nil
+	return parsedRules, nil
 }

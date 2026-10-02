@@ -27,13 +27,6 @@ rule:
     - kind: iota
   inside:
     kind: argument_list
-  not:
-    inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
 fix: 'nil'
 ---
 id: ARGUMENT_EMPTY/zero
@@ -65,13 +58,6 @@ rule:
     - kind: iota
   inside:
     kind: argument_list
-  not:
-    inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
 fix: '0'
 ---
 id: ARGUMENT_EMPTY/empty
@@ -103,13 +89,6 @@ rule:
     - kind: iota
   inside:
     kind: argument_list
-  not:
-    inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
 fix: '""'
 ---
 id: ARGUMENT_EMPTY/false
@@ -141,13 +120,6 @@ rule:
     - kind: iota
   inside:
     kind: argument_list
-  not:
-    inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
 fix: 'false'
 ---
 id: ARGUMENT_EMPTY/struct
@@ -159,11 +131,4 @@ rule:
     pattern: $TYPE
   inside:
     kind: argument_list
-  not:
-    inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
 fix: $TYPE{}

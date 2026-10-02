@@ -1,0 +1,7 @@
+id: zerolog
+language: go
+rule:
+  kind: call_expression
+  has:
+    field: function
+    regex: \.\s*(Msgf?|Send)$

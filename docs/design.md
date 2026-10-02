@@ -203,23 +203,23 @@ change the exit code of ast-grep. The rules live in three places, and a later pl
 A rule with `metadata: {default: off}` runs only when `--operators` names its operator. `mutants operators`
 lists each operator, whether it runs by default, and its rules.
 
-A rule can also carry a filter, so most noise filters are rules too. This rule skips each `+` inside a
-zerolog call chain that ends in `Msg`, `Msgf` or `Send`. `\s*` finds a chain over more than one line, where
-white space comes between the dot and `Msg`:
+A rule can also carry a filter for its own operator, such as the `not` part of `BREAK_AT_END`. Code that no
+operator must change, such as a log call, has a skip rule: an ast-grep rule with no `fix`, in
+`internal/operator/skip/<language>/`. The scan runs the skip rules together with the rules of the operators.
+`mutants` then drops each edit inside a match of a skip rule. It also drops each edit that changes only the
+code of such matches: the text of the edit has no letter and no digit outside them, for example a block that
+holds only log calls. This skip rule matches a zerolog call chain that ends in `Msg`, `Msgf` or `Send`. `\s*`
+finds a chain over more than one line, where white space comes between the dot and `Msg`:
 
 ```yaml
-id: ARITHMETIC_BASE/plus
+# internal/operator/skip/go/zerolog.yml
+id: zerolog
 language: go
 rule:
-  pattern: $A + $B
-  not:
-    inside:
-      stopBy: end
-      kind: call_expression
-      has:
-        field: function
-        regex: \.\s*(Msgf?|Send)$
-fix: $A - $B
+  kind: call_expression
+  has:
+    field: function
+    regex: \.\s*(Msgf?|Send)$
 ```
 
 A hook is Go code for an operator that needs more than one match. `NAMED_VALUE_SWAP` is a hook: a rule can
@@ -246,13 +246,13 @@ The Go pack for v1:
 | --- | --- | --- |
 | `CONDITIONALS_BOUNDARY` | `<` to `<=`, `>` to `>=`, `a.After(b)` to `!a.Before(b)`, `a.Before(b)` to `!a.After(b)`, and back | Go compares two `time.Time` values with `After` and `Before`, and each pair differs only when the two times are equal |
 | `CONDITIONALS_NEGATION` | `==` to `!=`, `<` to `>=`, and the rest | |
-| `ARITHMETIC_BASE` | `+` to `-`, `-` to `+`, `*` to `/`, `/` to `*`, `%` to `*` | skips a `+` in a zerolog chain that ends in `Msg`, `Msgf` or `Send` |
+| `ARITHMETIC_BASE` | `+` to `-`, `-` to `+`, `*` to `/`, `/` to `*`, `%` to `*` | |
 | `INCREMENT_DECREMENT` | `++` to `--`, and back | |
 | `INVERT_LOGICAL` | `&&` to `\|\|`, and back | |
 | `REMOVE_LOGICAL_NOT` | `!x` to `x` | |
 | `EXPRESSION_REMOVE` | `a && b` to `true && b` and to `a && true`, `a \|\| b` to `false \|\| b` and to `a \|\| false` | |
-| `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | the body of an `if` or an `else` to `{}`, and no statement in a `case` | finds an error branch that no test enters; skips a body that has only log calls |
-| `STATEMENT_REMOVE` | `x = expr` to `_ = expr`, and removes a call that stands alone, such as `close(done)` or `wg.Done()` | skips a log call that ends in `Msg`, `Msgf` or `Send`, also over more than one line, and `panic` |
+| `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | the body of an `if` or an `else` to `{}`, and no statement in a `case` | finds an error branch that no test enters |
+| `STATEMENT_REMOVE` | `x = expr` to `_ = expr`, and removes a call that stands alone, such as `close(done)` or `wg.Done()` | skips `panic` |
 | `RETURN_EMPTY` | a return value to the zero value of its type, and a struct literal `T{…}` to `T{}` | the type comes from `go/types` |
 | `ERROR_REMOVE` | an error return value to `nil` | `go/types` finds the error slot |
 | `RETURN_TRUE` | a bool return value to `true` | `go/types` finds the bool slot; `RETURN_EMPTY` already makes it `false` |
@@ -280,7 +280,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | an `ERROR_REMOVE` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
 | Type | a `NAMED_VALUE_REMOVE` field outside a struct literal, or whose value is zero already |
-| Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion, of a variadic parameter or of a log chain. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
+| Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |
 
 A candidate that passes the filters and still fails to build is NOT VIABLE.
@@ -639,7 +639,7 @@ gives back.
 | Package | Holds |
 | --- | --- |
 | `diff` | `diff.Lines`, the changed lines of each file, and `diff.Repository`, the git calls that read them |
-| `operator` | the catalog of the operators, the rule packs, `operator.Rule`, `operator.Hook`, `operator.Matcher`, and the hooks |
+| `operator` | the catalog of the operators, the rule packs, the skip rules, `operator.Rule`, `operator.Hook`, `operator.Matcher`, and the hooks |
 | `operator/astgrep` | an `operator.Matcher` that calls `ast-grep scan --json` and parses its matches |
 | `mutant` | `mutant.Mutant`, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
 | `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage, its caller gaps and its runner |
