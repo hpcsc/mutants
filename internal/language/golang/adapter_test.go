@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/language/golang"
 	"github.com/hpcsc/mutants/internal/mutant"
@@ -98,6 +99,105 @@ func TestMax(t *testing.T) {
 	}
 }
 `
+
+const gateSource = `package gate
+
+type Store interface {
+	Has(id string) bool
+}
+
+type Checker struct {
+	store Store
+}
+
+func NewChecker(store Store) *Checker {
+	return &Checker{store: store}
+}
+
+func (c *Checker) Allow(id string) bool {
+	if id == "" {
+		return false
+	}
+	return c.closing(id)
+}
+
+func (c *Checker) closing(id string) bool {
+	if c.store == nil {
+		return true
+	}
+	return c.store.Has(id)
+}
+`
+
+const gateTest = `package gate
+
+import "testing"
+
+type store map[string]bool
+
+func (s store) Has(id string) bool { return s[id] }
+
+func TestAllow(t *testing.T) {
+	if NewChecker(store{"a": true}).Allow("") || !NewChecker(store{"a": true}).Allow("a") || !NewChecker(nil).Allow("b") {
+		t.Fatal("Allow")
+	}
+}
+`
+
+const handlerSource = `package handler
+
+import "example.com/fixture/gate"
+
+type Allower interface {
+	Allow(id string) bool
+}
+
+type Handler struct {
+	allow Allower
+}
+
+func New(allow Allower) *Handler {
+	return &Handler{allow: allow}
+}
+
+func Main() *Handler {
+	return New(gate.NewChecker(nil))
+}
+
+func (h *Handler) Handle(id string) string {
+	if h.allow.Allow(id) {
+		return "ok"
+	}
+	return "no"
+}
+`
+
+const handlerTest = `package handler
+
+import "testing"
+
+type always bool
+
+func (a always) Allow(string) bool { return bool(a) }
+
+func TestHandle(t *testing.T) {
+	if New(always(true)).Handle("a") != "ok" {
+		t.Fatal("Handle")
+	}
+}
+`
+
+// changedFiles marks each line of each file as changed, as for new files.
+func changedFiles(t *testing.T, root string, files ...string) diff.Lines {
+	t.Helper()
+	var changed diff.Lines
+	for _, file := range files {
+		content, err := os.ReadFile(filepath.Join(root, file))
+		require.NoError(t, err)
+		changed.Add(file, 1, strings.Count(string(content), "\n"))
+	}
+	return changed
+}
 
 func TestAdapter(t *testing.T) {
 	t.Run("keep", func(t *testing.T) {
@@ -619,6 +719,57 @@ func apply(xs []int, double func(int) int, extra int) int {
 
 			require.Equal(t, map[mutant.ID]string{m.ID: "package calc has no test files"}, withoutTags)
 			require.Empty(t, withTags)
+		})
+	})
+
+	t.Run("caller gaps", func(t *testing.T) {
+		t.Run("gives the changed statements that the tests of the package run, but that no test of a changed caller with a fake runs", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"gate/gate.go": gateSource, "gate/gate_test.go": gateTest,
+				"handler/handler.go": handlerSource, "handler/handler_test.go": handlerTest,
+			})
+
+			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "handler/handler.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, []language.CallerGap{
+				{File: "gate/gate.go", Function: "NewChecker", Lines: []int{12}, Callers: []string{"handler"}},
+				{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{16, 17, 19}, Callers: []string{"handler"}},
+				{File: "gate/gate.go", Function: "(*Checker).closing", Lines: []int{23, 24, 26}, Callers: []string{"handler"}},
+			}, gaps)
+		})
+
+		t.Run("gives only the statements that the tests of the caller do not run, when they run the real package", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"gate/gate.go": gateSource, "gate/gate_test.go": gateTest,
+				"wired/wired.go":      "package wired\n\nimport \"example.com/fixture/gate\"\n\nfunc Allowed(id string) bool {\n\treturn gate.NewChecker(nil).Allow(id)\n}\n",
+				"wired/wired_test.go": "package wired\n\nimport \"testing\"\n\nfunc TestAllowed(t *testing.T) {\n\tif !Allowed(\"a\") {\n\t\tt.Fatal(\"Allowed\")\n\t}\n}\n",
+			})
+
+			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "wired/wired.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, []language.CallerGap{
+				{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{17}, Callers: []string{"wired"}},
+				{File: "gate/gate.go", Function: "(*Checker).closing", Lines: []int{26}, Callers: []string{"wired"}},
+			}, gaps)
+		})
+
+		t.Run("gives no gap when the changed lines of the caller call only an interface of its own", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"gate/gate.go": gateSource, "gate/gate_test.go": gateTest,
+				"handler/handler.go": handlerSource, "handler/handler_test.go": handlerTest,
+			})
+			changed := changedFiles(t, root, "gate/gate.go")
+			changed.Add("handler/handler.go", 21, 26)
+
+			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changed)
+
+			require.NoError(t, err)
+			require.Empty(t, gaps)
 		})
 	})
 

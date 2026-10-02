@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
 	"github.com/hpcsc/mutants/internal/operator/astgrep"
@@ -25,13 +26,14 @@ import (
 )
 
 type fakeAdapter struct {
-	dropped   map[string]bool
-	uncovered map[string]string
-	statuses  map[string]mutant.Status
-	waits     map[string]bool
-	failure   error
-	mutex     sync.Mutex
-	ran       []string
+	dropped    map[string]bool
+	uncovered  map[string]string
+	statuses   map[string]mutant.Status
+	waits      map[string]bool
+	failure    error
+	callerGaps []language.CallerGap
+	mutex      sync.Mutex
+	ran        []string
 }
 
 func (f *fakeAdapter) Name() string         { return "go" }
@@ -50,6 +52,10 @@ func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map
 		}
 	}
 	return uncovered, nil
+}
+
+func (f *fakeAdapter) CallerGaps(context.Context, diff.Lines) ([]language.CallerGap, error) {
+	return f.callerGaps, nil
 }
 
 func (f *fakeAdapter) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, error) {

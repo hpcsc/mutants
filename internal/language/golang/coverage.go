@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -122,53 +123,78 @@ func (c *coverage) run(ctx context.Context, folder string) (*coverageRun, error)
 }
 
 func (c *coverage) measure(ctx context.Context, run *coverageRun) error {
+	measured, err := c.profile(ctx, run.pkg, []goPackage{run.pkg})
+	run.noTests, run.blocks, run.baseline = measured.noTests, measured.blocks, measured.baseline
+	return err
+}
+
+type profiled struct {
+	noTests  bool
+	blocks   map[string][]block
+	baseline baseline
+}
+
+// profile runs the tests of pkg once, and reads the blocks of each package in covered.
+func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPackage) (profiled, error) {
+	var result profiled
 	folder, err := os.MkdirTemp("", "mutants-coverage-")
 	if err != nil {
-		return err
+		return result, err
 	}
 	defer os.RemoveAll(folder)
 	binary := filepath.Join(folder, "cover.test")
+	arguments := []string{"test", "-c", "-cover", "-covermode=set"}
+	dirs := map[string]string{}
+	var paths []string
+	for _, p := range covered {
+		dirs[p.ImportPath] = p.Dir
+		paths = append(paths, p.ImportPath)
+	}
+	if len(covered) != 1 || covered[0].ImportPath != pkg.ImportPath {
+		arguments = append(arguments, "-coverpkg="+strings.Join(paths, ","))
+	}
 	build := process{
 		program:   "go",
-		arguments: append(append([]string{"test", "-c", "-cover", "-covermode=set", "-o", binary}, c.settings.tagArguments()...), "."),
-		folder:    run.pkg.Dir,
+		arguments: append(append(append(arguments, "-o", binary), c.settings.tagArguments()...), "."),
+		folder:    pkg.Dir,
 		env:       c.settings.buildEnv(),
 	}
 	started := time.Now()
 	built, err := build.run(ctx)
-	run.baseline.build = time.Since(started)
+	result.baseline.build = time.Since(started)
 	if err != nil {
-		return err
+		return result, err
 	}
 	if built.code != 0 {
-		return fmt.Errorf("build the tests of %s: %s", run.pkg.ImportPath, strings.TrimSpace(built.tail))
+		return result, fmt.Errorf("build the tests of %s: %s", pkg.ImportPath, strings.TrimSpace(built.tail))
 	}
 	if _, err := os.Stat(binary); os.IsNotExist(err) {
-		run.noTests = true
-		return nil
+		result.noTests = true
+		return result, nil
 	}
 
 	profile := filepath.Join(folder, "cover.out")
 	test := process{
 		program:   binary,
 		arguments: []string{"-test.count=1", "-test.timeout=10m", "-test.coverprofile=" + profile},
-		folder:    run.pkg.Dir,
+		folder:    pkg.Dir,
 		env:       c.settings.testEnv(),
 	}
 	started = time.Now()
 	tested, err := test.run(ctx)
-	run.baseline.test = time.Since(started)
+	result.baseline.test = time.Since(started)
 	if err != nil {
-		return err
+		return result, err
 	}
 	if tested.code != 0 {
-		return fmt.Errorf("the tests of %s fail with the real code, so no mutant can get a verdict:\n%s", run.pkg.ImportPath, strings.TrimSpace(tested.tail))
+		return result, fmt.Errorf("the tests of %s fail with the real code, so no mutant can get a verdict:\n%s", pkg.ImportPath, strings.TrimSpace(tested.tail))
 	}
-	run.blocks, err = c.readProfile(run.pkg, profile)
-	return err
+	result.blocks, err = c.readProfile(dirs, profile)
+	return result, err
 }
 
-func (c *coverage) readProfile(pkg goPackage, profile string) (map[string][]block, error) {
+// readProfile takes the folder of each package by its import path, and skips the blocks of other packages.
+func (c *coverage) readProfile(dirs map[string]string, profile string) (map[string][]block, error) {
 	file, err := os.Open(profile)
 	if err != nil {
 		return nil, err
@@ -190,7 +216,11 @@ func (c *coverage) readProfile(pkg goPackage, profile string) (map[string][]bloc
 		if _, err := fmt.Sscanf(rest, "%d.%d,%d.%d %d %d", &b.startLine, &b.startColumn, &b.endLine, &b.endColumn, &statements, &b.count); err != nil {
 			return nil, fmt.Errorf("read the coverage line %q: %w", line, err)
 		}
-		relative, err := filepath.Rel(c.root, filepath.Join(pkg.Dir, filepath.Base(name)))
+		dir, found := dirs[path.Dir(name)]
+		if !found {
+			continue
+		}
+		relative, err := filepath.Rel(c.root, filepath.Join(dir, path.Base(name)))
 		if err != nil {
 			return nil, err
 		}

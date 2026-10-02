@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
@@ -58,18 +59,22 @@ type adapter struct {
 	sources  *sourceFiles
 	types    *typeChecker
 	coverage *coverage
+	callers  *callerGaps
 	runner   *runner
 }
 
 func New(root string, settings Settings) language.Adapter {
 	finder := newPackageFinder(settings.Tags)
 	coverage := newCoverage(root, settings, finder)
+	sources := newSourceFiles(root)
+	types := newTypeChecker(settings.Tags, settings.ZeroFunctions)
 	return &adapter{
 		root:     root,
 		finder:   finder,
-		sources:  newSourceFiles(root),
-		types:    newTypeChecker(settings.Tags, settings.ZeroFunctions),
+		sources:  sources,
+		types:    types,
 		coverage: coverage,
+		callers:  &callerGaps{root: root, settings: settings, finder: finder, coverage: coverage, types: types, sources: sources},
 		runner:   &runner{root: root, settings: settings, finder: finder, coverage: coverage},
 	}
 }
@@ -126,6 +131,10 @@ func (a *adapter) Function(file string, offset int) string {
 
 func (a *adapter) Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
 	return a.coverage.uncovered(ctx, mutants)
+}
+
+func (a *adapter) CallerGaps(ctx context.Context, changed diff.Lines) ([]language.CallerGap, error) {
+	return a.callers.find(ctx, changed)
 }
 
 func (a *adapter) Runner() mutant.Runner {
