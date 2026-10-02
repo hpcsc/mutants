@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -14,22 +15,13 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func withFlags(t *testing.T, arguments ...string) *cli.Command {
+// parsed runs a real command with no action, so that a test reads the flags that the command declares.
+func parsed(t *testing.T, command *cli.Command, arguments ...string) *cli.Command {
 	t.Helper()
-	command := &cli.Command{
-		Name:      "test",
-		Writer:    io.Discard,
-		ErrWriter: io.Discard,
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "base"},
-			&cli.IntFlag{Name: "workers", Value: 4},
-			&cli.StringSliceFlag{Name: "tags"},
-			&cli.StringSliceFlag{Name: "operators"},
-			&cli.BoolFlag{Name: "caller-gaps"},
-		},
-		Action: func(context.Context, *cli.Command) error { return nil },
-	}
-	require.NoError(t, command.Run(context.Background(), append([]string{"test"}, arguments...)))
+	command.Writer, command.ErrWriter = io.Discard, io.Discard
+	command.Action = func(context.Context, *cli.Command) error { return nil }
+	command.ExitErrHandler = func(context.Context, *cli.Command, error) {}
+	require.NoError(t, command.Run(context.Background(), append([]string{command.Name}, arguments...)))
 	return command
 }
 
@@ -71,6 +63,21 @@ func TestConfig(t *testing.T) {
 			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, tags, operators, exclude, zero_functions, caller_gaps")
 		})
 
+		for _, scenario := range []struct{ name, content, message string }{
+			{"a value of the wrong type returns an error that names its line", "workers: four\n", "line 1: cannot unmarshal !!str `four` into int"},
+			{"a file that is not keys and values returns an error that lists the keys", "- base\n", ".mutants.yml must hold keys and values"},
+			{"a file that is not YAML returns an error", "base: [origin/main\n", "read .mutants.yml: yaml: line 1"},
+		} {
+			t.Run(scenario.name, func(t *testing.T) {
+				root := t.TempDir()
+				require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(scenario.content), 0o644))
+
+				_, err := loadConfig(root)
+
+				require.ErrorContains(t, err, scenario.message)
+			})
+		}
+
 		t.Run("an empty file gives no settings", func(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("# no settings\n"), 0o644))
@@ -83,58 +90,76 @@ func TestConfig(t *testing.T) {
 	})
 
 	t.Run("template", func(t *testing.T) {
-		t.Run("with one tag, sets the base and the tag, names each other key, and loads with no error", func(t *testing.T) {
-			root := t.TempDir()
-			text := configTemplate("origin/main", map[string]int{"unit": 3})
-			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
+		for _, scenario := range []struct {
+			name string
+			base string
+			tags map[string]int
+			want config
+		}{
+			{"with one tag, sets the base and the tag", "origin/main", map[string]int{"unit": 3}, config{Base: "origin/main", Tags: []string{"unit"}}},
+			{"with more than one tag, sets the base and no tag", "origin/main", map[string]int{"unit": 3, "integration": 1}, config{Base: "origin/main"}},
+			{"with no default branch of origin and no tag, keeps each default", "", nil, config{}},
+		} {
+			t.Run(scenario.name+", names each key, and loads with no error", func(t *testing.T) {
+				root := t.TempDir()
+				text := configTemplate(scenario.base, scenario.tags)
+				require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
 
-			loaded, err := loadConfig(root)
+				loaded, err := loadConfig(root)
 
-			require.NoError(t, err)
-			require.Equal(t, config{Base: "origin/main", Tags: []string{"unit"}}, loaded)
-			for _, key := range (config{}).keys() {
-				require.True(t, strings.Contains(text, "\n"+key+":") || strings.Contains(text, "\n# "+key+":"), key)
-			}
-		})
+				require.NoError(t, err)
+				require.Equal(t, scenario.want, loaded)
+				for _, key := range (config{}).keys() {
+					require.True(t, strings.Contains(text, "\n"+key+":") || strings.Contains(text, "\n# "+key+":"), key)
+				}
+			})
+		}
 
-		t.Run("with more than one tag, sets no tag and counts the files of each", func(t *testing.T) {
-			root := t.TempDir()
+		t.Run("with more than one tag, counts the files of each", func(t *testing.T) {
 			text := configTemplate("origin/main", map[string]int{"unit": 3, "integration": 1})
-			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
 
-			loaded, err := loadConfig(root)
-
-			require.NoError(t, err)
-			require.Equal(t, config{Base: "origin/main"}, loaded)
 			require.Contains(t, text, "#   integration: 1 file\n#   unit: 3 files\n")
 		})
 
-		t.Run("with no default branch of origin, keeps the default base", func(t *testing.T) {
+		t.Run("each commented setting loads when it is uncommented, and a commented default is the real default", func(t *testing.T) {
 			root := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(configTemplate("", nil)), 0o644))
+			commented := regexp.MustCompile(`(?m)^# (` + strings.Join((config{}).keys(), "|") + `): `)
+			text := commented.ReplaceAllString(configTemplate("", nil), "$1: ")
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
 
 			loaded, err := loadConfig(root)
 
 			require.NoError(t, err)
-			require.Equal(t, config{}, loaded)
+			command := parsed(t, newRunCommand())
+			require.Equal(t, config{}.base(command), loaded.base(command))
+			require.Equal(t, config{}.workers(command), loaded.workers(command))
+			require.Equal(t, config{}.callerGaps(command), loaded.callerGaps(command))
 		})
 	})
 
 	t.Run("settings", func(t *testing.T) {
-		t.Run("a flag wins over the file", func(t *testing.T) {
+		t.Run("a flag of run wins over the file, and keeps the sign of each operator", func(t *testing.T) {
 			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}, CallerGaps: true}
-			command := withFlags(t, "--base", "HEAD", "--workers", "8", "--tags", "integration", "--operators", "BRANCH_IF", "--caller-gaps=false")
+			command := parsed(t, newRunCommand(), "--base", "HEAD", "--workers", "8", "--tags", "integration", "--operators=-ERRORF_WRAP,+SWAP_FIELDS", "--caller-gaps=false")
 
 			require.Equal(t, "HEAD", loaded.base(command))
 			require.Equal(t, 8, loaded.workers(command))
 			require.Equal(t, []string{"integration"}, loaded.tags(command))
-			require.Equal(t, []string{"BRANCH_IF"}, loaded.operators(command))
+			require.Equal(t, []string{"-ERRORF_WRAP", "+SWAP_FIELDS"}, loaded.operators(command))
 			require.False(t, loaded.callerGaps(command))
+		})
+
+		t.Run("a flag of rerun wins over the file", func(t *testing.T) {
+			loaded := config{Tags: []string{"unit"}}
+
+			command := parsed(t, newRerunCommand(), "--tags", "integration")
+
+			require.Equal(t, []string{"integration"}, loaded.tags(command))
 		})
 
 		t.Run("the file wins over the default", func(t *testing.T) {
 			loaded := config{Base: "origin/main", Workers: 2, Tags: []string{"unit"}, Operators: []string{"-ERRORF_WRAP"}, CallerGaps: true}
-			command := withFlags(t)
+			command := parsed(t, newRunCommand())
 
 			require.Equal(t, "origin/main", loaded.base(command))
 			require.Equal(t, 2, loaded.workers(command))
@@ -144,17 +169,11 @@ func TestConfig(t *testing.T) {
 		})
 
 		t.Run("with no flag and no file, the base is origin/HEAD, there are 4 workers, and no check for caller gaps", func(t *testing.T) {
-			command := withFlags(t)
+			command := parsed(t, newRunCommand())
 
 			require.Equal(t, "origin/HEAD", config{}.base(command))
 			require.Equal(t, 4, config{}.workers(command))
 			require.False(t, config{}.callerGaps(command))
-		})
-
-		t.Run("a list of operators keeps the sign of each operator", func(t *testing.T) {
-			command := withFlags(t, "--operators=-ERRORF_WRAP,+SWAP_FIELDS")
-
-			require.Equal(t, []string{"-ERRORF_WRAP", "+SWAP_FIELDS"}, config{}.operators(command))
 		})
 	})
 }
