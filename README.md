@@ -4,10 +4,15 @@
 changed lines of your branch, and it runs your tests after each change. When the tests still pass,
 `mutants` shows the line and the change, so you know which test to add.
 
-`mutants` works on Go code in a git repository.
+- It works on Go code in a git repository.
+- It tests only the lines that your branch changes. A run then takes minutes, so you can run it before each
+  review.
+- By default, it compares your work tree with the point where your branch left `origin/HEAD`. So it also
+  tests the changes that you did not commit, and each line of a new file that git does not track.
+- It never writes to your files or to the git index.
 
 <details>
-<summary><h2>What mutation testing is</h2></summary>
+<summary><strong>What mutation testing is, with an example</strong></summary>
 
 Test coverage tells you that a test ran a line. It does not tell you that a test checked what the line
 does. Mutation testing checks the tests: it puts a small bug in the code, and a good test fails.
@@ -48,26 +53,9 @@ The test still passes, because no test uses an order of 100. This change is a mu
 | not covered | no test runs the line of the mutant |
 | survivor | a mutant that lived or that is not covered |
 
-Each survivor shows a gap in the tests: a test that you did not write, or an assertion that is too weak.
-When you add the test, the test kills the mutant.
-
 </details>
 
-<details>
-<summary><h2>Why only the changed lines</h2></summary>
-
-Each mutant runs the tests again, so a run on a whole code base can take hours. `mutants` makes mutants
-only on the changed lines of your branch. A run then takes minutes, and you can run it before each
-review, on the code that the review reads.
-
-By default, `mutants` compares your work tree with the point where your branch left `origin/HEAD`. It
-includes the changes that you did not commit, and each line of a new file that git does not track yet. It
-never writes to your files or to the git index.
-
-</details>
-
-<details>
-<summary><h2>Install</h2></summary>
+## Install
 
 `mutants` needs these tools on your `PATH`:
 
@@ -85,10 +73,7 @@ sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/mutants/main/scripts/ins
 The script asks for the release channel and the install folder. [docs/install.md](docs/install.md) tells
 its options, and how to update `mutants`.
 
-</details>
-
-<details>
-<summary><h2>Your first run</h2></summary>
+## Your first run
 
 1. Go to a git repository that holds a Go module, and check out your branch.
 2. Run `mutants`:
@@ -97,7 +82,8 @@ its options, and how to update `mutants`.
    mutants run
    ```
 
-3. Read the rows. This is the output for the `Discount` example, in the file `shop/discount.go`:
+3. Read the rows. This is the output for the `Discount` function of the example above, in the file
+   `shop/discount.go`:
 
    ```text
    LIVED:
@@ -135,10 +121,10 @@ its options, and how to update `mutants`.
 
 6. Run all the mutants again. The last line is now `mutants: 10, killed: 10`.
 
-</details>
+## What to do with each status
 
-<details>
-<summary><h2>What to do with each status</h2></summary>
+A survivor is a mutant that lived or that is not covered. Each survivor shows a gap in the tests: a test that
+you did not write, or an assertion that is too weak. When you add the test, the test kills the mutant.
 
 | Status | Meaning | What to do |
 | --- | --- | --- |
@@ -149,10 +135,8 @@ its options, and how to update `mutants`.
 
 A mutant that a test killed, and a mutant that does not build, get no row.
 
-</details>
-
 <details>
-<summary><h2>When a survivor is not a gap in the tests</h2></summary>
+<summary><strong>When a survivor is not a gap in the tests</strong></summary>
 
 Some mutants make no difference that a test can see. For example, `FIELD_ZERO` removes one field from a
 struct literal. When the value of that field is already its zero value, the mutant gives the same result as
@@ -168,8 +152,7 @@ one:
 
 </details>
 
-<details>
-<summary><h2>Common commands</h2></summary>
+## Common commands
 
 ```shell
 mutants run                          # the changed lines of your branch
@@ -184,10 +167,7 @@ mutants run --caller-gaps            # also find new code that no test of a chan
 `mutants run` exits with 0 when no mutant survives. It exits with 10 when a mutant survives, or when the run
 finds a caller gap. A CI step or a script can use this exit code.
 
-</details>
-
-<details>
-<summary><h2>More documents</h2></summary>
+## More documents
 
 | Document | Tells |
 | --- | --- |
@@ -198,5 +178,3 @@ finds a caller gap. A CI step or a script can use this exit code.
 | [docs/design.md](docs/design.md) | how `mutants` works, and why |
 | [docs/language-adapters.md](docs/language-adapters.md) | how to add a language to `mutants` |
 | [docs/e2e-tests.md](docs/e2e-tests.md) | how the end-to-end tests work |
-
-</details>
