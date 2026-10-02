@@ -5,6 +5,7 @@ package run_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -18,6 +19,7 @@ import (
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
 	"github.com/hpcsc/mutants/internal/operator/astgrep"
+	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/run"
 	"github.com/stretchr/testify/require"
 )
@@ -252,6 +254,82 @@ func TestInstance(t *testing.T) {
 		})
 	})
 
+	t.Run("propose", func(t *testing.T) {
+		t.Run("runs each proposal on a changed line, and rejects each other proposal with its reason", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "notes.txt": "notes\n"})
+			r.write("a.go", compareAfter)
+			proposed := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "equal values count as greater"}
+			settings := boundary
+			settings.Proposals = []proposal.Proposal{
+				proposed,
+				{File: "a.go", Old: "return a < b", New: "return true", Bug: "not found"},
+				{File: "a.go", Old: "return", New: "panic(1)\n\treturn", Bug: "found two times"},
+				{File: "a.go", Old: "if a < b", New: "if a <= b", Bug: "not changed"},
+				{File: "missing.go", Old: "a", New: "b", Bug: "no file"},
+				{File: "notes.txt", Old: "notes", New: "", Bug: "not Go"},
+				{File: "../a.go", Old: "a", New: "b", Bug: "outside"},
+				{File: "a.go", Old: "return a > b", New: "return a > b", Bug: "no change"},
+				proposed,
+			}
+			id := fmt.Sprintf("a.go:f:PROPOSED#%d", proposed.Number())
+			adapter := &fakeAdapter{statuses: map[string]mutant.Status{id: mutant.Lived}}
+
+			outcome, err := r.instance(adapter).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{id + " LIVED", "a.go:f:CONDITIONALS_BOUNDARY#2 KILLED"}, idsAndStatuses(outcome.Mutants))
+			require.Equal(t, "equal values count as greater", outcome.Mutants[0].Bug)
+			require.Equal(t, 1, outcome.Proposed)
+			var reasons []string
+			for _, rejection := range outcome.Rejected {
+				reasons = append(reasons, rejection.Proposal.Bug+": "+rejection.Reason)
+			}
+			require.Equal(t, []string{
+				"not found: old not found",
+				"found two times: old found 2 times",
+				"not changed: not on a changed line",
+				"no file: the file does not exist",
+				"not Go: the go adapter does not take this file",
+				"outside: the file is not in the repository",
+				"no change: old and new are the same",
+				"equal values count as greater: the same edit as another proposal",
+			}, reasons)
+		})
+
+		t.Run("rerun finds an accepted proposal by its id, also without the proposals", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			proposed := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "equal values count as greater"}
+			settings := boundary
+			settings.Proposals = []proposal.Proposal{proposed}
+			_, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+			require.NoError(t, err)
+			id := mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()}
+
+			m, err := r.instance(&fakeAdapter{statuses: map[string]mutant.Status{id.String(): mutant.Lived}}).Rerun(context.Background(), id)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{id.String() + " LIVED"}, idsAndStatuses([]mutant.Mutant{m}))
+			require.Equal(t, "equal values count as greater", m.Bug)
+		})
+
+		t.Run("rerun of a proposal whose old text left the code returns ErrStaleProposal with the reason", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			proposed := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "equal values count as greater"}
+			settings := boundary
+			settings.Proposals = []proposal.Proposal{proposed}
+			_, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+			require.NoError(t, err)
+			r.write("a.go", compareBefore)
+
+			_, err = r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()})
+
+			require.ErrorIs(t, err, run.ErrStaleProposal)
+			require.ErrorContains(t, err, "old not found")
+		})
+	})
+
 	t.Run("rerun", func(t *testing.T) {
 		t.Run("runs the mutant with the id again, whatever the diff is", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
@@ -301,6 +379,7 @@ func TestInstance(t *testing.T) {
 				{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 3},
 				{File: "a.go", Function: "g", Operator: "CONDITIONALS_BOUNDARY", Number: 1},
 				{File: "a.go", Function: "f", Operator: "NOT_AN_OPERATOR", Number: 1},
+				{File: "a.go", Function: "f", Operator: "PROPOSED", Number: 123456},
 				{File: "missing.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1},
 				{File: "notes.md", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1},
 			}

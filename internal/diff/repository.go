@@ -32,6 +32,15 @@ func (r *Repository) Root() string {
 	return r.root
 }
 
+// GitFolder gives the git folder of the work tree, so a linked work tree gets a folder of its own.
+func (r *Repository) GitFolder(ctx context.Context) (string, error) {
+	output, err := r.git(ctx, "rev-parse", "--absolute-git-dir")
+	if err != nil {
+		return "", fmt.Errorf("find the git folder: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 func (r *Repository) MergeBase(ctx context.Context, base string) (string, error) {
 	output, err := r.git(ctx, "merge-base", "HEAD", base)
 	if err != nil {

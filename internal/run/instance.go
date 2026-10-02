@@ -18,10 +18,13 @@ import (
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
 	"github.com/hpcsc/mutants/internal/progress"
+	"github.com/hpcsc/mutants/internal/proposal"
 	"golang.org/x/sync/errgroup"
 )
 
 var ErrUnknownID = errors.New("no mutant has this id")
+
+var ErrStaleProposal = errors.New("the proposal does not fit the code")
 
 var errLimit = errors.New("the run reached its limit")
 
@@ -32,14 +35,17 @@ type Settings struct {
 	Operators []string
 	Workers   int
 	Limit     time.Duration
+	Proposals []proposal.Proposal
 }
 
 type Outcome struct {
-	Base    string
-	Files   int
-	Lines   int
-	Mutants []mutant.Mutant
-	Stopped bool
+	Base     string
+	Files    int
+	Lines    int
+	Mutants  []mutant.Mutant
+	Stopped  bool
+	Proposed int
+	Rejected []proposal.Rejection
 }
 
 type Instance struct {
@@ -92,6 +98,15 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 
 	finding := progress.Start(r.stderr, r.terminal, fmt.Sprintf("Finding the mutants in %d files", outcome.Files))
 	mutants, err := r.find(ctx, pack, lines.Files(), lines.Touches)
+	if err == nil && len(settings.Proposals) > 0 {
+		var proposed []mutant.Mutant
+		proposed, outcome.Rejected, err = r.propose(ctx, settings.Proposals, lines.Touches)
+		outcome.Proposed = len(proposed)
+		mutants = append(mutants, proposed...)
+		slices.SortStableFunc(mutants, func(a, b mutant.Mutant) int {
+			return cmp.Or(strings.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start))
+		})
+	}
 	finding.End()
 	if err != nil || len(mutants) == 0 {
 		return outcome, err
@@ -129,6 +144,29 @@ func (r *Instance) Rerun(ctx context.Context, id mutant.ID) (mutant.Mutant, erro
 	if _, err := os.Stat(filepath.Join(r.repository.Root(), id.File)); err != nil {
 		return mutant.Mutant{}, unknown
 	}
+	find := r.findOperated
+	if id.Operator == proposal.Operator {
+		find = r.findProposed
+	}
+	m, err := find(ctx, id)
+	if err != nil {
+		return mutant.Mutant{}, err
+	}
+
+	uncovered, err := r.adapter.Uncovered(ctx, []mutant.Mutant{m})
+	if err != nil {
+		return mutant.Mutant{}, err
+	}
+	if detail, found := uncovered[m.ID]; found {
+		m.Verdict = mutant.Verdict{Status: mutant.NotCovered, Detail: detail}
+		return m, nil
+	}
+	m.Verdict, err = r.adapter.Runner().Run(ctx, m)
+	return m, err
+}
+
+func (r *Instance) findOperated(ctx context.Context, id mutant.ID) (mutant.Mutant, error) {
+	unknown := fmt.Errorf("%w: %s", ErrUnknownID, id)
 	pack, err := r.pack.Select([]string{id.Operator})
 	if err != nil {
 		return mutant.Mutant{}, unknown
@@ -142,18 +180,119 @@ func (r *Instance) Rerun(ctx context.Context, id mutant.ID) (mutant.Mutant, erro
 	if index < 0 {
 		return mutant.Mutant{}, unknown
 	}
-	m := mutants[index]
+	return mutants[index], nil
+}
 
-	uncovered, err := r.adapter.Uncovered(ctx, []mutant.Mutant{m})
+func (r *Instance) findProposed(ctx context.Context, id mutant.ID) (mutant.Mutant, error) {
+	store, err := r.store(ctx)
 	if err != nil {
 		return mutant.Mutant{}, err
 	}
-	if detail, found := uncovered[m.ID]; found {
-		m.Verdict = mutant.Verdict{Status: mutant.NotCovered, Detail: detail}
-		return m, nil
+	saved, found, err := store.Find(id.String())
+	switch {
+	case err != nil:
+		return mutant.Mutant{}, err
+	case !found:
+		return mutant.Mutant{}, fmt.Errorf("%w: %s", ErrUnknownID, id)
 	}
-	m.Verdict, err = r.adapter.Runner().Run(ctx, m)
-	return m, err
+	m, _, reason, err := r.proposed(saved, map[string][]byte{})
+	switch {
+	case err != nil:
+		return mutant.Mutant{}, err
+	case reason != "":
+		return mutant.Mutant{}, fmt.Errorf("%w: %s", ErrStaleProposal, reason)
+	}
+	m.ID = id
+	return m, nil
+}
+
+func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, inScope func(file string, first, last int) bool) ([]mutant.Mutant, []proposal.Rejection, error) {
+	sources := map[string][]byte{}
+	accepted := map[string]proposal.Proposal{}
+	var mutants []mutant.Mutant
+	var rejected []proposal.Rejection
+	for _, p := range proposals {
+		m, last, reason, err := r.proposed(p, sources)
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, same := accepted[m.ID.String()]; reason == "" && same {
+			reason = "the same edit as another proposal"
+		}
+		if reason == "" && !inScope(m.File, m.Line, last) {
+			reason = "not on a changed line"
+		}
+		if reason != "" {
+			rejected = append(rejected, proposal.Rejection{Proposal: p, Reason: reason})
+			continue
+		}
+		accepted[m.ID.String()] = p
+		mutants = append(mutants, m)
+	}
+	if len(accepted) == 0 {
+		return mutants, rejected, nil
+	}
+	store, err := r.store(ctx)
+	if err == nil {
+		err = store.Save(accepted)
+	}
+	return mutants, rejected, err
+}
+
+// proposed gives a reason when the proposal cannot become a mutant, and the last line that the edit changes
+// when it can.
+func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (mutant.Mutant, int, string, error) {
+	file := filepath.ToSlash(filepath.Clean(p.File))
+	if filepath.IsAbs(file) || file == ".." || strings.HasPrefix(file, "../") {
+		return mutant.Mutant{}, 0, "the file is not in the repository", nil
+	}
+	if !slices.Contains(r.adapter.Extensions(), filepath.Ext(file)) {
+		return mutant.Mutant{}, 0, fmt.Sprintf("the %s adapter does not take this file", r.adapter.Name()), nil
+	}
+	source, found := sources[file]
+	if !found {
+		content, err := os.ReadFile(filepath.Join(r.repository.Root(), file))
+		if errors.Is(err, os.ErrNotExist) {
+			return mutant.Mutant{}, 0, "the file does not exist", nil
+		}
+		if err != nil {
+			return mutant.Mutant{}, 0, "", err
+		}
+		source, sources[file] = content, content
+	}
+	switch count := strings.Count(string(source), p.Old); {
+	case count == 0:
+		return mutant.Mutant{}, 0, "old not found", nil
+	case count > 1:
+		return mutant.Mutant{}, 0, fmt.Sprintf("old found %d times", count), nil
+	case p.Old == p.New:
+		return mutant.Mutant{}, 0, "old and new are the same", nil
+	}
+	start := strings.Index(string(source), p.Old)
+	edit := operator.Edit{
+		File:        file,
+		Operator:    proposal.Operator,
+		Rule:        proposal.Operator,
+		Start:       start,
+		End:         start + len(p.Old),
+		Original:    p.Old,
+		Replacement: p.New,
+	}
+	if !r.adapter.Keep(edit) {
+		return mutant.Mutant{}, 0, fmt.Sprintf("the %s adapter drops the edit, for example in a test file or in generated code", r.adapter.Name()), nil
+	}
+	id := mutant.ID{File: file, Function: r.adapter.Function(file, start), Operator: proposal.Operator, Number: p.Number()}
+	m, last := r.mutantOf(edit, id, newLineOffsets(source))
+	m.Bug = p.Bug
+	return m, last, "", nil
+}
+
+func (r *Instance) store(ctx context.Context) (proposal.Store, error) {
+	gitFolder, err := r.repository.GitFolder(ctx)
+	if err != nil {
+		return proposal.Store{}, err
+	}
+	return proposal.NewStore(filepath.Join(gitFolder, "mutants")), nil
 }
 
 func (r *Instance) find(ctx context.Context, pack operator.Pack, files []string, inScope func(file string, first, last int) bool) ([]mutant.Mutant, error) {
@@ -183,27 +322,32 @@ func (r *Instance) find(ctx context.Context, pack operator.Pack, files []string,
 			lines = newLineOffsets(source)
 			offsets[edit.File] = lines
 		}
-		line, column := lines.position(edit.Start)
-		last, _ := lines.position(max(edit.Start, edit.End-1))
-		if !inScope(edit.File, line, last) {
-			continue
+		m, last := r.mutantOf(edit, id, lines)
+		if inScope(edit.File, m.Line, last) {
+			mutants = append(mutants, m)
 		}
-		endLine, endColumn := lines.position(edit.End)
-		mutants = append(mutants, mutant.Mutant{
-			ID:          id,
-			File:        edit.File,
-			Line:        line,
-			Column:      column,
-			EndLine:     endLine,
-			EndColumn:   endColumn,
-			Start:       edit.Start,
-			End:         edit.End,
-			Operator:    edit.Operator,
-			Original:    edit.Original,
-			Replacement: edit.Replacement,
-		})
 	}
 	return mutants, nil
+}
+
+// mutantOf also gives the last line that the edit changes.
+func (r *Instance) mutantOf(edit operator.Edit, id mutant.ID, lines lineOffsets) (mutant.Mutant, int) {
+	line, column := lines.position(edit.Start)
+	last, _ := lines.position(max(edit.Start, edit.End-1))
+	endLine, endColumn := lines.position(edit.End)
+	return mutant.Mutant{
+		ID:          id,
+		File:        edit.File,
+		Line:        line,
+		Column:      column,
+		EndLine:     endLine,
+		EndColumn:   endColumn,
+		Start:       edit.Start,
+		End:         edit.End,
+		Operator:    edit.Operator,
+		Original:    edit.Original,
+		Replacement: edit.Replacement,
+	}, last
 }
 
 // the workers take the mutants in file order, so the mutants of one package reuse its build cache

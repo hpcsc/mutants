@@ -13,5 +13,6 @@ type Mutant struct {
 	Operator    string
 	Original    string
 	Replacement string
+	Bug         string
 	Verdict     Verdict
 }
