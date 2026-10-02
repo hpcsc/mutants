@@ -97,19 +97,6 @@ func (s *sourceFiles) isZeroIndexOrSize(file string, start, end int) bool {
 	return false
 }
 
-func (s *sourceFiles) importsTime(file string) bool {
-	syntax, _, err := s.parse(file)
-	if err != nil {
-		return false
-	}
-	for _, spec := range syntax.Imports {
-		if spec.Path.Value == `"time"` && (spec.Name == nil || spec.Name.Name == "time") {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *sourceFiles) funcName(declaration *ast.FuncDecl) string {
 	if declaration.Recv == nil || len(declaration.Recv.List) == 0 {
 		return declaration.Name.Name

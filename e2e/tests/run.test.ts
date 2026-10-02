@@ -135,6 +135,15 @@ func Due(start time.Time, days int) time.Time {
 }
 `
 
+const calendarDay = `id: CALENDAR_DAY
+language: go
+rule:
+  pattern:
+    context: 'func f() { _ = $T.AddDate(0, 0, $N) }'
+    selector: call_expression
+fix: $T.Add(time.Duration($N) * 24 * time.Hour)
+`
+
 function dueTest(location: string): string {
   return `package due
 
@@ -320,11 +329,19 @@ describe('mutants run', { timeout: 240_000 }, () => {
     expect(verdicts(dies.mutants)).toEqual(['CONDITIONALS_BOUNDARY now.After(deadline) KILLED'])
   })
 
-  it('24 hours in place of a calendar day live when the test has no change of daylight saving time, and die when it has one', async () => {
+  it('the mutant of a CALENDAR_DAY rule in the repository lives when the test has no change of daylight saving time, and dies when it has one', async () => {
     const utc = goRepository()
-    writeFiles(utc, { 'due/due.go': due, 'due/due_test.go': dueTest('UTC') })
+    writeFiles(utc, {
+      '.mutants/operators/go/CALENDAR_DAY.yml': calendarDay,
+      'due/due.go': due,
+      'due/due_test.go': dueTest('UTC'),
+    })
     const sydney = goRepository()
-    writeFiles(sydney, { 'due/due.go': due, 'due/due_test.go': dueTest('Australia/Sydney') })
+    writeFiles(sydney, {
+      '.mutants/operators/go/CALENDAR_DAY.yml': calendarDay,
+      'due/due.go': due,
+      'due/due_test.go': dueTest('Australia/Sydney'),
+    })
 
     const lives = await runMutants(utc, ['--base', 'HEAD', '--operators', 'CALENDAR_DAY'])
     const dies = await runMutants(sydney, ['--base', 'HEAD', '--operators', 'CALENDAR_DAY'])

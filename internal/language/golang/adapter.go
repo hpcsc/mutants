@@ -23,7 +23,6 @@ const (
 	returnErrorNil   = "RETURN_ERROR_NIL"
 	returnTrue       = "RETURN_TRUE"
 	integerDecrement = "INTEGER_DECREMENT"
-	calendarDay      = "CALENDAR_DAY"
 	fieldZero        = "FIELD_ZERO"
 	argumentZero     = "ARGUMENT_ZERO"
 
@@ -120,8 +119,6 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.canBecomeTrue(path, candidate.Start, candidate.End)
 	case integerDecrement:
 		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
-	case calendarDay:
-		return a.types.callsTimeMethod(path, candidate.Start, candidate.End) && a.sources.importsTime(candidate.File)
 	case fieldZero:
 		return a.types.canZeroField(path, candidate.Start)
 	case argumentZero:

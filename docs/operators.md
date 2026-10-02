@@ -21,14 +21,13 @@ ast-grep rules of each one.
 | `EXPRESSION_REMOVE` | `a && b` to `true && b`, and `a \|\| b` to `false \|\| b` | one part of a condition has no test of its own |
 | `REMOVE_LOGICAL_NOT` | `!ok` to `ok` | no test checks the condition in both states |
 
-## Numbers and time
+## Numbers
 
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
 | `ARITHMETIC_BASE` | `a + b` to `a - b`, `a * b` to `a / b` | no test checks the result of the calculation |
 | `INCREMENT_DECREMENT` | `i++` to `i--` | no test checks the count |
 | `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)` | no test pins the number, for example a limit or a size |
-| `CALENDAR_DAY` | `t.AddDate(0, 0, 3)` to `t.Add(time.Duration(3) * 24 * time.Hour)` | no test crosses a change of daylight saving time, where a day is not 24 hours |
 
 ## Branches and statements
 
@@ -86,3 +85,20 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 
 A repository can add its own operators as ast-grep rules. [Your own operators](usage.md#your-own-operators)
 tells how.
+
+For example, this rule changes `t.AddDate(0, 0, n)` in Go, which adds `n` calendar days, to an addition of
+24 hours for each day. A survivor shows that no test crosses a change of daylight saving time, where a day
+is not 24 hours. Put the rule in `.mutants/operators/go/CALENDAR_DAY.yml`:
+
+```yaml
+id: CALENDAR_DAY
+language: go
+rule:
+  pattern:
+    context: 'func f() { _ = $T.AddDate(0, 0, $N) }'
+    selector: call_expression
+fix: $T.Add(time.Duration($N) * 24 * time.Hour)
+```
+
+`mutants` has no type check for this rule. When `$T` is not a `time.Time`, or when the file does not import
+`time` by that name, the mutant does not build and gets no row.
