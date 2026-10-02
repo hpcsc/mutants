@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { git, goRepository, type ReportedMutant, runCli, runMutants, scratchDir, startCli, verdicts, writeFiles } from '../testUtils'
@@ -536,6 +536,31 @@ func TestWait(t *testing.T) {
     expect(rows.stdout).toMatch(/^mutants: 1, killed: 1 /m)
     expect(json.mutants.map((m: ReportedMutant) => `${m.id} ${m.status}`)).toEqual(['calc/calc.go:Max:CONDITIONALS_NEGATION#1 KILLED'])
     expect(stryker.files['calc/calc.go'].mutants.map((m: { status: string }) => m.status)).toEqual(['Killed'])
+  })
+
+  it('adds no entry to the build cache of go for the build of a mutant', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    // go keeps the index of a folder in its cache only when the files of the folder are 2 seconds old
+    const hourAgo = new Date(Date.now() - 3_600_000)
+    for (const path of ['calc/calc.go', 'calc/calc_test.go', 'calc']) {
+      utimesSync(join(dir, path), hourAgo, hourAgo)
+    }
+    const cache = scratchDir()
+    const entries = () => readdirSync(cache, { recursive: true }).filter((name) => String(name).endsWith('-a')).length
+    const run = async (operators: string) => {
+      const result = await runCli(dir, ['run', '--base', 'HEAD', '--format', 'json', '--operators', operators], { GOCACHE: cache })
+      return verdicts(JSON.parse(result.stdout).mutants)
+    }
+
+    const first = await run('CONDITIONALS_NEGATION')
+    const afterFirst = entries()
+    const second = await run('CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION')
+
+    expect(first).toEqual(['CONDITIONALS_NEGATION a > b KILLED'])
+    expect(second).toEqual(['CONDITIONALS_BOUNDARY a > b LIVED', 'CONDITIONALS_NEGATION a > b KILLED'])
+    expect(afterFirst).toBeGreaterThan(0)
+    expect(entries()).toBe(afterFirst)
   })
 
   it('runs the mutants of an untracked file, and leaves git status as it was', async () => {

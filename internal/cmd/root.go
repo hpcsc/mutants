@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/fatih/color"
+	"github.com/hpcsc/mutants/internal/language/golang"
 	"github.com/hpcsc/mutants/internal/version"
 	"github.com/urfave/cli/v3"
 )
@@ -46,6 +47,22 @@ func newCommand() *cli.Command {
 			newConfigCommand(),
 			newVersionCommand(),
 			newUpdateCommand(),
+			newBuildCacheCommand(),
+		},
+	}
+}
+
+func newBuildCacheCommand() *cli.Command {
+	return &cli.Command{
+		Name:      "build-cache",
+		Usage:     "answer go as the GOCACHEPROG of a mutant build",
+		ArgsUsage: "USER_CACHE MUTANT_CACHE",
+		Hidden:    true,
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			if cmd.Args().Len() != 2 {
+				return cli.Exit("build-cache needs the folders of the user cache and of the mutant cache", exitUsage)
+			}
+			return golang.ServeBuildCache(cmd.Root().Reader, cmd.Root().Writer, cmd.Args().Get(0), cmd.Args().Get(1))
 		},
 	}
 }

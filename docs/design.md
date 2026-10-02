@@ -421,6 +421,15 @@ sequenceDiagram
 - **No write to the work tree.** The mutated file and the overlay file stay in a temp folder. `-overlay`
   makes the build read the mutated file in place of the real one.
 - **No test cache.** The runner runs the binary itself, so Go's test cache never gives a result.
+- **No growth of the build cache.** No later build reads the compiled packages of a mutant, so they must not
+  stay in the build cache of the user. The runner sets `GOCACHEPROG` to `mutants build-cache`, which reads
+  the cache of the user and writes each new entry to a folder of the mutant. The runner deletes the folder
+  after the mutant. Without it, each mutant of `internal/run` adds 1.2 MB, and go keeps an entry for 5 days.
+  - A `GOCACHEPROG` of the user stays in place, for example a remote cache in CI.
+  - A build whose cache program fails gives INFRA ERROR, not NOT VIABLE.
+  - Before Go 1.24, go reads `GOCACHEPROG` only with `GOEXPERIMENT=cacheprog`. Without it, the mutant
+    builds write to the cache of the user.
+  - The coverage runs write to the cache of the user, because the next run of the same commit reads them.
 - **A clean split.** A build failure comes from `go test -c`, and a test failure comes from the binary. The
   runner does not read `[build failed]` out of mixed output.
 - **The package folder.** The binary runs in the package folder, as `go test` does, so a test can read its
@@ -575,8 +584,9 @@ the removal of that field changes nothing.
 
 v1 keeps no cache. Its one state file is the store of accepted proposals, in
 `$(git rev-parse --absolute-git-dir)/mutants/`, so the work tree stays clean. The rules for a scan, the
-mutated files, the overlays, the test binaries and the coverage profiles go to temp folders that `mutants`
-removes after each use. The v2 cache goes in the same folder as the store.
+mutated files, the overlays, the test binaries, the build cache entries of the mutants and the coverage
+profiles go to temp folders that `mutants` removes after each use. The v2 cache goes in the same folder
+as the store.
 
 ## Packages
 

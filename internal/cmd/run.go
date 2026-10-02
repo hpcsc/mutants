@@ -126,6 +126,9 @@ func newInstance(ctx context.Context, repository *diff.Repository, settings gola
 	if err := astgrep.CheckVersion(ctx); err != nil {
 		return nil, err
 	}
+	if executable, err := os.Executable(); err == nil {
+		settings.CacheProgram = []string{executable, "build-cache"}
+	}
 	adapter := golang.New(repository.Root(), settings)
 	pack, err := operator.Load(adapter.Name(), repository.Root())
 	if err != nil {
