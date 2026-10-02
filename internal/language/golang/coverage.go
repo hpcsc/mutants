@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/mutant"
+	"github.com/hpcsc/mutants/internal/process"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -157,20 +158,20 @@ func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPacka
 	if len(covered) != 1 || covered[0].ImportPath != pkg.ImportPath {
 		arguments = append(arguments, "-coverpkg="+strings.Join(paths, ","))
 	}
-	build := process{
-		program:   "go",
-		arguments: append(append(append(arguments, "-o", binary), c.settings.tagArguments()...), "."),
-		folder:    pkg.Dir,
-		env:       c.settings.buildEnv(),
+	build := process.Command{
+		Program:   "go",
+		Arguments: append(append(append(arguments, "-o", binary), c.settings.tagArguments()...), "."),
+		Folder:    pkg.Dir,
+		Env:       c.settings.buildEnv(),
 	}
 	started := time.Now()
-	built, err := build.run(ctx)
+	built, err := build.Run(ctx)
 	result.baseline.build = time.Since(started)
 	if err != nil {
 		return result, err
 	}
-	if built.code != 0 {
-		return result, fmt.Errorf("build the tests of %s: %s", pkg.ImportPath, strings.TrimSpace(built.tail))
+	if built.Code != 0 {
+		return result, fmt.Errorf("build the tests of %s: %s", pkg.ImportPath, strings.TrimSpace(built.Tail))
 	}
 	if _, err := os.Stat(binary); os.IsNotExist(err) {
 		result.noTests = true
@@ -178,20 +179,20 @@ func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPacka
 	}
 
 	profile := filepath.Join(folder, "cover.out")
-	test := process{
-		program:   binary,
-		arguments: []string{"-test.count=1", "-test.timeout=10m", "-test.coverprofile=" + profile},
-		folder:    pkg.Dir,
-		env:       c.settings.testEnv(),
+	test := process.Command{
+		Program:   binary,
+		Arguments: []string{"-test.count=1", "-test.timeout=10m", "-test.coverprofile=" + profile},
+		Folder:    pkg.Dir,
+		Env:       c.settings.testEnv(),
 	}
 	started = time.Now()
-	tested, err := test.run(ctx)
+	tested, err := test.Run(ctx)
 	result.baseline.test = time.Since(started)
 	if err != nil {
 		return result, err
 	}
-	if tested.code != 0 {
-		return result, fmt.Errorf("the tests of %s fail with the real code, so no mutant can get a verdict:\n%s", pkg.ImportPath, strings.TrimSpace(tested.tail))
+	if tested.Code != 0 {
+		return result, fmt.Errorf("the tests of %s fail with the real code, so no mutant can get a verdict:\n%s", pkg.ImportPath, strings.TrimSpace(tested.Tail))
 	}
 	result.blocks, err = c.readProfile(dirs, profile)
 	return result, err

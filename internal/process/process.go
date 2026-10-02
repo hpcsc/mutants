@@ -1,4 +1,4 @@
-package golang
+package process
 
 import (
 	"context"
@@ -12,38 +12,38 @@ import (
 
 const tailSize = 64 * 1024
 
-type process struct {
-	program   string
-	arguments []string
-	folder    string
-	env       []string
-	limit     time.Duration
+type Command struct {
+	Program   string
+	Arguments []string
+	Folder    string
+	Env       []string
+	Limit     time.Duration
 }
 
-type exit struct {
-	code     int
-	signaled bool
-	timedOut bool
-	tail     string
+type Exit struct {
+	Code     int
+	Signaled bool
+	TimedOut bool
+	Tail     string
 }
 
-// run returns an error only when the program cannot start, or when ctx ends.
-func (p process) run(ctx context.Context) (exit, error) {
+// Run returns an error only when the program cannot start, or when ctx ends.
+func (p Command) Run(ctx context.Context) (Exit, error) {
 	output, err := os.CreateTemp("", "mutants-output-")
 	if err != nil {
-		return exit{}, err
+		return Exit{}, err
 	}
 	defer os.Remove(output.Name())
 	defer output.Close()
 
 	limited, cancel := ctx, context.CancelFunc(func() {})
-	if p.limit > 0 {
-		limited, cancel = context.WithTimeout(ctx, p.limit)
+	if p.Limit > 0 {
+		limited, cancel = context.WithTimeout(ctx, p.Limit)
 	}
 	defer cancel()
-	command := exec.CommandContext(limited, p.program, p.arguments...)
-	command.Dir = p.folder
-	command.Env = p.env
+	command := exec.CommandContext(limited, p.Program, p.Arguments...)
+	command.Dir = p.Folder
+	command.Env = p.Env
 	command.Stdout = output
 	command.Stderr = output
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
@@ -58,21 +58,21 @@ func (p process) run(ctx context.Context) (exit, error) {
 		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
 	}
 	if ctx.Err() != nil {
-		return exit{}, ctx.Err()
+		return Exit{}, ctx.Err()
 	}
 	state := command.ProcessState
 	if state == nil {
-		return exit{}, err
+		return Exit{}, err
 	}
-	result := exit{code: state.ExitCode(), tail: p.tail(output)}
+	result := Exit{Code: state.ExitCode(), Tail: p.tail(output)}
 	if status, ok := state.Sys().(syscall.WaitStatus); ok && status.Signaled() {
-		result.signaled = true
-		result.timedOut = errors.Is(limited.Err(), context.DeadlineExceeded)
+		result.Signaled = true
+		result.TimedOut = errors.Is(limited.Err(), context.DeadlineExceeded)
 	}
 	return result, nil
 }
 
-func (p process) tail(output *os.File) string {
+func (p Command) tail(output *os.File) string {
 	info, err := output.Stat()
 	if err != nil {
 		return ""

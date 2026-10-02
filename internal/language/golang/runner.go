@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/mutant"
+	"github.com/hpcsc/mutants/internal/process"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -63,20 +64,20 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	binary := filepath.Join(folder, "pkg.test")
 	buildLimit := max(r.settings.BuildLimit, (baselineFactor * baseline.build).Round(time.Second))
 	built, err := r.build(ctx, pkg, folder, original, content, binary, buildLimit)
-	if err == nil && built.code != 0 {
-		if used := r.blankImports(r.useVariables(content, filepath.Base(original), built.tail), built.tail); used != content {
+	if err == nil && built.Code != 0 {
+		if used := r.blankImports(r.useVariables(content, filepath.Base(original), built.Tail), built.Tail); used != content {
 			built, err = r.build(ctx, pkg, folder, original, used, binary, buildLimit)
 		}
 	}
 	switch {
 	case err != nil:
 		return mutant.Verdict{}, err
-	case built.timedOut:
+	case built.TimedOut:
 		return mutant.Verdict{Status: mutant.InfraError, Detail: fmt.Sprintf("the build ran past %s", buildLimit)}, nil
-	case built.code != 0 && strings.Contains(built.tail, "GOCACHEPROG"):
-		return mutant.Verdict{Status: mutant.InfraError, Detail: "the build cache failed: " + strings.TrimSpace(built.tail)}, nil
-	case built.code != 0:
-		return mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(built.tail)}, nil
+	case built.Code != 0 && strings.Contains(built.Tail, "GOCACHEPROG"):
+		return mutant.Verdict{Status: mutant.InfraError, Detail: "the build cache failed: " + strings.TrimSpace(built.Tail)}, nil
+	case built.Code != 0:
+		return mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(built.Tail)}, nil
 	}
 	if _, err := os.Stat(binary); err != nil {
 		return mutant.Verdict{Status: mutant.InfraError, Detail: "go test -c made no test binary: " + err.Error()}, nil
@@ -85,7 +86,7 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	limit := baselineFactor*baseline.test + limitMargin
 	tested, err := r.test(ctx, pkg, binary, limit)
 	// the load of the host can grow after the baseline, so a second run with twice the limit decides
-	if err == nil && tested.timedOut {
+	if err == nil && tested.TimedOut {
 		limit *= 2
 		tested, err = r.test(ctx, pkg, binary, limit)
 	}
@@ -95,15 +96,15 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	return r.verdict(tested, limit), nil
 }
 
-func (r *runner) test(ctx context.Context, pkg goPackage, binary string, limit time.Duration) (exit, error) {
-	test := process{
-		program:   binary,
-		arguments: []string{"-test.count=1", "-test.failfast"},
-		folder:    pkg.Dir,
-		env:       r.settings.testEnv(),
-		limit:     limit,
+func (r *runner) test(ctx context.Context, pkg goPackage, binary string, limit time.Duration) (process.Exit, error) {
+	test := process.Command{
+		Program:   binary,
+		Arguments: []string{"-test.count=1", "-test.failfast"},
+		Folder:    pkg.Dir,
+		Env:       r.settings.testEnv(),
+		Limit:     limit,
 	}
-	return test.run(ctx)
+	return test.Run(ctx)
 }
 
 func (r *runner) mutate(path string, m mutant.Mutant) (string, error) {
@@ -117,27 +118,27 @@ func (r *runner) mutate(path string, m mutant.Mutant) (string, error) {
 	return string(source[:m.Start]) + m.Replacement + string(source[m.End:]), nil
 }
 
-func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, content, binary string, limit time.Duration) (exit, error) {
+func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, content, binary string, limit time.Duration) (process.Exit, error) {
 	mutated := filepath.Join(folder, filepath.Base(original))
 	if err := os.WriteFile(mutated, []byte(content), 0o600); err != nil {
-		return exit{}, err
+		return process.Exit{}, err
 	}
 	replace, err := json.Marshal(map[string]map[string]string{"Replace": {original: mutated}})
 	if err != nil {
-		return exit{}, err
+		return process.Exit{}, err
 	}
 	overlay := filepath.Join(folder, "overlay.json")
 	if err := os.WriteFile(overlay, replace, 0o600); err != nil {
-		return exit{}, err
+		return process.Exit{}, err
 	}
-	build := process{
-		program:   "go",
-		arguments: append(append([]string{"test", "-c", "-vet=off", "-overlay", overlay, "-o", binary}, r.settings.tagArguments()...), "."),
-		folder:    pkg.Dir,
-		env:       r.buildEnv(folder),
-		limit:     limit,
+	build := process.Command{
+		Program:   "go",
+		Arguments: append(append([]string{"test", "-c", "-vet=off", "-overlay", overlay, "-o", binary}, r.settings.tagArguments()...), "."),
+		Folder:    pkg.Dir,
+		Env:       r.buildEnv(folder),
+		Limit:     limit,
 	}
-	return build.run(ctx)
+	return build.Run(ctx)
 }
 
 // buildEnv sends the new entries of a mutant build to the cache of the mutant, because no later build
@@ -296,24 +297,24 @@ func (r *runner) clauseStarts(lines *token.File, body *ast.BlockStmt) []int {
 	return offsets
 }
 
-func (r *runner) verdict(tested exit, limit time.Duration) mutant.Verdict {
+func (r *runner) verdict(tested process.Exit, limit time.Duration) mutant.Verdict {
 	switch {
-	case tested.timedOut:
+	case tested.TimedOut:
 		return mutant.Verdict{Status: mutant.TimedOut, Detail: fmt.Sprintf("the tests ran past %s", limit)}
-	case tested.code == 0 && !tested.signaled:
+	case tested.Code == 0 && !tested.Signaled:
 		return mutant.Verdict{Status: mutant.Lived}
-	case tested.signaled:
-		return mutant.Verdict{Status: mutant.InfraError, Detail: "a signal stopped the tests:\n" + strings.TrimSpace(tested.tail)}
-	case strings.Contains(tested.tail, "runtime: out of memory"):
+	case tested.Signaled:
+		return mutant.Verdict{Status: mutant.InfraError, Detail: "a signal stopped the tests:\n" + strings.TrimSpace(tested.Tail)}
+	case strings.Contains(tested.Tail, "runtime: out of memory"):
 		return mutant.Verdict{Status: mutant.InfraError, Detail: "the tests ran out of memory"}
 	}
 	return mutant.Verdict{Status: mutant.Killed, Detail: r.failure(tested)}
 }
 
-func (r *runner) failure(tested exit) string {
+func (r *runner) failure(tested process.Exit) string {
 	var reasons []string
 	for _, prefix := range []string{"--- FAIL:", "panic:", "fatal error:"} {
-		for line := range strings.Lines(tested.tail) {
+		for line := range strings.Lines(tested.Tail) {
 			if strings.HasPrefix(line, prefix) {
 				reasons = append(reasons, strings.TrimSpace(line))
 				break
@@ -321,7 +322,7 @@ func (r *runner) failure(tested exit) string {
 		}
 	}
 	if len(reasons) == 0 {
-		return fmt.Sprintf("the tests exited with code %d", tested.code)
+		return fmt.Sprintf("the tests exited with code %d", tested.Code)
 	}
 	return strings.Join(reasons, "; ")
 }

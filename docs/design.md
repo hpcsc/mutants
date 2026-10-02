@@ -614,6 +614,7 @@ flowchart TD
     REP["internal/report<br/>rows, JSON, Stryker"]
     PROP["internal/proposal<br/>proposal.Proposal, proposal.Store"]
     PROG["internal/progress<br/>the progress lines"]
+    PROC["internal/process<br/>process.Command"]
     CMD --> RUN
     CMD --> AG
     CMD --> GO
@@ -629,6 +630,7 @@ flowchart TD
     GO --> DIFF
     GO --> OP
     GO --> MUT
+    GO --> PROC
     LANG --> DIFF
     LANG --> OP
     LANG --> MUT
@@ -650,6 +652,7 @@ gives back.
 | `mutant` | `mutant.Mutant`, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
 | `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage, its caller gaps and its runner |
 | `language/golang` | the Go adapter |
+| `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends |
 | `run` | one run: changed lines, candidates, filters, ids, scope, proposals, caller gaps, coverage and workers |
 | `report` | the rows, the JSON and the Stryker format |
 | `proposal` | the file format of the proposed mutants, the place of each edit in its file, the number of their ids, the summary of the proposals of a run, and the store that `rerun` reads |
