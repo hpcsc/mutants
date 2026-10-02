@@ -3,7 +3,15 @@
 The end-to-end tests run the mutants binary as a person or an agent runs it. They find faults that the Go
 tests cannot find: the real output, files on disk, processes that stay alive, and exit codes.
 
-The tests are in `e2e/`. `e2e/testUtils.ts` has the helpers, and `e2e/tests/` has the tests.
+The tests are in `e2e/`. `e2e/testUtils.ts` has the helpers, `e2e/fixtures.ts` has the Go code that more than
+one test file uses, and `e2e/tests/` has the tests:
+
+| File | Tests |
+| --- | --- |
+| `run.test.ts` | the core of `mutants run` and `mutants rerun`: the diff, the settings, the reports, the proposals and the exit codes. Its fixtures are Go code, but no test depends on how the Go adapter works. |
+| `go.test.ts` | the Go adapter: its filters, its coverage, its runner, its build cache and its caller gaps |
+| `cli.test.ts` | the root command, `mutants config init` and `mutants version` |
+| `update.test.ts` | `mutants update` |
 
 ## Parts
 
