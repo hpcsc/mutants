@@ -1,0 +1,90 @@
+id: function
+language: python
+rule:
+  kind: function_definition
+  has:
+    field: name
+    pattern: $NAME
+---
+id: class
+language: python
+rule:
+  kind: class_definition
+  has:
+    field: name
+    pattern: $NAME
+---
+id: returns
+language: python
+rule:
+  kind: function_definition
+  has:
+    field: return_type
+    pattern: $RETURNS
+---
+id: parameter
+language: python
+rule:
+  kind: identifier
+  pattern: $NAME
+  any:
+    - inside:
+        kind: parameters
+    - inside:
+        kind: typed_parameter
+    - inside:
+        kind: default_parameter
+        field: name
+    - inside:
+        kind: typed_default_parameter
+        field: name
+    - inside:
+        kind: list_splat_pattern
+    - inside:
+        kind: dictionary_splat_pattern
+---
+id: assigned
+language: python
+rule:
+  kind: identifier
+  pattern: $NAME
+  any:
+    - inside:
+        kind: assignment
+        field: left
+    - inside:
+        any:
+          - kind: pattern_list
+          - kind: tuple_pattern
+        inside:
+          kind: assignment
+          field: left
+---
+id: bound
+language: python
+rule:
+  kind: identifier
+  pattern: $NAME
+  any:
+    - inside:
+        kind: augmented_assignment
+        field: left
+    - inside:
+        kind: for_statement
+        field: left
+    - inside:
+        any:
+          - kind: pattern_list
+          - kind: tuple_pattern
+        inside:
+          kind: for_statement
+          field: left
+    - inside:
+        kind: named_expression
+        field: name
+    - inside:
+        kind: as_pattern_target
+    - inside:
+        kind: global_statement
+    - inside:
+        kind: nonlocal_statement

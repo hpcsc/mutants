@@ -287,6 +287,18 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |
 
+The Python adapter has these:
+
+| Filter | Drops |
+| --- | --- |
+| Same text | an edit whose replacement is the same as the original |
+| Return type | a `RETURN_EMPTY` value that does not fit the return type of its function: `0` for `int` or `float`, `""` for `str`, `False` for `bool`, `[]` for a list or a sequence, `{}` for a dict or a mapping, and `None` for each other type and for a function with no return type |
+| Return type | a `RETURN_TRUE` value that is not a comparison, a `not` or `False`, in a function whose return type is not `bool` |
+| No value before | a `STATEMENT_REMOVE` of `x = e` when `x` has no value before the statement in its function: no parameter, no earlier assignment, no `for` or `with` target, and no `global` or `nonlocal`. The next read of `x` then raises `NameError`. |
+
+The skip rules of Python drop the edits in the test files, in the generated files, in the calls of a logger,
+in the type annotations and in the `if TYPE_CHECKING:` blocks.
+
 A candidate that passes the filters and still fails to build is NOT VIABLE.
 
 ### Mutant ids
@@ -454,6 +466,68 @@ sequenceDiagram
 - **No process stays alive.** Each build and each test binary runs in its own process group. At its limit,
   after it exits, and when `mutants` gets SIGINT or SIGTERM, the runner sends SIGKILL to the whole group.
 
+### The Python runner
+
+The Python runner never writes a mutant to the work tree. It writes the mutated file into a temp folder,
+together with two Python files that the binary holds: `sitecustomize.py`, an import hook, and
+`mutants_plugin.py`, a pytest plugin. The temp folder comes first in `PYTHONPATH`, so each Python process
+of the tests loads the hook when it starts, also a process that a test starts.
+
+```mermaid
+sequenceDiagram
+    participant W as worker
+    participant R as Python runner
+    participant P as pytest
+    participant H as sitecustomize.py
+    W->>R: mutant
+    R->>R: write the mutated file, sitecustomize.py and mutants_plugin.py in a temp folder
+    R->>P: python -m pytest -x -p mutants_plugin the tests of the line, in the folder of the project
+    P->>H: start
+    alt the mutant does not compile
+        H-->>R: exit 97
+        R-->>W: NOT VIABLE
+    else the mutant compiles
+        H->>H: load the mutant for the module whose file is the original file
+        alt the limit ends first, two times
+            R->>P: SIGKILL to the process group
+            R-->>W: TIMED OUT
+        else pytest exits
+            P-->>R: exit code and output
+            R-->>W: KILLED, LIVED or INFRA ERROR
+        end
+    end
+```
+
+- **The project.** The project of a file is the nearest folder above it with `pyproject.toml`, `setup.cfg`,
+  `setup.py`, `pytest.ini` or `tox.ini`, or else the root of the repository. pytest runs in the folder of the
+  project, with the Python of the project: `python.command` of `.mutants.yml`, or `.venv/bin/python` of the
+  project, or `python3`.
+- **No write to the work tree.** The hook reads the mutant from the temp folder, and the module keeps the
+  original file as its `__file__`. `PYTHONDONTWRITEBYTECODE=1` keeps `__pycache__` out, and
+  `-p no:cacheprovider` keeps `.pytest_cache` out.
+- **Not a worktree.** An editable install, such as `pip install -e .` or `uv sync`, points the imports at the
+  folder of the repository. In a copy of the repository in a git worktree, the tests import the real code.
+- **Coverage and test selection.** pytest runs one time for each project, with coverage.py and one context
+  for each test. For each statement, the coverage gives the node ids of the tests that run it, and a mutant
+  runs only those tests. A statement that runs only when its module loads, such as a constant, runs each
+  test of the project. coverage.py counts a statement on more than one line at its first line, so the
+  runner takes the last statement that starts on or before the line of the mutant.
+- **NOT COVERED.** A mutant whose statement no test runs, and each mutant of a file that no test imports. A
+  project with no tests gives one row for its mutants. coverage.py measures no child process, so a line
+  that runs only in a process that a test starts is NOT COVERED.
+- **The sysmon core.** The coverage run sets `COVERAGE_CORE=ctrace`. On Python 3.12 and later, coverage.py
+  takes its sysmon core, and that core records no context for each test.
+- **pytest-cov.** The plugin turns off pytest-cov, also when `addopts` has `--cov`, because a second tracer
+  in the same process takes the lines away from the first.
+- **No coverage.py.** A project without coverage.py stops the run with exit 2, and the message tells to add
+  `coverage` or `pytest-cov` to its dev dependencies.
+- **Statuses.** pytest exits with 0 for LIVED, and with 1, 2, 3 or 4 for KILLED. Exit 2 is an error when
+  pytest collects a test module, and exit 4 is an error when it loads a `conftest.py`, such as an import that
+  the mutant breaks. pytest also gives 4 for a usage error, but the run with the real code passed with the
+  same arguments. Exit 5 is INFRA ERROR. The detail of KILLED is the first `FAILED` or `ERROR` line of the
+  summary, or the conftest that failed and its error.
+- **No process stays alive.** pytest runs in its own process group, as each test binary of Go does.
+
 ### Statuses
 
 ```mermaid
@@ -611,6 +685,7 @@ flowchart TD
     MUT["internal/mutant<br/>mutant.Mutant, mutant.ID, mutant.Status, mutant.Runner"]
     LANG["internal/language<br/>language.Adapter"]
     GO["internal/language/golang<br/>go list, go/types, coverage, the Go runner"]
+    PY["internal/language/python<br/>declarations, coverage.py, the Python runner"]
     REP["internal/report<br/>rows, JSON, Stryker"]
     PROP["internal/proposal<br/>proposal.Proposal, proposal.Store"]
     PROG["internal/progress<br/>the progress lines"]
@@ -631,6 +706,10 @@ flowchart TD
     GO --> OP
     GO --> MUT
     GO --> PROC
+    PY --> LANG
+    PY --> AG
+    PY --> MUT
+    PY --> PROC
     LANG --> DIFF
     LANG --> OP
     LANG --> MUT
@@ -652,6 +731,7 @@ gives back.
 | `mutant` | `mutant.Mutant`, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
 | `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage, its caller gaps and its runner |
 | `language/golang` | the Go adapter |
+| `language/python` | the Python adapter, with its import hook and its pytest plugin |
 | `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends |
 | `run` | one run: changed lines, candidates, filters, ids, scope, proposals, caller gaps, coverage and workers |
 | `report` | the rows, the JSON and the Stryker format |
