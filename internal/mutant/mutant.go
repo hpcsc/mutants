@@ -5,6 +5,7 @@ package mutant
 type Mutant struct {
 	ID          ID
 	File        string
+	Language    string
 	Line        int
 	Column      int
 	EndLine     int

@@ -4,6 +4,7 @@ package run_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -28,6 +29,7 @@ import (
 )
 
 type fakeAdapter struct {
+	name            string
 	root            string
 	dropped         map[string]bool
 	uncovered       map[string]string
@@ -40,26 +42,33 @@ type fakeAdapter struct {
 	onWait          func()
 	mutex           sync.Mutex
 	ran             []string
+	covered         []string
+	callerGapFiles  []string
 }
 
-func (f *fakeAdapter) Name() string         { return "go" }
-func (f *fakeAdapter) Extensions() []string { return []string{".go"} }
+func (f *fakeAdapter) Name() string { return cmp.Or(f.name, "go") }
+func (f *fakeAdapter) Extensions() []string {
+	return []string{map[string]string{"go": ".go", "python": ".py"}[f.Name()]}
+}
 func (f *fakeAdapter) Keep(edit operator.Edit) bool {
 	return !f.dropped[edit.Original+" -> "+edit.Replacement]
 }
 func (f *fakeAdapter) Runner() mutant.Runner { return f }
 
-// Function names the func whose declaration comes last before offset, which is enough for the sources here.
+// Function names the func or def whose declaration comes last before offset, which is enough for the sources
+// here.
 func (f *fakeAdapter) Function(file string, offset int) string {
 	source, err := os.ReadFile(filepath.Join(f.root, file))
 	if err != nil || offset > len(source) {
 		return ""
 	}
-	start := bytes.LastIndex(source[:offset], []byte("\nfunc "))
+	before := append([]byte("\n"), source[:offset]...)
+	start := max(bytes.LastIndex(before, []byte("\nfunc ")), bytes.LastIndex(before, []byte("\ndef ")))
 	if start < 0 {
 		return ""
 	}
-	name, _, _ := strings.Cut(string(source[start+len("\nfunc "):]), "(")
+	_, declaration, _ := strings.Cut(string(before[start+1:]), " ")
+	name, _, _ := strings.Cut(declaration, "(")
 	return name
 }
 
@@ -69,6 +78,7 @@ func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map
 	}
 	uncovered := map[mutant.ID]string{}
 	for _, m := range mutants {
+		f.covered = append(f.covered, m.ID.String())
 		if detail, found := f.uncovered[m.ID.String()]; found {
 			uncovered[m.ID] = detail
 		}
@@ -76,7 +86,8 @@ func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map
 	return uncovered, nil
 }
 
-func (f *fakeAdapter) CallerGaps(ctx context.Context, _ diff.Lines) ([]language.CallerGap, error) {
+func (f *fakeAdapter) CallerGaps(ctx context.Context, lines diff.Lines) ([]language.CallerGap, error) {
+	f.callerGapFiles = append(f.callerGapFiles, lines.Files()...)
 	if f.callerGapsWaits {
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -151,14 +162,18 @@ func (r *gitRepository) head() string {
 	return strings.TrimSpace(string(output))
 }
 
-func (r *gitRepository) instance(adapter *fakeAdapter) *run.Instance {
+func (r *gitRepository) instance(adapters ...*fakeAdapter) *run.Instance {
 	r.t.Helper()
-	adapter.root = r.root
 	repository, err := diff.Open(context.Background(), r.root)
 	require.NoError(r.t, err)
-	pack, err := operator.Load("go", r.root)
-	require.NoError(r.t, err)
-	return run.New(repository, pack, astgrep.New(r.root), adapter, io.Discard, false)
+	var languages []run.Language
+	for _, adapter := range adapters {
+		adapter.root = r.root
+		pack, err := operator.Load(adapter.Name(), r.root)
+		require.NoError(r.t, err)
+		languages = append(languages, run.Language{Adapter: adapter, Pack: pack})
+	}
+	return run.New(repository, languages, astgrep.New(r.root), io.Discard, false)
 }
 
 func idsAndStatuses(mutants []mutant.Mutant) []string {
@@ -172,6 +187,10 @@ func idsAndStatuses(mutants []mutant.Mutant) []string {
 const compareBefore = "package a\n\nfunc f(a, b int) bool {\n\tif a < b {\n\t\treturn true\n\t}\n\treturn false\n}\n"
 
 const compareAfter = "package a\n\nfunc f(a, b int) bool {\n\tif a < b {\n\t\treturn true\n\t}\n\treturn a > b\n}\n"
+
+const pythonBefore = "def f(a, b):\n    return a\n"
+
+const pythonAfter = "def f(a, b):\n    return a > b\n"
 
 var boundary = run.Settings{Base: "HEAD", Operators: []string{"CONDITIONALS_BOUNDARY"}, Workers: 2}
 
@@ -189,6 +208,7 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, mutant.Mutant{
 				ID:          mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 2},
 				File:        "a.go",
+				Language:    "go",
 				Line:        7,
 				Column:      9,
 				EndLine:     7,
@@ -203,6 +223,31 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, 1, outcome.Files)
 			require.Equal(t, 1, outcome.Lines)
 			require.Equal(t, r.head(), outcome.Base)
+		})
+
+		t.Run("each adapter covers and runs only the mutants of the files of its language", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "a.py": pythonBefore})
+			r.write("a.go", compareAfter)
+			r.write("a.py", pythonAfter)
+			inGo, inPython := &fakeAdapter{}, &fakeAdapter{name: "python"}
+
+			outcome, err := r.instance(inGo, inPython).Run(context.Background(), boundary)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#2 KILLED", "a.py:f:CONDITIONALS_BOUNDARY#1 KILLED"}, idsAndStatuses(outcome.Mutants))
+			require.Equal(t, [][]string{{"a.go:f:CONDITIONALS_BOUNDARY#2"}, {"a.go:f:CONDITIONALS_BOUNDARY#2"}}, [][]string{inGo.covered, inGo.ran})
+			require.Equal(t, [][]string{{"a.py:f:CONDITIONALS_BOUNDARY#1"}, {"a.py:f:CONDITIONALS_BOUNDARY#1"}}, [][]string{inPython.covered, inPython.ran})
+		})
+
+		t.Run("each mutant names the language of its file", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "a.py": pythonBefore})
+			r.write("a.go", compareAfter)
+			r.write("a.py", pythonAfter)
+
+			outcome, err := r.instance(&fakeAdapter{}, &fakeAdapter{name: "python"}).Run(context.Background(), boundary)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"go", "python"}, []string{outcome.Mutants[0].Language, outcome.Mutants[1].Language})
 		})
 
 		t.Run("an edit that the adapter drops gets no number", func(t *testing.T) {
@@ -371,6 +416,19 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("caller gaps", func(t *testing.T) {
+		t.Run("each adapter looks for caller gaps only in the changed lines of the files of its language", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "a.py": pythonBefore})
+			r.write("a.go", compareAfter)
+			r.write("a.py", pythonAfter)
+			inGo, inPython := &fakeAdapter{}, &fakeAdapter{name: "python"}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, CallerGaps: true}
+
+			_, err := r.instance(inGo, inPython).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, [][]string{{"a.go"}, {"a.py"}}, [][]string{inGo.callerGapFiles, inPython.callerGapFiles})
+		})
+
 		t.Run("with the setting, the outcome holds the caller gaps of the adapter", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
 			r.write("a.go", compareAfter)
@@ -434,7 +492,7 @@ func TestInstance(t *testing.T) {
 				{File: "a.go", Old: "return", New: "panic(1)\n\treturn", Bug: "found two times"},
 				{File: "a.go", Old: "if a < b", New: "if a <= b", Bug: "not changed"},
 				{File: "missing.go", Old: "a", New: "b", Bug: "no file"},
-				{File: "notes.txt", Old: "notes", New: "", Bug: "not Go"},
+				{File: "notes.txt", Old: "notes", New: "", Bug: "no adapter"},
 				{File: "../a.go", Old: "a", New: "b", Bug: "outside"},
 				{File: "a.go", Old: "return a > b", New: "return b < a", Bug: "dropped"},
 			}
@@ -456,7 +514,7 @@ func TestInstance(t *testing.T) {
 				"found two times: old found 2 times",
 				"not changed: not on a changed line",
 				"no file: the file does not exist",
-				"not Go: the go adapter does not take this file",
+				"no adapter: no adapter of mutants takes this file",
 				"outside: the file is not in the repository",
 				"dropped: the go adapter drops the edit, for example in a test file or in generated code",
 			}, reasons)
@@ -576,6 +634,18 @@ func TestInstance(t *testing.T) {
 	})
 
 	t.Run("rerun", func(t *testing.T) {
+		t.Run("runs the mutant with the adapter of the language of its file", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareAfter, "a.py": pythonAfter})
+			inGo, inPython := &fakeAdapter{}, &fakeAdapter{name: "python"}
+			id := mutant.ID{File: "a.py", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}
+
+			m, err := r.instance(inGo, inPython).Rerun(context.Background(), id)
+
+			require.NoError(t, err)
+			require.Equal(t, "a > b -> a >= b", m.Original+" -> "+m.Replacement)
+			require.Equal(t, [][]string{nil, {"a.py:f:CONDITIONALS_BOUNDARY#1"}}, [][]string{inGo.ran, inPython.ran})
+		})
+
 		t.Run("runs the mutant with the id again, whatever the diff is", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			adapter := &fakeAdapter{statuses: map[string]mutant.Status{"a.go:f:CONDITIONALS_BOUNDARY#1": mutant.Lived}}

@@ -246,6 +246,40 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"ERROR_CAUSE_REMOVE"}, operatorsOf(oneMore))
 		})
 
+		t.Run("a name without a sign runs its operator in each pack that has it, and no default operator in the other packs", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/NIL_MAP.yml"), "id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n")
+			inPython, err := operator.Load("python", repository)
+			require.NoError(t, err)
+
+			packs, err := operator.Select([]operator.Pack{loadPack(t, repository), inPython}, []string{"NIL_MAP"})
+
+			require.NoError(t, err)
+			require.Equal(t, [][]string{{"NIL_MAP"}, nil}, [][]string{operatorsOf(packs[0]), operatorsOf(packs[1])})
+		})
+
+		t.Run("a name with a sign changes only the packs that have its operator", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/NIL_MAP.yml"), "id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n")
+			inPython, err := operator.Load("python", repository)
+			require.NoError(t, err)
+
+			packs, err := operator.Select([]operator.Pack{loadPack(t, repository), inPython}, []string{"-NIL_MAP"})
+
+			require.NoError(t, err)
+			require.NotContains(t, operatorsOf(packs[0]), "NIL_MAP")
+			require.Contains(t, operatorsOf(packs[1]), "CONDITIONALS_BOUNDARY")
+		})
+
+		t.Run("a name that no pack has returns an error that names it", func(t *testing.T) {
+			inPython, err := operator.Load("python", t.TempDir())
+			require.NoError(t, err)
+
+			_, err = operator.Select([]operator.Pack{loadPack(t, t.TempDir()), inPython}, []string{"+NIL_MAP"})
+
+			require.EqualError(t, err, "mutants has no operator NIL_MAP: mutants operators lists the operators")
+		})
+
 		t.Run("an unknown name returns an error that names it", func(t *testing.T) {
 			_, err := loadPack(t, t.TempDir()).Select([]string{"-NOT_AN_OPERATOR"})
 

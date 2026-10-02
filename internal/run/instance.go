@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -54,17 +55,29 @@ type Outcome struct {
 	CallerGaps *[]language.CallerGap
 }
 
+type Language struct {
+	Adapter language.Adapter
+	Pack    operator.Pack
+}
+
+func (l Language) takes(file string) bool {
+	return slices.Contains(l.Adapter.Extensions(), filepath.Ext(file))
+}
+
+func (l Language) filesOf(files []string) []string {
+	return slices.DeleteFunc(slices.Clone(files), func(file string) bool { return !l.takes(file) })
+}
+
 type Instance struct {
 	repository *diff.Repository
-	pack       operator.Pack
+	languages  []Language
 	matcher    operator.Matcher
-	adapter    language.Adapter
 	stderr     io.Writer
 	terminal   bool
 }
 
-func New(repository *diff.Repository, pack operator.Pack, matcher operator.Matcher, adapter language.Adapter, stderr io.Writer, terminal bool) *Instance {
-	return &Instance{repository: repository, pack: pack, matcher: matcher, adapter: adapter, stderr: stderr, terminal: terminal}
+func New(repository *diff.Repository, languages []Language, matcher operator.Matcher, stderr io.Writer, terminal bool) *Instance {
+	return &Instance{repository: repository, languages: languages, matcher: matcher, stderr: stderr, terminal: terminal}
 }
 
 func (r *Instance) Run(ctx context.Context, settings Settings) (Outcome, error) {
@@ -82,14 +95,15 @@ func (r *Instance) Run(ctx context.Context, settings Settings) (Outcome, error) 
 }
 
 func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) {
-	pack, err := r.pack.Select(settings.Operators)
+	languages, err := r.selected(settings.Operators)
 	if err != nil {
 		return Outcome{}, err
 	}
-	if len(pack.Rules()) == 0 && len(settings.Proposals) == 0 && !settings.CallerGaps {
+	hasRules := slices.ContainsFunc(languages, func(l Language) bool { return len(l.Pack.Rules()) > 0 })
+	if !hasRules && len(settings.Proposals) == 0 && !settings.CallerGaps {
 		return Outcome{}, ErrNothingToRun
 	}
-	pathspec := diff.Pathspec{Extensions: r.adapter.Extensions(), Exclude: settings.Exclude}
+	pathspec := diff.Pathspec{Extensions: r.extensions(), Exclude: settings.Exclude}
 	var outcome Outcome
 	var lines diff.Lines
 	if len(settings.Folders) > 0 {
@@ -106,7 +120,7 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	outcome.Files, outcome.Lines = len(lines.Files()), lines.Len()
 
 	finding := progress.Start(r.stderr, r.terminal, fmt.Sprintf("Finding the mutants in %d files", outcome.Files))
-	mutants, err := r.find(ctx, pack, lines.Files(), lines.Touches)
+	mutants, err := r.findAll(ctx, languages, lines.Files(), lines.Touches)
 	if err == nil && len(settings.Proposals) > 0 {
 		var proposed []mutant.Mutant
 		var rejected []proposal.Rejection
@@ -119,15 +133,13 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 			outcome.Proposals = &proposal.Summary{Accepted: accepted, Rejected: rejected}
 		}
 		mutants = append(mutants, proposed...)
-		slices.SortStableFunc(mutants, func(a, b mutant.Mutant) int {
-			return cmp.Or(strings.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start))
-		})
+		slices.SortStableFunc(mutants, byPosition)
 	}
 	finding.End()
 	if err == nil && settings.CallerGaps {
 		checking := progress.Start(r.stderr, r.terminal, "Running the tests of the changed callers")
 		var gaps []language.CallerGap
-		if gaps, err = r.adapter.CallerGaps(ctx, lines); err == nil {
+		if gaps, err = r.callerGaps(ctx, lines); err == nil {
 			outcome.CallerGaps = &gaps
 		}
 		checking.End()
@@ -137,7 +149,7 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	}
 
 	covering := progress.Start(r.stderr, r.terminal, "Running the tests one time with the real code")
-	uncovered, err := r.adapter.Uncovered(ctx, mutants)
+	uncovered, err := r.uncovered(ctx, mutants)
 	covering.End()
 	if err != nil {
 		return outcome, err
@@ -162,22 +174,25 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 
 func (r *Instance) Rerun(ctx context.Context, id mutant.ID) (mutant.Mutant, error) {
 	unknown := fmt.Errorf("%w: %s", ErrUnknownID, id)
-	if !slices.Contains(r.adapter.Extensions(), filepath.Ext(id.File)) {
+	l, found := r.languageOf(id.File)
+	if !found {
 		return mutant.Mutant{}, unknown
 	}
 	if _, err := os.Stat(filepath.Join(r.repository.Root(), id.File)); err != nil {
 		return mutant.Mutant{}, unknown
 	}
-	find := r.findOperated
+	var m mutant.Mutant
+	var err error
 	if id.Operator == proposal.Operator {
-		find = r.findProposed
+		m, err = r.findProposed(ctx, id)
+	} else {
+		m, err = r.findOperated(ctx, l, id)
 	}
-	m, err := find(ctx, id)
 	if err != nil {
 		return mutant.Mutant{}, err
 	}
 
-	uncovered, err := r.adapter.Uncovered(ctx, []mutant.Mutant{m})
+	uncovered, err := l.Adapter.Uncovered(ctx, []mutant.Mutant{m})
 	if err != nil {
 		return mutant.Mutant{}, err
 	}
@@ -185,18 +200,19 @@ func (r *Instance) Rerun(ctx context.Context, id mutant.ID) (mutant.Mutant, erro
 		m.Verdict = mutant.Verdict{Status: mutant.NotCovered, Detail: detail}
 		return m, nil
 	}
-	m.Verdict, err = r.adapter.Runner().Run(ctx, m)
+	m.Verdict, err = l.Adapter.Runner().Run(ctx, m)
 	return m, err
 }
 
-func (r *Instance) findOperated(ctx context.Context, id mutant.ID) (mutant.Mutant, error) {
+func (r *Instance) findOperated(ctx context.Context, l Language, id mutant.ID) (mutant.Mutant, error) {
 	unknown := fmt.Errorf("%w: %s", ErrUnknownID, id)
-	pack, err := r.pack.Select([]string{id.Operator})
+	pack, err := l.Pack.Select([]string{id.Operator})
 	if err != nil {
 		return mutant.Mutant{}, unknown
 	}
+	l.Pack = pack
 	everyLine := func(string, int, int) bool { return true }
-	mutants, err := r.find(ctx, pack, []string{id.File}, everyLine)
+	mutants, err := r.find(ctx, l, []string{id.File}, everyLine)
 	if err != nil {
 		return mutant.Mutant{}, err
 	}
@@ -279,8 +295,9 @@ func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (mut
 	if reason != "" {
 		return mutant.Mutant{}, 0, reason, nil
 	}
-	if !slices.Contains(r.adapter.Extensions(), filepath.Ext(file)) {
-		return mutant.Mutant{}, 0, fmt.Sprintf("the %s adapter does not take this file", r.adapter.Name()), nil
+	l, found := r.languageOf(file)
+	if !found {
+		return mutant.Mutant{}, 0, "no adapter of mutants takes this file", nil
 	}
 	source, found := sources[file]
 	if !found {
@@ -306,11 +323,11 @@ func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (mut
 		Original:    p.Old,
 		Replacement: p.New,
 	}
-	if !r.adapter.Keep(edit) {
-		return mutant.Mutant{}, 0, fmt.Sprintf("the %s adapter drops the edit, for example in a test file or in generated code", r.adapter.Name()), nil
+	if !l.Adapter.Keep(edit) {
+		return mutant.Mutant{}, 0, fmt.Sprintf("the %s adapter drops the edit, for example in a test file or in generated code", l.Adapter.Name()), nil
 	}
-	id := mutant.ID{File: file, Function: r.adapter.Function(file, start), Operator: proposal.Operator, Number: p.Number()}
-	m, last := r.mutantOf(edit, id, newLineOffsets(source))
+	id := mutant.ID{File: file, Function: l.Adapter.Function(file, start), Operator: proposal.Operator, Number: p.Number()}
+	m, last := r.mutantOf(l, edit, id, newLineOffsets(source))
 	m.Bug = p.Bug
 	return m, last, "", nil
 }
@@ -323,12 +340,25 @@ func (r *Instance) store(ctx context.Context) (proposal.Store, error) {
 	return proposal.NewStore(filepath.Join(gitFolder, "mutants")), nil
 }
 
-func (r *Instance) find(ctx context.Context, pack operator.Pack, files []string, inScope func(file string, first, last int) bool) ([]mutant.Mutant, error) {
-	edits, err := pack.Edits(ctx, r.matcher, r.repository.Root(), files)
+func (r *Instance) findAll(ctx context.Context, languages []Language, files []string, inScope func(file string, first, last int) bool) ([]mutant.Mutant, error) {
+	var mutants []mutant.Mutant
+	for _, l := range languages {
+		found, err := r.find(ctx, l, l.filesOf(files), inScope)
+		if err != nil {
+			return nil, err
+		}
+		mutants = append(mutants, found...)
+	}
+	slices.SortStableFunc(mutants, byPosition)
+	return mutants, nil
+}
+
+func (r *Instance) find(ctx context.Context, l Language, files []string, inScope func(file string, first, last int) bool) ([]mutant.Mutant, error) {
+	edits, err := l.Pack.Edits(ctx, r.matcher, r.repository.Root(), files)
 	if err != nil {
 		return nil, err
 	}
-	edits = slices.DeleteFunc(edits, func(edit operator.Edit) bool { return !r.adapter.Keep(edit) })
+	edits = slices.DeleteFunc(edits, func(edit operator.Edit) bool { return !l.Adapter.Keep(edit) })
 	slices.SortFunc(edits, func(a, b operator.Edit) int {
 		return cmp.Or(
 			strings.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start), cmp.Compare(a.End, b.End),
@@ -340,7 +370,7 @@ func (r *Instance) find(ctx context.Context, pack operator.Pack, files []string,
 	offsets := map[string]lineOffsets{}
 	var mutants []mutant.Mutant
 	for _, edit := range edits {
-		id := ids.Next(edit.File, r.adapter.Function(edit.File, edit.Start), edit.Operator)
+		id := ids.Next(edit.File, l.Adapter.Function(edit.File, edit.Start), edit.Operator)
 		lines, found := offsets[edit.File]
 		if !found {
 			source, err := os.ReadFile(filepath.Join(r.repository.Root(), edit.File))
@@ -350,7 +380,7 @@ func (r *Instance) find(ctx context.Context, pack operator.Pack, files []string,
 			lines = newLineOffsets(source)
 			offsets[edit.File] = lines
 		}
-		m, last := r.mutantOf(edit, id, lines)
+		m, last := r.mutantOf(l, edit, id, lines)
 		if inScope(edit.File, m.Line, last) {
 			mutants = append(mutants, m)
 		}
@@ -359,13 +389,14 @@ func (r *Instance) find(ctx context.Context, pack operator.Pack, files []string,
 }
 
 // mutantOf also gives the last line that the edit changes.
-func (r *Instance) mutantOf(edit operator.Edit, id mutant.ID, lines lineOffsets) (mutant.Mutant, int) {
+func (r *Instance) mutantOf(l Language, edit operator.Edit, id mutant.ID, lines lineOffsets) (mutant.Mutant, int) {
 	line, column := lines.position(edit.Start)
 	last, _ := lines.position(max(edit.Start, edit.End-1))
 	endLine, endColumn := lines.position(edit.End)
 	return mutant.Mutant{
 		ID:          id,
 		File:        edit.File,
+		Language:    l.Adapter.Name(),
 		Line:        line,
 		Column:      column,
 		EndLine:     endLine,
@@ -394,7 +425,8 @@ func (r *Instance) test(ctx context.Context, mutants []mutant.Mutant, indexes []
 	for range max(1, workers) {
 		group.Go(func() error {
 			for i := range jobs {
-				result, err := r.adapter.Runner().Run(groupContext, mutants[i])
+				l, _ := r.languageOf(mutants[i].File)
+				result, err := l.Adapter.Runner().Run(groupContext, mutants[i])
 				if err != nil {
 					return err
 				}
@@ -419,4 +451,72 @@ func (r *Instance) test(ctx context.Context, mutants []mutant.Mutant, indexes []
 		return nil
 	})
 	return finished, group.Wait()
+}
+
+func (r *Instance) selected(names []string) ([]Language, error) {
+	packs := make([]operator.Pack, len(r.languages))
+	for i, l := range r.languages {
+		packs[i] = l.Pack
+	}
+	chosen, err := operator.Select(packs, names)
+	if err != nil {
+		return nil, err
+	}
+	languages := slices.Clone(r.languages)
+	for i := range languages {
+		languages[i].Pack = chosen[i]
+	}
+	return languages, nil
+}
+
+func (r *Instance) extensions() []string {
+	var extensions []string
+	for _, l := range r.languages {
+		extensions = append(extensions, l.Adapter.Extensions()...)
+	}
+	return extensions
+}
+
+func (r *Instance) languageOf(file string) (Language, bool) {
+	index := slices.IndexFunc(r.languages, func(l Language) bool { return l.takes(file) })
+	if index < 0 {
+		return Language{}, false
+	}
+	return r.languages[index], true
+}
+
+func (r *Instance) callerGaps(ctx context.Context, lines diff.Lines) ([]language.CallerGap, error) {
+	var gaps []language.CallerGap
+	for _, l := range r.languages {
+		changed := lines.WithExtensions(l.Adapter.Extensions())
+		if len(changed.Files()) == 0 {
+			continue
+		}
+		found, err := l.Adapter.CallerGaps(ctx, changed)
+		if err != nil {
+			return nil, err
+		}
+		gaps = append(gaps, found...)
+	}
+	return gaps, nil
+}
+
+func (r *Instance) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
+	uncovered := map[mutant.ID]string{}
+	for _, l := range r.languages {
+		own := slices.DeleteFunc(slices.Clone(mutants), func(m mutant.Mutant) bool { return !l.takes(m.File) })
+		if len(own) == 0 {
+			continue
+		}
+		found, err := l.Adapter.Uncovered(ctx, own)
+		if err != nil {
+			return nil, err
+		}
+		maps.Copy(uncovered, found)
+	}
+	return uncovered, nil
+}
+
+func byPosition(a, b mutant.Mutant) int {
+	return cmp.Or(strings.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start))
 }

@@ -133,7 +133,8 @@ func newInstance(ctx context.Context, repository *diff.Repository, settings gola
 	if err != nil {
 		return nil, err
 	}
-	return run.New(repository, pack, astgrep.New(repository.Root()), adapter, status, isTerminal(status)), nil
+	languages := []run.Language{{Adapter: adapter, Pack: pack}}
+	return run.New(repository, languages, astgrep.New(repository.Root()), status, isTerminal(status)), nil
 }
 
 func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {
@@ -166,7 +167,7 @@ func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) er
 		}
 	}
 	if path := cmd.String("stryker"); path != "" {
-		if err := writeFile(path, func(w io.Writer) error { return report.Stryker(w, root, "go", outcome.Mutants) }); err != nil {
+		if err := writeFile(path, func(w io.Writer) error { return report.Stryker(w, root, outcome.Mutants) }); err != nil {
 			return err
 		}
 	}

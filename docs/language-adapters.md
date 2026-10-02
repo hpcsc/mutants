@@ -205,20 +205,18 @@ It writes each mutant into a git worktree for each worker, in a temp folder.
 
 ## Step 4: Connect the adapter in the commands
 
-`mutants` has one adapter, and the commands name Go in these places:
+`run.New` takes a `run.Language` for each language: the adapter and the pack of its rules. The run gives each
+changed file to the adapter that takes its extension, so one run tests each language that the diff changes.
+Each mutant names its language, and the Stryker report gives each file that language.
 
-| Place | Names Go |
+The commands build each adapter and its pack in these places:
+
+| Place | Does |
 | --- | --- |
-| `newInstance` in `internal/cmd/run.go` | builds the adapter with `golang.New` |
-| `runMutants` in `internal/cmd/run.go` and `rerunMutant` in `internal/cmd/rerun.go` | make `golang.Settings` from the flags and `.mutants.yml` |
-| `writeReports` in `internal/cmd/run.go` | gives `"go"` as the language of the Stryker report |
-| `listOperators` in `internal/cmd/operators.go` | lists the pack of `"go"` |
-| `config` in `internal/cmd/config.go` | holds `tags` and `zero_functions`, which are settings of Go |
-| the flags `--tags` and `--build-limit` | are settings of Go |
-
-A second language needs a way to choose the adapter, and `mutants` has none. Decide it in
-[docs/design.md](design.md) before you write it, for example a key in `.mutants.yml`, or the extensions of the
-changed files. Then each place in the table takes the adapter that the run chose.
+| `newInstance` in `internal/cmd/run.go` | builds the adapter of each language, and loads its pack |
+| `runMutants` in `internal/cmd/run.go` and `rerunMutant` in `internal/cmd/rerun.go` | make the settings of each adapter from the flags and `.mutants.yml` |
+| `listOperators` in `internal/cmd/operators.go` | lists the pack of each language |
+| `config` in `internal/cmd/config.go` | holds the settings of each language |
 
 ## Step 5: Test the language
 

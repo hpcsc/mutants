@@ -26,9 +26,10 @@ func TestStryker(t *testing.T) {
 			killed := reported("a.go", 4, "PROPOSED", 418273, "a < b", "a >= b", mutant.Killed)
 			killed.Column, killed.EndLine, killed.EndColumn = 9, 4, 14
 			killed.Bug = "equal values are less"
+			survivor.Language, killed.Language = "go", "go"
 			var output strings.Builder
 
-			require.NoError(t, report.Stryker(&output, root, "go", []mutant.Mutant{survivor, killed}))
+			require.NoError(t, report.Stryker(&output, root, []mutant.Mutant{survivor, killed}))
 
 			require.JSONEq(t, `{
 				"schemaVersion": "2",
@@ -57,6 +58,25 @@ func TestStryker(t *testing.T) {
 			}`, output.String())
 		})
 
+		t.Run("gives each file the language of its mutants", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644))
+			require.NoError(t, os.WriteFile(filepath.Join(root, "b.py"), []byte("X = 1\n"), 0o644))
+			inGo := reported("a.go", 1, "BRANCH_IF", 1, "{ g() }", "{}", mutant.Lived)
+			inGo.Language = "go"
+			inPython := reported("b.py", 1, "INTEGER_INCREMENT", 1, "1", "(1+1)", mutant.Lived)
+			inPython.Language = "python"
+			var output strings.Builder
+
+			require.NoError(t, report.Stryker(&output, root, []mutant.Mutant{inGo, inPython}))
+
+			var document struct {
+				Files map[string]struct{ Language string }
+			}
+			require.NoError(t, json.Unmarshal([]byte(output.String()), &document))
+			require.Equal(t, map[string]struct{ Language string }{"a.go": {"go"}, "b.py": {"python"}}, document.Files)
+		})
+
 		t.Run("names the other statuses the way the schema does, with the detail as the reason", func(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644))
@@ -68,7 +88,7 @@ func TestStryker(t *testing.T) {
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Stryker(&output, root, "go", mutants))
+			require.NoError(t, report.Stryker(&output, root, mutants))
 
 			var document struct {
 				Files map[string]struct {

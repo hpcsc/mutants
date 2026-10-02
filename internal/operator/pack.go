@@ -114,6 +114,42 @@ func (p Pack) Rules() []Rule {
 // operators, and "+NAME" after it adds one operator.
 const None = "none"
 
+func Select(packs []Pack, names []string) ([]Pack, error) {
+	known := map[string]bool{}
+	for _, p := range packs {
+		for _, rule := range p.rules {
+			known[rule.Operator] = true
+		}
+	}
+	for _, name := range names {
+		if operator := strings.TrimLeft(name, "+-"); name != None && !known[operator] {
+			return nil, fmt.Errorf("mutants has no operator %s: mutants operators lists the operators", operator)
+		}
+	}
+	selected := make([]Pack, 0, len(packs))
+	for _, p := range packs {
+		var own []string
+		for _, name := range names {
+			if name == None || p.has(strings.TrimLeft(name, "+-")) {
+				own = append(own, name)
+			}
+		}
+		if slices.ContainsFunc(names, p.unsigned) && !slices.ContainsFunc(own, p.unsigned) {
+			own = append(own, None)
+		}
+		chosen, err := p.Select(own)
+		if err != nil {
+			return nil, err
+		}
+		selected = append(selected, chosen)
+	}
+	return selected, nil
+}
+
+func (p Pack) has(operator string) bool {
+	return slices.ContainsFunc(p.rules, func(rule Rule) bool { return rule.Operator == operator })
+}
+
 func (p Pack) Select(names []string) (Pack, error) {
 	operators := map[string]bool{}
 	for _, rule := range p.rules {

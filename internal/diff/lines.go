@@ -2,6 +2,7 @@ package diff
 
 import (
 	"maps"
+	"path"
 	"slices"
 )
 
@@ -24,6 +25,19 @@ func (l *Lines) Add(file string, first, last int) {
 	for line := first; line <= last; line++ {
 		lines[line] = true
 	}
+}
+
+func (l Lines) WithExtensions(extensions []string) Lines {
+	var kept Lines
+	for file, lines := range l.files {
+		if slices.Contains(extensions, path.Ext(file)) {
+			if kept.files == nil {
+				kept.files = map[string]map[int]bool{}
+			}
+			kept.files[file] = lines
+		}
+	}
+	return kept
 }
 
 func (l Lines) Has(file string, line int) bool {

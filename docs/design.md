@@ -92,9 +92,11 @@ flowchart LR
 
 A blue border marks a step of the core. A green border marks ast-grep. An orange border marks a step that comes from the adapter of the language.
 
-1. **Changed lines.** `mutants` asks git for the changed lines (see [Changed lines](#changed-lines)).
-2. **Candidates.** One ast-grep call scans the changed files with every rule. Each match is a candidate edit,
-   with byte offsets and the replacement text.
+1. **Changed lines.** `mutants` asks git for the changed lines of the files that an adapter takes (see
+   [Changed lines](#changed-lines)). Each file goes to the adapter whose extensions hold the extension of the
+   file, so one run tests each language that the diff changes.
+2. **Candidates.** For each language, one ast-grep call scans its changed files with the rules of its pack. Each
+   match is a candidate edit, with byte offsets and the replacement text.
 3. **Filters.** The language adapter drops a candidate that cannot build or that changes nothing (see
    [Filters](#filters)).
 4. **Ids.** Each candidate in the changed files gets an id that stays the same when other code moves (see
@@ -104,8 +106,8 @@ A blue border marks a step of the core. A green border marks ast-grep. An orange
    (see [Proposed mutants](#proposed-mutants)).
 7. **Caller gaps.** With `--caller-gaps`, the adapter finds the changed lines that no test of a changed caller
    runs (see [Caller gaps](#caller-gaps)).
-8. **Coverage.** One coverage run for each package marks the mutants that no test runs. Those mutants are NOT
-   COVERED, and they do not run.
+8. **Coverage.** The adapter of each language gets the mutants of its files. One coverage run for each package
+   marks the mutants that no test runs. Those mutants are NOT COVERED, and they do not run.
 9. **Run.** The workers give each mutant to the runner of its language. The runner returns a status.
 10. **Report.** It prints the rows, writes the files that the user asks for, and sets the exit code.
 

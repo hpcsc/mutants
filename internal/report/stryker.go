@@ -52,7 +52,7 @@ var strykerStatuses = map[mutant.Status]string{
 	mutant.InfraError: "RuntimeError",
 }
 
-func Stryker(w io.Writer, root, language string, mutants []mutant.Mutant) error {
+func Stryker(w io.Writer, root string, mutants []mutant.Mutant) error {
 	report := strykerReport{SchemaVersion: "2", ProjectRoot: root, Files: map[string]strykerFile{}}
 	report.Thresholds.High, report.Thresholds.Low = 80, 60
 	for _, m := range mutants {
@@ -62,7 +62,7 @@ func Stryker(w io.Writer, root, language string, mutants []mutant.Mutant) error 
 			if err != nil {
 				return err
 			}
-			file = strykerFile{Language: language, Source: string(source)}
+			file = strykerFile{Language: m.Language, Source: string(source)}
 		}
 		entry := strykerMutant{
 			ID:           m.ID.String(),
