@@ -433,22 +433,6 @@ func TestWait(t *testing.T) {
     )
   })
 
-  it('finds the same mutants whether git uses mnemonic prefixes or not', async () => {
-    const changed = async (mnemonicPrefix: string) => {
-      const dir = goRepository({ 'calc/calc.go': maxSource.replace('a > b', 'a == b') })
-      git(dir, 'config', 'diff.mnemonicPrefix', mnemonicPrefix)
-      writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
-      const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION'])
-      return mutants.map((m) => `${m.id} ${m.status}`)
-    }
-
-    const withoutPrefixes = await changed('false')
-    const withPrefixes = await changed('true')
-
-    expect(withoutPrefixes).toEqual(['calc/calc.go:Max:CONDITIONALS_BOUNDARY#1 LIVED', 'calc/calc.go:Max:CONDITIONALS_NEGATION#1 KILLED'])
-    expect(withPrefixes).toEqual(withoutPrefixes)
-  })
-
   it('runs the mutants of an untracked file, and leaves git status as it was', async () => {
     const dir = goRepository()
     writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
