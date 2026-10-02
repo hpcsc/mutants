@@ -80,6 +80,12 @@ func formatted(t *testing.T, source string) string {
 	return strings.Join(lines, "\n")
 }
 
+type fixedMatches []operator.Match
+
+func (m fixedMatches) Match(context.Context, []operator.Rule, []string) ([]operator.Match, error) {
+	return m, nil
+}
+
 func TestPack(t *testing.T) {
 	t.Run("load", func(t *testing.T) {
 		t.Run("a rule in the repository adds an operator", func(t *testing.T) {
@@ -122,6 +128,25 @@ func TestPack(t *testing.T) {
 			_, err := operator.Load("go", repository)
 
 			require.ErrorContains(t, err, "TS is for \"typescript\"")
+		})
+
+		t.Run("a .yaml file in the repository can hold several rules, split by --- with a comment", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/nil.yaml"),
+				"id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n--- # slices\nid: NIL_SLICE\nlanguage: go\nrule:\n  pattern: '[]$T{}'\nfix: nil\n")
+
+			pack := loadPack(t, repository)
+
+			require.Subset(t, operatorsOf(pack), []string{"NIL_MAP", "NIL_SLICE"})
+		})
+
+		t.Run("a rule without an id returns an error that names its file", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/bad.yml"), "language: go\nrule:\n  pattern: $A + $B\nfix: $A - $B\n")
+
+			_, err := operator.Load("go", repository)
+
+			require.ErrorContains(t, err, "read .mutants/operators/go/bad.yml: a rule has no id")
 		})
 
 		t.Run("a language with no operators returns an error", func(t *testing.T) {
@@ -270,8 +295,10 @@ func TestPack(t *testing.T) {
 				"\tswitch v.(type) {\n\tcase int, string:\n\t\tk()\n\t}\n\tselect {\n\tcase <-c:\n\t\tm()\n\t}\n}\n"), mutated(t, source, edits[0]))
 			require.Equal(t, formatted(t, "package a\n\nfunc f(a int, v any, c chan int) {\n\tswitch a {\n\tcase 1, 2:\n\t\tg()\n\tdefault:\n\t}\n"+
 				"\tswitch v.(type) {\n\tcase int, string:\n\t\tk()\n\t}\n\tselect {\n\tcase <-c:\n\t\tm()\n\t}\n}\n"), mutated(t, source, edits[1]))
-			require.Equal(t, "k()\n", edits[2].Original)
-			require.Equal(t, "m()\n", edits[3].Original)
+			require.Equal(t, formatted(t, "package a\n\nfunc f(a int, v any, c chan int) {\n\tswitch a {\n\tcase 1, 2:\n\t\tg()\n\tdefault:\n\t\th()\n\t}\n"+
+				"\tswitch v.(type) {\n\tcase int, string:\n\t}\n\tselect {\n\tcase <-c:\n\t\tm()\n\t}\n}\n"), mutated(t, source, edits[2]))
+			require.Equal(t, formatted(t, "package a\n\nfunc f(a int, v any, c chan int) {\n\tswitch a {\n\tcase 1, 2:\n\t\tg()\n\tdefault:\n\t\th()\n\t}\n"+
+				"\tswitch v.(type) {\n\tcase int, string:\n\t\tk()\n\t}\n\tselect {\n\tcase <-c:\n\t}\n}\n"), mutated(t, source, edits[3]))
 		})
 
 		t.Run("STATEMENT_REMOVE assigns the value to _ in place of the variable", func(t *testing.T) {
@@ -398,6 +425,58 @@ func TestPack(t *testing.T) {
 				"id.String() -> nil", "id.String() -> 0", `id.String() -> ""`, "id.String() -> false",
 				"Point{X: 1} -> nil", "Point{X: 1} -> 0", `Point{X: 1} -> ""`, "Point{X: 1} -> false", "Point{X: 1} -> Point{}",
 			}, edits)
+		})
+
+		t.Run("SWAP_FIELDS also swaps two values with a block comment between them", func(t *testing.T) {
+			edits := editsOf(t, "SWAP_FIELDS", "package a\n\nvar p = P{X: 1, /* c */ Y: 2}\n")
+
+			require.Equal(t, []string{"1, /* c */ Y: 2 -> 2, /* c */ Y: 1"}, edits)
+		})
+
+		t.Run("ERRORF_WRAP skips an Errorf with no %w", func(t *testing.T) {
+			edits := editsOf(t, "ERRORF_WRAP", "package a\n\nfunc f() error {\n\treturn fmt.Errorf(\"load %d: %v\", n, err)\n}\n")
+
+			require.Empty(t, edits)
+		})
+
+		t.Run("each edit takes its text from its own file", func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, "a.go"), "package a\n\nvar x = 1 + 2\n")
+			writeFile(t, filepath.Join(root, "b/b.go"), "package b\n\nfunc f(n int) int {\n\treturn n + 10\n}\n")
+			pack, err := loadPack(t, root).Select([]string{"ARITHMETIC_BASE"})
+			require.NoError(t, err)
+
+			edits, err := pack.Edits(context.Background(), astgrep.New(root), root, []string{"a.go", "b/b.go"})
+
+			require.NoError(t, err)
+			require.Equal(t, []operator.Edit{
+				{File: "a.go", Operator: "ARITHMETIC_BASE", Rule: "ARITHMETIC_BASE/plus", Start: 19, End: 24, Original: "1 + 2", Replacement: "1 - 2"},
+				{File: "b/b.go", Operator: "ARITHMETIC_BASE", Rule: "ARITHMETIC_BASE/plus", Start: 39, End: 45, Original: "n + 10", Replacement: "n - 10"},
+			}, edits)
+		})
+
+		t.Run("a rule that ast-grep cannot read returns the reason from ast-grep", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/bad.yml"), "id: BAD\nlanguage: go\nrule:\n  kind: not_a_kind\nfix: x\n")
+			writeFile(t, filepath.Join(repository, "a.go"), "package a\n")
+			pack, err := loadPack(t, repository).Select([]string{"BAD"})
+			require.NoError(t, err)
+
+			_, err = pack.Edits(context.Background(), astgrep.New(repository), repository, []string{"a.go"})
+
+			require.ErrorContains(t, err, "not_a_kind")
+		})
+
+		t.Run("a match that ends past the end of its file returns an error that names it", func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, "a.go"), "package a\n")
+			pack, err := loadPack(t, root).Select([]string{"CONDITIONALS_BOUNDARY"})
+			require.NoError(t, err)
+			matcher := fixedMatches{{Rule: "CONDITIONALS_BOUNDARY/lt", File: "a.go", Start: 5, End: 50}}
+
+			_, err = pack.Edits(context.Background(), matcher, root, []string{"a.go"})
+
+			require.ErrorContains(t, err, "the match of CONDITIONALS_BOUNDARY/lt in a.go at bytes 5 to 50 is not in the file")
 		})
 
 		t.Run("ERRORF_WRAP turns %w into %v", func(t *testing.T) {
