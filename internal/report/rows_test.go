@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/hpcsc/mutants/internal/mutant"
+	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/report"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func TestRows(t *testing.T) {
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, mutants, "1a2b3c4d5e6f7a8b"))
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants, Base: "1a2b3c4d5e6f7a8b"}))
 
 			require.Equal(t, `LIVED:
   handler.go:42 BRANCH_IF: { return nil, err } -> {}  [handler.go:(*Handler).accounts:BRANCH_IF#1]
@@ -64,7 +65,7 @@ mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, in
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, mutants, ""))
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
 
 			require.Equal(t, `NOT COVERED:
   handler.go:43 RETURN_ERROR_NIL: err -> nil  [handler.go:(*Handler).accounts:RETURN_ERROR_NIL#1]
@@ -79,7 +80,7 @@ mutants: 4, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, mutants, ""))
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
 
 			require.Equal(t, "LIVED:\n  a.go:3 BRANCH_CASE: g() h(\"a long argument that goes past th ... -> (nothing)  [a.go:(*Handler).accounts:BRANCH_CASE#1]\nmutants: 1, lived: 1\n", output.String())
 		})
@@ -90,15 +91,39 @@ mutants: 4, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, mutants, ""))
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
 
 			require.Equal(t, "LIVED:\n  a.go:5 BREAK_AT_END: ... total += item } -> ... total += item break }  [a.go:(*Handler).accounts:BREAK_AT_END#1]\nmutants: 1, lived: 1\n", output.String())
+		})
+
+		t.Run("a proposed mutant shows its bug in place of the code", func(t *testing.T) {
+			proposed := reported("case.go", 91, "PROPOSED", 418273, "waited && !note", "waited && open && !note", mutant.Lived)
+			proposed.Bug = "a note after the deadline no longer stops the close"
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: []mutant.Mutant{proposed}}))
+
+			require.Equal(t, "LIVED:\n  case.go:91 PROPOSED: a note after the deadline no longer stops the close  [case.go:(*Handler).accounts:PROPOSED#418273]\nmutants: 1, lived: 1\n", output.String())
+		})
+
+		t.Run("lists each rejected proposal with its reason, and counts the proposals", func(t *testing.T) {
+			outcome := report.Outcome{
+				Mutants: []mutant.Mutant{reported("case.go", 91, "PROPOSED", 418273, "a", "b", mutant.Killed)},
+				Proposals: &report.Proposals{Accepted: 1, Rejected: []proposal.Rejection{
+					{Proposal: proposal.Proposal{File: "case.go", Old: "return", New: "", Bug: "the case never closes"}, Reason: "old found 3 times"},
+				}},
+			}
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, outcome))
+
+			require.Equal(t, "REJECTED PROPOSALS:\n  case.go: old found 3 times: the case never closes\nmutants: 1, killed: 1\nproposals: 1 accepted, 1 rejected\n", output.String())
 		})
 
 		t.Run("no mutant gives only the count", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, nil, "1a2b3c4d5e"))
+			require.NoError(t, report.Rows(&output, report.Outcome{Base: "1a2b3c4d5e"}))
 
 			require.Equal(t, "mutants: 0 (base 1a2b3c4d5e)\n", output.String())
 		})

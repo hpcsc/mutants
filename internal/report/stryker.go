@@ -18,6 +18,7 @@ type strykerMutant struct {
 	ID           string `json:"id"`
 	MutatorName  string `json:"mutatorName"`
 	Replacement  string `json:"replacement"`
+	Description  string `json:"description,omitempty"`
 	Status       string `json:"status"`
 	StatusReason string `json:"statusReason,omitempty"`
 	Location     struct {
@@ -67,6 +68,7 @@ func Stryker(w io.Writer, root, language string, mutants []mutant.Mutant) error 
 			ID:           m.ID.String(),
 			MutatorName:  m.Operator,
 			Replacement:  m.Replacement,
+			Description:  m.Bug,
 			Status:       strykerStatuses[m.Verdict.Status],
 			StatusReason: m.Verdict.Detail,
 		}

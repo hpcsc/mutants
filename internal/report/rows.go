@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/hpcsc/mutants/internal/mutant"
+	"github.com/hpcsc/mutants/internal/proposal"
 )
 
 const (
@@ -15,7 +16,20 @@ const (
 	shortContext = 12
 )
 
-func Rows(w io.Writer, mutants []mutant.Mutant, base string) error {
+// Outcome is what one run gives to the reports. Proposals is nil when the run got no proposals.
+type Outcome struct {
+	Base      string
+	Mutants   []mutant.Mutant
+	Proposals *Proposals
+}
+
+type Proposals struct {
+	Accepted int
+	Rejected []proposal.Rejection
+}
+
+func Rows(w io.Writer, outcome Outcome) error {
+	mutants := outcome.Mutants
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Line, b.Line), cmp.Compare(a.ID.String(), b.ID.String()))
 	})
@@ -47,12 +61,24 @@ func Rows(w io.Writer, mutants []mutant.Mutant, base string) error {
 			}
 		}
 	}
-	text.WriteString(Counts(mutants, base) + "\n")
+	if outcome.Proposals != nil && len(outcome.Proposals.Rejected) > 0 {
+		text.WriteString("REJECTED PROPOSALS:\n")
+		for _, rejection := range outcome.Proposals.Rejected {
+			fmt.Fprintf(&text, "  %s: %s: %s\n", rejection.Proposal.File, rejection.Reason, rejection.Proposal.Bug)
+		}
+	}
+	text.WriteString(Counts(mutants, outcome.Base) + "\n")
+	if outcome.Proposals != nil {
+		fmt.Fprintf(&text, "proposals: %d accepted, %d rejected\n", outcome.Proposals.Accepted, len(outcome.Proposals.Rejected))
+	}
 	_, err := io.WriteString(w, text.String())
 	return err
 }
 
 func Row(m mutant.Mutant) string {
+	if m.Bug != "" {
+		return fmt.Sprintf("%s:%d %s: %s  [%s]", m.File, m.Line, m.Operator, m.Bug, m.ID)
+	}
 	original, replacement := shorten(m.Original, m.Replacement)
 	return fmt.Sprintf("%s:%d %s: %s -> %s  [%s]", m.File, m.Line, m.Operator, original, replacement, m.ID)
 }

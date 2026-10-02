@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/hpcsc/mutants/internal/mutant"
+	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/report"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ func TestJSON(t *testing.T) {
 			killed.Verdict.Detail = "--- FAIL: TestAccounts"
 			var output strings.Builder
 
-			require.NoError(t, report.JSON(&output, []mutant.Mutant{killed, lived}, "1a2b3c4d5e"))
+			require.NoError(t, report.JSON(&output, report.Outcome{Mutants: []mutant.Mutant{killed, lived}, Base: "1a2b3c4d5e"}))
 
 			var document map[string]any
 			require.NoError(t, json.Unmarshal([]byte(output.String()), &document))
@@ -41,10 +42,33 @@ func TestJSON(t *testing.T) {
 			}, document)
 		})
 
+		t.Run("holds the bug of a proposed mutant, and each rejected proposal with its reason", func(t *testing.T) {
+			proposed := reported("case.go", 91, "PROPOSED", 418273, "a", "b", mutant.Lived)
+			proposed.Bug = "the case never closes"
+			rejected := proposal.Rejection{Proposal: proposal.Proposal{File: "case.go", Old: "return", New: "", Bug: "the note is lost"}, Reason: "old found 3 times"}
+			var output strings.Builder
+
+			require.NoError(t, report.JSON(&output, report.Outcome{
+				Mutants:   []mutant.Mutant{proposed},
+				Proposals: &report.Proposals{Accepted: 1, Rejected: []proposal.Rejection{rejected}},
+			}))
+
+			require.JSONEq(t, `{
+				"mutants": [{
+					"id": "case.go:(*Handler).accounts:PROPOSED#418273", "file": "case.go", "line": 91, "column": 2,
+					"operator": "PROPOSED", "status": "LIVED", "original": "a", "replacement": "b", "bug": "the case never closes"
+				}],
+				"proposals": {
+					"accepted": 1,
+					"rejected": [{"file": "case.go", "old": "return", "new": "", "bug": "the note is lost", "reason": "old found 3 times"}]
+				}
+			}`, output.String())
+		})
+
 		t.Run("no mutant gives an empty list", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.JSON(&output, nil, ""))
+			require.NoError(t, report.JSON(&output, report.Outcome{}))
 
 			require.JSONEq(t, `{"mutants": []}`, output.String())
 		})

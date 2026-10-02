@@ -18,16 +18,44 @@ type jsonMutant struct {
 	Status      string `json:"status"`
 	Original    string `json:"original"`
 	Replacement string `json:"replacement"`
+	Bug         string `json:"bug,omitempty"`
 	Detail      string `json:"detail,omitempty"`
 }
 
-type jsonReport struct {
-	Base    string       `json:"base,omitempty"`
-	Mutants []jsonMutant `json:"mutants"`
+type jsonRejection struct {
+	File   string `json:"file"`
+	Old    string `json:"old"`
+	New    string `json:"new"`
+	Bug    string `json:"bug"`
+	Reason string `json:"reason"`
 }
 
-func JSON(w io.Writer, mutants []mutant.Mutant, base string) error {
+type jsonProposals struct {
+	Accepted int             `json:"accepted"`
+	Rejected []jsonRejection `json:"rejected"`
+}
+
+type jsonReport struct {
+	Base      string         `json:"base,omitempty"`
+	Mutants   []jsonMutant   `json:"mutants"`
+	Proposals *jsonProposals `json:"proposals,omitempty"`
+}
+
+func JSON(w io.Writer, outcome Outcome) error {
+	mutants, base := outcome.Mutants, outcome.Base
 	report := jsonReport{Base: base, Mutants: []jsonMutant{}}
+	if outcome.Proposals != nil {
+		report.Proposals = &jsonProposals{Accepted: outcome.Proposals.Accepted, Rejected: []jsonRejection{}}
+		for _, rejection := range outcome.Proposals.Rejected {
+			report.Proposals.Rejected = append(report.Proposals.Rejected, jsonRejection{
+				File:   rejection.Proposal.File,
+				Old:    rejection.Proposal.Old,
+				New:    rejection.Proposal.New,
+				Bug:    rejection.Proposal.Bug,
+				Reason: rejection.Reason,
+			})
+		}
+	}
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start), cmp.Compare(a.ID.String(), b.ID.String()))
 	})
@@ -41,6 +69,7 @@ func JSON(w io.Writer, mutants []mutant.Mutant, base string) error {
 			Status:      m.Verdict.Status.String(),
 			Original:    m.Original,
 			Replacement: m.Replacement,
+			Bug:         m.Bug,
 			Detail:      m.Verdict.Detail,
 		})
 	}
