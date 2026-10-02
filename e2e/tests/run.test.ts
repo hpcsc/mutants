@@ -265,6 +265,10 @@ func TestMax(t *testing.T) {
 }
 `
 
+const maxWithComments = `// Package calc compares numbers.
+// It has no state.
+${maxSource}`
+
 describe('mutants run', { timeout: 240_000 }, () => {
   it('a swap of two fields lives when the test uses two equal values, and dies when they differ', async () => {
     const equal = goRepository()
@@ -493,6 +497,77 @@ func TestWait(t *testing.T) {
 
     expect(result.status).toBe(0)
     expect(result.stdout).toMatch(/^no mutant: 0 changed lines in 0 files \(base [0-9a-f]{10}\)\n$/)
+  })
+
+  it('with --format json and no mutant, writes only JSON on stdout and the count on stderr', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource })
+    writeFiles(dir, { 'calc/calc.go': maxWithComments })
+
+    const result = await runCli(dir, ['run', '--base', 'HEAD', '--format', 'json'])
+
+    expect(result.status).toBe(0)
+    expect(JSON.parse(result.stdout)).toEqual({ base: git(dir, 'rev-parse', 'HEAD'), mutants: [] })
+    expect(result.stderr).toMatch(/^no mutant: 2 changed lines in 1 files/m)
+  })
+
+  it('takes the base, the tags and the operators from .mutants.yml', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'calc/calc.go': maxSource,
+      'calc/calc_test.go': `//go:build unit\n\n${maxTest}`,
+      '.mutants.yml': 'base: HEAD\ntags: [unit]\noperators: [CONDITIONALS_NEGATION]\n',
+    })
+
+    const { mutants } = await runMutants(dir, [])
+
+    expect(verdicts(mutants)).toEqual(['CONDITIONALS_NEGATION a > b KILLED'])
+  })
+
+  it('from a folder below the root, reads .mutants.yml at the root, and leaves out the files that exclude names', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'calc/calc.go': maxSource,
+      'calc/calc_test.go': maxTest,
+      'gen/max.go': maxSource.replace('package calc', 'package gen'),
+      '.mutants.yml': 'base: HEAD\noperators: [CONDITIONALS_NEGATION]\nexclude: ["gen/**"]\n',
+    })
+
+    const { mutants } = await runMutants(join(dir, 'calc'), [])
+
+    expect(mutants.map((m) => `${m.id} ${m.status}`)).toEqual(['calc/calc.go:Max:CONDITIONALS_NEGATION#1 KILLED'])
+  })
+
+  it('exits 2 for a key of .mutants.yml that it does not know', async () => {
+    const dir = goRepository({ '.mutants.yml': 'workerz: 2\n' })
+
+    const result = await runCli(dir, ['run'])
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain('unknown key workerz in .mutants.yml (line 1)')
+  })
+
+  it('exits 124 at --limit, and still writes the report', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+
+    const result = await runCli(dir, ['run', '--base', 'HEAD', '--format', 'json', '--limit', '1ms'])
+
+    expect(result.status).toBe(124)
+    expect(JSON.parse(result.stdout)).toMatchObject({ mutants: [] })
+    expect(result.stderr).toContain('mutants stopped at the limit of 1ms')
+  })
+
+  it.each([
+    [['--nope'], 'flag provided but not defined: -nope'],
+    [['--format', 'xml'], '--format is rows or json, not "xml"'],
+    [['--all'], '--all needs one FOLDER or more, and a FOLDER needs --all'],
+    [['calc'], '--all needs one FOLDER or more, and a FOLDER needs --all'],
+    [['--base', 'HEAD', '--proposals-anywhere'], '--proposals-anywhere needs --proposals'],
+  ])('run %j exits 2 and says why', async (args, message) => {
+    const result = await runCli(goRepository({ 'calc/calc.go': maxSource }), ['run', ...args])
+
+    expect(result.status).toBe(2)
+    expect(result.stderr).toContain(message)
   })
 
   it('prints the survivors as rows, with the id that rerun takes', async () => {
