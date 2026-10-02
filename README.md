@@ -1,159 +1,175 @@
 # mutants
 
-`mutants` finds weak tests in the lines that a branch changes. It makes one small change to the code at a
-time, a mutant, and runs the tests after each one. When the tests still pass, the mutant lives, and that
-shows a behaviour that no test pins. [docs/design.md](docs/design.md) tells how it works.
+`mutants` finds the code that your tests run but do not check. It puts one small change at a time into the
+changed lines of your branch, and it runs your tests after each change. When the tests still pass,
+`mutants` shows the line and the change, so you know which test to add.
 
-## Use
+`mutants` works on Go code in a git repository.
 
-`mutants` needs git 2.30 or later, the Go toolchain, and [ast-grep](https://ast-grep.github.io) 0.45.0 or
-later on the `PATH`. Run it in a git repository that holds a Go module.
+## What mutation testing is
 
-```shell
-mutants run                          # the mutants of the lines that the branch changes
-mutants run --base HEAD              # only the lines that are not committed
-mutants run --all ./internal/order   # every line of one package; ./internal/... adds the subfolders
-mutants rerun 'internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1'
-mutants operators                    # the operators and their rules
+Test coverage tells you that a test ran a line. It does not tell you that a test checked what the line
+does. Mutation testing checks the tests: it puts a small bug in the code, and a good test fails.
+
+This function gives a discount of 10 on an order of 100 or more:
+
+```go
+func Discount(total int) int {
+	if total >= 100 {
+		return 10
+	}
+	return 0
+}
 ```
 
-`mutants run` compares the work tree with the merge base of `HEAD` and `--base`, which is `origin/HEAD`
-when you do not set it. It counts the lines that are not committed, and every line of an untracked file.
-It never writes to the work tree or to the index.
+This test runs every line of `Discount`, so its coverage is 100%:
 
-Each row shows one mutant that needs a look, and ends with the id that `mutants rerun` takes:
-
-```text
-LIVED:
-  internal/order/handler.go:42 BRANCH_IF: { return nil, fmt.Errorf("load the accounts ... -> {}  [internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1]
-NOT COVERED:
-  internal/order/handler.go:43 RETURN_ERROR_NIL: fmt.Errorf("load the accounts ... -> nil  [internal/order/handler.go:(*Handler).accounts:RETURN_ERROR_NIL#1]
-mutants: 81, killed: 64, lived: 1, not covered: 3, not viable: 13 (base 1a2b3c4d5e)
+```go
+func TestDiscount(t *testing.T) {
+	if got := Discount(50); got != 0 {
+		t.Errorf("Discount(50) = %d, want 0", got)
+	}
+	if got := Discount(150); got != 10 {
+		t.Errorf("Discount(150) = %d, want 10", got)
+	}
+}
 ```
 
-| Status | Meaning | Counts as a survivor |
-| --- | --- | --- |
-| KILLED | a test failed | no |
-| LIVED | every test passed | yes |
-| NOT COVERED | no test runs the line | yes |
-| NOT VIABLE | the mutant does not build | no |
-| TIMED OUT | the tests ran past the limit | no |
-| INFRA ERROR | the host stopped the run, for example out of memory | no |
+Now replace `total >= 100` with `total > 100`. An order of exactly 100 then gets no discount, which is a bug.
+The test still passes, because no test uses an order of 100. This change is a mutant, and the mutant lived.
 
-| Command | Exit codes |
+| Word | Meaning |
 | --- | --- |
-| `mutants run` | 0 no survivor, 10 survivors, 124 the `--limit`, 2 a usage or tool error, 130 an interrupt |
-| `mutants rerun ID` | 0 killed, 10 lived or not covered, 1 no verdict, 2 an unknown id |
+| mutant | one small change to the code, for example `>=` to `>` |
+| operator | one kind of change. `CONDITIONALS_BOUNDARY` replaces `>=` with `>`, `<` with `<=`, and the reverse. |
+| killed | a test failed with the mutant, so a test checks this behaviour |
+| lived | every test passed with the mutant, so no test checks this behaviour |
+| not covered | no test runs the line of the mutant |
+| survivor | a mutant that lived or that is not covered |
 
-The flags of `mutants run`:
+Each survivor shows a gap in the tests: a test that you did not write, or an assertion that is too weak.
+When you add the test, the test kills the mutant.
 
-| Flag | Does |
-| --- | --- |
-| `--base REF` | compares with the merge base of `HEAD` and `REF` |
-| `--all FOLDER...` | runs every line of the files in each folder |
-| `--workers N` | tests `N` mutants at once, 4 by default |
-| `--limit DURATION` | stops the whole run, writes the mutants that got a verdict, and exits 124 |
-| `--build-limit DURATION` | the least time for the build of one mutant, 2 minutes by default. A package whose real code takes longer to build gives each mutant 3 times that time. |
-| `--tags a,b` | gives the build tags to `go list`, to the coverage run and to each build |
-| `--operators=-ERRORF_WRAP,+NAME` | `-NAME` takes an operator out, `+NAME` adds one, and `NAME` runs only the named operators |
-| `--format rows\|json` | prints rows, or one JSON document |
-| `--json PATH`, `--stryker PATH` | also writes the JSON report, or the Stryker report for its HTML viewer |
+## Why only the changed lines
 
-A repository can keep its settings in `.mutants.yml` at its root. A flag wins over the file.
+Each mutant runs the tests again, so a run on a whole code base can take hours. `mutants` makes mutants
+only on the changed lines of your branch. A run then takes minutes, and you can run it before each
+review, on the code that the review reads.
 
-```yaml
-base: origin/main
-workers: 4
-tags: [unit]
-operators: [-SWAP_FIELDS]
-exclude: ["**/*_gen.go", "vendor/**"]
-zero_functions: [maybe.None]   # functions that return a zero value, so FIELD_ZERO skips their calls
-```
-
-A repository adds its own operators as ast-grep rules with a `fix`, in `.mutants/operators/go/`. A rule
-with the id of a standard rule replaces that rule. `mutants operators` lists each rule and its file.
+By default, `mutants` compares your work tree with the point where your branch left `origin/HEAD`. It
+includes the changes that you did not commit, and each line of a new file that git does not track yet. It
+never writes to your files or to the git index.
 
 ## Install
 
-The installer downloads the latest release for your platform, verifies its checksum, and puts the
-binary where you can start using it. It needs `sh`, `curl`, `jq`, `tar`, and `gzip`.
+`mutants` needs these tools on your `PATH`:
+
+- git 2.30 or later
+- Go
+- [ast-grep](https://ast-grep.github.io/guide/quick-start.html) 0.45.0 or later, for example from
+  `brew install ast-grep`
+
+Install the latest release of `mutants` with this script:
 
 ```shell
 sh <(curl -fsSL https://raw.githubusercontent.com/hpcsc/mutants/main/scripts/install.sh)
 ```
 
-It asks for the release channel and the install directory. To skip the questions on the command line:
+The script asks for the release channel and the install folder. [docs/install.md](docs/install.md) tells
+its options, and how to update `mutants`.
+
+## Your first run
+
+1. Go to a git repository that holds a Go module, and check out your branch.
+2. Run `mutants`:
+
+   ```shell
+   mutants run
+   ```
+
+3. Read the rows. This is the output for the `Discount` example, in the file `shop/discount.go`:
+
+   ```text
+   LIVED:
+     shop/discount.go:5 CONDITIONALS_BOUNDARY: total >= 100 -> total > 100  [shop/discount.go:Discount:CONDITIONALS_BOUNDARY#1]
+     shop/discount.go:5 INTEGER_DECREMENT: 100 -> (100-1)  [shop/discount.go:Discount:INTEGER_DECREMENT#1]
+     shop/discount.go:5 INTEGER_INCREMENT: 100 -> (100+1)  [shop/discount.go:Discount:INTEGER_INCREMENT#1]
+   mutants: 10, killed: 7, lived: 3 (base 4eea634536)
+   ```
+
+   Each row gives the file and the line, the operator, the code before and after the change, and the id
+   of the mutant in `[ ]`. The last line counts the mutants of each status.
+
+4. Find the gap. The three survivors show one gap: no test uses an order near 100. A test on
+   each side of the boundary kills all three:
+
+   ```go
+   if got := Discount(99); got != 0 {
+   	t.Errorf("Discount(99) = %d, want 0", got)
+   }
+   if got := Discount(100); got != 10 {
+   	t.Errorf("Discount(100) = %d, want 10", got)
+   }
+   ```
+
+5. Check one mutant again with its id:
+
+   ```shell
+   mutants rerun 'shop/discount.go:Discount:CONDITIONALS_BOUNDARY#1'
+   ```
+
+   ```text
+   KILLED: shop/discount.go:5 CONDITIONALS_BOUNDARY: total >= 100 -> total > 100  [shop/discount.go:Discount:CONDITIONALS_BOUNDARY#1]
+     --- FAIL: TestDiscount (0.00s)
+   ```
+
+6. Run all the mutants again. The last line is now `mutants: 10, killed: 10`.
+
+## What to do with each status
+
+| Status | Meaning | What to do |
+| --- | --- | --- |
+| LIVED | every test passed with the mutant | Add a test that fails with the mutant, or make an assertion stricter. |
+| NOT COVERED | no test runs the line | Add a test that runs the line. |
+| TIMED OUT | the tests with the mutant ran past the time limit, for example in an endless loop | Nothing. A mutant that makes the tests hang counts as found. |
+| INFRA ERROR | the computer stopped the run, for example when it had no more memory | Run the mutant again with `mutants rerun`. |
+
+A mutant that a test killed, and a mutant that does not build, get no row.
+
+## When a survivor is not a gap in the tests
+
+Some mutants make no difference that a test can see. For example, `FIELD_ZERO` removes one field from a
+struct literal. When the value of that field is already its zero value, the mutant gives the same result as
+the real code. `mutants` already skips many of these mutants, such as the mutants of log lines. When you find
+one:
+
+- Leave it, and tell your reviewer why.
+- Take its operator out of one run: `mutants run --operators=-FIELD_ZERO`.
+- Take its operator out of each run in the repository, in `.mutants.yml` at the root:
+  `operators: [-FIELD_ZERO]`.
+- Name a function that returns a zero value, such as `maybe.None`, in `.mutants.yml`:
+  `zero_functions: [maybe.None]`.
+
+## Common commands
 
 ```shell
-sh <(curl ...) --channel release --dir ~/.local/bin
+mutants run                          # the changed lines of your branch
+mutants run --base HEAD              # only the changes that you did not commit
+mutants run --all ./internal/order   # each line of one package; ./internal/... adds the subfolders
+mutants rerun ID                     # one mutant again, by the id at the end of its row
+mutants operators                    # each operator, and whether it runs by default
 ```
 
-The channel is `release` (the latest stable release) or `prerelease` (the latest build of `main`).
-Without `--dir`, the binary lands in `~/.local/bin` (or `$INSTALL_DIR`). When more than one version is
-available in the channel, the installer lists them for you to pick.
+`mutants run` exits with 0 when no mutant survives, and with 10 when a mutant survives. A CI step or a
+script can use this exit code.
 
-`GITHUB_TOKEN` or `GH_TOKEN` gives access to a private repository.
+## More documents
 
-`mutants update` also installs from a release, and it replaces this very binary, so the
-installer and the update command do the same kind of job; use whichever you find convenient on a fresh
-machine.
-
-## Build
-
-```shell
-task build            # build ./bin/mutants
-task run -- --help    # run the CLI from the source
-```
-
-## Version and update
-
-```shell
-mutants version                # the tag of a release or a prerelease, or the commit of any other build
-mutants update                 # install the latest release
-mutants update --prerelease    # install the latest prerelease, a build of main
-mutants update --check         # only tell you whether this build is the latest
-```
-
-`internal/version` reports the version. A release build gets its tag from goreleaser, through
-`-ldflags -X .../internal/version.releaseTag`. Any other build reports the short commit sha that Go
-keeps in the build information, with `-dirty` after it when the working tree had changes.
-
-`mutants update` downloads the archive for your platform from a GitHub release, checks it
-against the `checksums.txt` of that release, and then replaces the binary. It names each step on
-stderr, and in a terminal it shows how much of the download has arrived. `GITHUB_TOKEN` or `GH_TOKEN`
-gives access to a private repository.
-
-Releases and prereleases are two channels. Each command installs the latest build of its channel when
-this build is a different one, so `mutants update` on a prerelease goes back to the latest
-release. A build from a commit is not a release or a prerelease, so `mutants update` does not
-replace it unless you add `--force`.
-
-## Goreleaser
-
-- Run goreleaser in local: `task release:local`. This will generate a snapshot build under `./dist`
-- Create a release:
-
-```shell
-git tag vX.X.X
-git push origin vX.X.X
-```
-
-This will trigger the release workflow, which runs the CI checks and then creates a Github Release with
-binaries for MacOS and Linux.
-
-Each push to `main` starts the prerelease workflow. It tags the commit with the next patch after the
-latest release, the run number and the commit, for example `v0.2.1-42.g4829f92`, publishes that tag as a
-prerelease, and then keeps only the 5 newest prereleases.
-
-`On Demand Build` builds a snapshot of any ref from Github Actions and uploads the archives as artifacts.
-
-## E2E Test
-
-The end-to-end tests run the built binary against small Go modules in git repositories that the tests
-make, with known answers. They are in `e2e/`, and [docs/e2e-tests.md](docs/e2e-tests.md) tells how they
-work.
-
-```shell
-task test:e2e          # in Docker, as CI does
-task test:e2e:local    # on this machine, needs node, Go and ast-grep
-```
+| Document | Tells |
+| --- | --- |
+| [docs/usage.md](docs/usage.md) | each command, flag, exit code, report format and setting of `.mutants.yml` |
+| [docs/operators.md](docs/operators.md) | what each operator changes, with an example |
+| [docs/install.md](docs/install.md) | the options of the install script, the update of `mutants` and its version |
+| [docs/development.md](docs/development.md) | how to build, test and release `mutants` |
+| [docs/design.md](docs/design.md) | how `mutants` works, and why |
+| [docs/e2e-tests.md](docs/e2e-tests.md) | how the end-to-end tests work |
