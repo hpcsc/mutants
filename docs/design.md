@@ -250,7 +250,7 @@ The Go pack for v1:
 | `RANGE_BREAK` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
 | `SWAP_FIELDS` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |
-| `FIELD_ZERO` | removes one keyed field from a struct literal, so the field gets the zero value of its type | off by default until its noise is measured; shows a field that no test reads |
+| `FIELD_ZERO` | removes one keyed field from a struct literal, so the field gets the zero value of its type | shows a field that no test reads |
 | `ARGUMENT_ZERO` | a call argument to the zero value of its parameter type | off by default: each argument of each call makes a mutant, so it is noisy until it has a filter |
 | `ERRORF_WRAP` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
 
@@ -624,6 +624,11 @@ costs time only for a mutant that really hangs, and such a mutant is rare.
 **Why the build limit comes from the build of the real code.** A fixed limit of 120 s gave INFRA ERROR to
 11 builds of one large package on the measured monorepo, under a load average of up to 111. The build of
 the real code runs under the same load, so 3 × its time fits the package and the host.
+
+**Why FIELD_ZERO runs by default.** On 12 measured PRs, it made 329 mutants, about a third more than the other
+operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example a close
+rule that loses a blocker. Three more were values that `zero_functions` now skips. So most of its survivors are
+real test gaps, and they are worth the longer run.
 
 **Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_ZERO`.
 Without it, a guard that returns `false` gets no mutant.

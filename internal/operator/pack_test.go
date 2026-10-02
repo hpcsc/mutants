@@ -139,7 +139,6 @@ func TestPack(t *testing.T) {
 			require.Contains(t, operatorsOf(pack), "CONDITIONALS_BOUNDARY")
 			require.Contains(t, operatorsOf(pack), "SWAP_FIELDS")
 			require.NotContains(t, operatorsOf(pack), "ERRORF_WRAP")
-			require.NotContains(t, operatorsOf(pack), "FIELD_ZERO")
 			require.NotContains(t, operatorsOf(pack), "ARGUMENT_ZERO")
 		})
 

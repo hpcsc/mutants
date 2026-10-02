@@ -8,5 +8,3 @@ fix:
   template: ''
   expandEnd:
     regex: ','
-metadata:
-  default: off
