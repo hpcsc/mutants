@@ -1,0 +1,8 @@
+id: REMOVE_LOGICAL_NOT
+language: python
+rule:
+  kind: not_operator
+  has:
+    field: argument
+    pattern: $X
+fix: $X

@@ -1,0 +1,25 @@
+id: BREAK_AT_END
+language: python
+rule:
+  kind: block
+  any:
+    - inside:
+        kind: for_statement
+        field: body
+    - inside:
+        kind: while_statement
+        field: body
+  not:
+    has:
+      any:
+        - kind: return_statement
+        - kind: break_statement
+        - kind: continue_statement
+        - kind: raise_statement
+      nthChild:
+        position: 1
+        reverse: true
+  pattern: $BODY
+fix: |-
+  $BODY
+  break

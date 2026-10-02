@@ -1,0 +1,7 @@
+id: logging
+language: python
+rule:
+  kind: call
+  has:
+    field: function
+    regex: (^|\.)_?(logger|log|logging|LOGGER|LOG)\.(debug|info|warning|warn|error|exception|critical|log)$

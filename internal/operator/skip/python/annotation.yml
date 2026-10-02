@@ -1,0 +1,4 @@
+id: annotation
+language: python
+rule:
+  kind: type

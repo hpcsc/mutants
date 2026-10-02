@@ -1,0 +1,89 @@
+id: CONDITIONALS_NEGATION/eq
+language: python
+rule:
+  pattern: $A == $B
+  not:
+    has:
+      nthChild: 3
+fix: $A != $B
+---
+id: CONDITIONALS_NEGATION/ne
+language: python
+rule:
+  pattern: $A != $B
+  not:
+    has:
+      nthChild: 3
+fix: $A == $B
+---
+id: CONDITIONALS_NEGATION/lt
+language: python
+rule:
+  pattern: $A < $B
+  not:
+    has:
+      nthChild: 3
+fix: $A >= $B
+---
+id: CONDITIONALS_NEGATION/ge
+language: python
+rule:
+  pattern: $A >= $B
+  not:
+    has:
+      nthChild: 3
+fix: $A < $B
+---
+id: CONDITIONALS_NEGATION/gt
+language: python
+rule:
+  pattern: $A > $B
+  not:
+    has:
+      nthChild: 3
+fix: $A <= $B
+---
+id: CONDITIONALS_NEGATION/le
+language: python
+rule:
+  pattern: $A <= $B
+  not:
+    has:
+      nthChild: 3
+fix: $A > $B
+---
+id: CONDITIONALS_NEGATION/is
+language: python
+rule:
+  pattern: $A is $B
+  not:
+    has:
+      nthChild: 3
+fix: $A is not $B
+---
+id: CONDITIONALS_NEGATION/is-not
+language: python
+rule:
+  pattern: $A is not $B
+  not:
+    has:
+      nthChild: 3
+fix: $A is $B
+---
+id: CONDITIONALS_NEGATION/in
+language: python
+rule:
+  pattern: $A in $B
+  not:
+    has:
+      nthChild: 3
+fix: $A not in $B
+---
+id: CONDITIONALS_NEGATION/not-in
+language: python
+rule:
+  pattern: $A not in $B
+  not:
+    has:
+      nthChild: 3
+fix: $A in $B

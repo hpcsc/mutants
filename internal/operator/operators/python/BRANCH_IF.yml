@@ -1,0 +1,12 @@
+id: BRANCH_IF
+language: python
+rule:
+  kind: block
+  any:
+    - inside:
+        kind: if_statement
+        field: consequence
+    - inside:
+        kind: elif_clause
+        field: consequence
+fix: pass

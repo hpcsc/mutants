@@ -1,0 +1,8 @@
+id: ERROR_REMOVE
+language: python
+rule:
+  kind: raise_statement
+  inside:
+    kind: function_definition
+    stopBy: end
+fix: return

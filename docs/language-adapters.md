@@ -102,8 +102,8 @@ next to each other.
 
 - `operator.Load` adds each hook to the pack of each language, by the name of its operator. So a hook must
   work for each language that has its operator.
-- The `NAMED_VALUE_SWAP` hook reads only the bytes between two matches: commas, white space, and `//` and
-  `/* */` comments. It works for a language with this syntax when the rule binds each value to `$VALUE`.
+- The `NAMED_VALUE_SWAP` hook reads only the bytes between two matches: commas, white space, and `//`, `#`
+  and `/* */` comments. It works for a language with this syntax when the rule binds each value to `$VALUE`.
 
 ## Step 3: Write the adapter
 

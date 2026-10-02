@@ -1,0 +1,8 @@
+id: BRANCH_CASE
+language: python
+rule:
+  kind: block
+  inside:
+    kind: case_clause
+    field: consequence
+fix: pass

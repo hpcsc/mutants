@@ -49,7 +49,7 @@ func (s namedValueSwap) adjacent(between []byte) bool {
 		case between[0] == ',':
 			commas++
 			between = between[1:]
-		case bytes.HasPrefix(between, []byte("//")):
+		case bytes.HasPrefix(between, []byte("//")), between[0] == '#':
 			end := bytes.IndexByte(between, '\n')
 			if end < 0 {
 				return false

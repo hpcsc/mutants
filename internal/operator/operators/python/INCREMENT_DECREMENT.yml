@@ -1,0 +1,11 @@
+id: INCREMENT_DECREMENT/increment
+language: python
+rule:
+  pattern: $X += $N
+fix: $X -= $N
+---
+id: INCREMENT_DECREMENT/decrement
+language: python
+rule:
+  pattern: $X -= $N
+fix: $X += $N

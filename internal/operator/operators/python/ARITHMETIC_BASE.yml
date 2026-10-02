@@ -1,0 +1,49 @@
+id: ARITHMETIC_BASE/plus
+language: python
+rule:
+  pattern: $A + $B
+  not:
+    has:
+      any:
+        - kind: string
+        - kind: concatenated_string
+fix: $A - $B
+---
+id: ARITHMETIC_BASE/minus
+language: python
+rule:
+  pattern: $A - $B
+fix: $A + $B
+---
+id: ARITHMETIC_BASE/multiply
+language: python
+rule:
+  pattern: $A * $B
+  not:
+    has:
+      any:
+        - kind: string
+        - kind: concatenated_string
+fix: $A / $B
+---
+id: ARITHMETIC_BASE/divide
+language: python
+rule:
+  pattern: $A / $B
+fix: $A * $B
+---
+id: ARITHMETIC_BASE/floor-divide
+language: python
+rule:
+  pattern: $A // $B
+fix: $A * $B
+---
+id: ARITHMETIC_BASE/remainder
+language: python
+rule:
+  pattern: $A % $B
+  not:
+    has:
+      field: left
+      kind: string
+fix: $A * $B

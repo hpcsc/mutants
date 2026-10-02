@@ -1,0 +1,7 @@
+id: NAMED_VALUE_SWAP
+language: python
+rule:
+  kind: keyword_argument
+  has:
+    field: value
+    pattern: $VALUE

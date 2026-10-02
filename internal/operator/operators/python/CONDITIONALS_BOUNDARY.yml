@@ -1,0 +1,35 @@
+id: CONDITIONALS_BOUNDARY/lt
+language: python
+rule:
+  pattern: $A < $B
+  not:
+    has:
+      nthChild: 3
+fix: $A <= $B
+---
+id: CONDITIONALS_BOUNDARY/le
+language: python
+rule:
+  pattern: $A <= $B
+  not:
+    has:
+      nthChild: 3
+fix: $A < $B
+---
+id: CONDITIONALS_BOUNDARY/gt
+language: python
+rule:
+  pattern: $A > $B
+  not:
+    has:
+      nthChild: 3
+fix: $A >= $B
+---
+id: CONDITIONALS_BOUNDARY/ge
+language: python
+rule:
+  pattern: $A >= $B
+  not:
+    has:
+      nthChild: 3
+fix: $A > $B

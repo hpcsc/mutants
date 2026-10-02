@@ -1,0 +1,23 @@
+id: EXPRESSION_REMOVE/and-left
+language: python
+rule:
+  pattern: $A and $B
+fix: True and $B
+---
+id: EXPRESSION_REMOVE/and-right
+language: python
+rule:
+  pattern: $A and $B
+fix: $A and True
+---
+id: EXPRESSION_REMOVE/or-left
+language: python
+rule:
+  pattern: $A or $B
+fix: False or $B
+---
+id: EXPRESSION_REMOVE/or-right
+language: python
+rule:
+  pattern: $A or $B
+fix: $A or False

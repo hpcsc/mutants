@@ -1,0 +1,9 @@
+id: ERROR_CAUSE_REMOVE
+language: python
+rule:
+  pattern: raise $E from $C
+constraints:
+  C:
+    not:
+      regex: ^None$
+fix: raise $E

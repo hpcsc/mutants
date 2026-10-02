@@ -1,0 +1,7 @@
+id: type-checking
+language: python
+rule:
+  kind: if_statement
+  has:
+    field: condition
+    regex: ^(typing\.)?TYPE_CHECKING$

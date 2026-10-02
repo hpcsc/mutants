@@ -1,0 +1,11 @@
+id: INVERT_LOGICAL/and
+language: python
+rule:
+  pattern: $A and $B
+fix: $A or $B
+---
+id: INVERT_LOGICAL/or
+language: python
+rule:
+  pattern: $A or $B
+fix: $A and $B

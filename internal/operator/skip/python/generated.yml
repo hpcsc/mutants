@@ -1,0 +1,12 @@
+id: generated
+language: python
+rule:
+  kind: module
+  has:
+    kind: comment
+    regex: (@generated|DO NOT EDIT)
+    not:
+      follows:
+        not:
+          kind: comment
+        stopBy: end

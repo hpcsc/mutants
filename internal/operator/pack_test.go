@@ -44,6 +44,11 @@ func editsOf(t *testing.T, operatorName, source string) []string {
 	return changesOf(findEdits(t, operatorName, source))
 }
 
+func pythonEditsOf(t *testing.T, operatorName, source string) []string {
+	t.Helper()
+	return changesOf(findEditsIn(t, "a.py", operatorName, source))
+}
+
 func changesOf(edits []operator.Edit) []string {
 	var changes []string
 	for _, edit := range edits {
@@ -54,12 +59,19 @@ func changesOf(edits []operator.Edit) []string {
 
 func findEdits(t *testing.T, operatorName, source string) []operator.Edit {
 	t.Helper()
+	return findEditsIn(t, "a.go", operatorName, source)
+}
+
+func findEditsIn(t *testing.T, file, operatorName, source string) []operator.Edit {
+	t.Helper()
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "a.go"), source)
-	pack, err := loadPack(t, root).Select([]string{operatorName})
+	writeFile(t, filepath.Join(root, file), source)
+	loaded, err := operator.Load(map[string]string{".go": "go", ".py": "python"}[filepath.Ext(file)], root)
+	require.NoError(t, err)
+	pack, err := loaded.Select([]string{operatorName})
 	require.NoError(t, err)
 
-	edits, err := pack.Edits(context.Background(), astgrep.New(root), root, []string{"a.go"})
+	edits, err := pack.Edits(context.Background(), astgrep.New(root), root, []string{file})
 
 	require.NoError(t, err)
 	slices.SortFunc(edits, func(a, b operator.Edit) int { return a.Start - b.Start })
@@ -544,6 +556,185 @@ func TestPack(t *testing.T) {
 			edits := editsOf(t, "ERROR_CAUSE_REMOVE", "package a\n\nfunc f() error {\n\treturn fmt.Errorf(\"load: %w\", err)\n}\n")
 
 			require.Equal(t, []string{"fmt.Errorf(\"load: %w\", err) -> fmt.Errorf(\"load: %v\", err)"}, edits)
+		})
+	})
+
+	t.Run("python edits", func(t *testing.T) {
+		t.Run("CONDITIONALS_BOUNDARY moves a comparison of two operands to its boundary, and skips a chain", func(t *testing.T) {
+			edits := pythonEditsOf(t, "CONDITIONALS_BOUNDARY", "def f(a, b):\n    return a < b or a <= b or a > b or a >= b or 0 < a < 9\n")
+
+			require.Equal(t, []string{"a < b -> a <= b", "a <= b -> a < b", "a > b -> a >= b", "a >= b -> a > b"}, edits)
+		})
+
+		t.Run("CONDITIONALS_NEGATION negates each comparison, also is and in", func(t *testing.T) {
+			edits := pythonEditsOf(t, "CONDITIONALS_NEGATION", "def f(a, b):\n    return [a == b, a != b, a < b, a >= b, a > b, a <= b, a is b, a is not b, a in b, a not in b]\n")
+
+			require.Equal(t, []string{
+				"a == b -> a != b", "a != b -> a == b", "a < b -> a >= b", "a >= b -> a < b", "a > b -> a <= b", "a <= b -> a > b",
+				"a is b -> a is not b", "a is not b -> a is b", "a in b -> a not in b", "a not in b -> a in b",
+			}, edits)
+		})
+
+		t.Run("ARITHMETIC_BASE changes each arithmetic operator, and skips the % of a format string and a + or * with a string", func(t *testing.T) {
+			edits := pythonEditsOf(t, "ARITHMETIC_BASE", "def f(a, b):\n    return [a + b, a - b, a * b, a / b, a // b, a % b, \"%s\" % a, \"a\" + b, \"-\" * b]\n")
+
+			require.Equal(t, []string{"a + b -> a - b", "a - b -> a + b", "a * b -> a / b", "a / b -> a * b", "a // b -> a * b", "a % b -> a * b"}, edits)
+		})
+
+		t.Run("INCREMENT_DECREMENT swaps += and -=", func(t *testing.T) {
+			edits := pythonEditsOf(t, "INCREMENT_DECREMENT", "def f(a, b):\n    a += b\n    a -= 1\n")
+
+			require.Equal(t, []string{"a += b -> a -= b", "a -= 1 -> a += 1"}, edits)
+		})
+
+		t.Run("INVERT_LOGICAL swaps and and or", func(t *testing.T) {
+			edits := pythonEditsOf(t, "INVERT_LOGICAL", "def f(a, b):\n    return [a and b, a or b]\n")
+
+			require.Equal(t, []string{"a and b -> a or b", "a or b -> a and b"}, edits)
+		})
+
+		t.Run("EXPRESSION_REMOVE makes each side of and True and each side of or False", func(t *testing.T) {
+			edits := pythonEditsOf(t, "EXPRESSION_REMOVE", "def f(a, b):\n    return [a and b, a or b]\n")
+
+			require.ElementsMatch(t, []string{"a and b -> True and b", "a and b -> a and True", "a or b -> False or b", "a or b -> a or False"}, edits)
+		})
+
+		t.Run("REMOVE_LOGICAL_NOT removes a not, and skips not in", func(t *testing.T) {
+			edits := pythonEditsOf(t, "REMOVE_LOGICAL_NOT", "def f(a, b):\n    return [not a, a not in b]\n")
+
+			require.Equal(t, []string{"not a -> a"}, edits)
+		})
+
+		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT move an integer by one", func(t *testing.T) {
+			source := "def f(xs):\n    return xs[0] + 1_000\n"
+
+			require.Equal(t, []string{"0 -> (0+1)", "1_000 -> (1_000+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"0 -> (0-1)", "1_000 -> (1_000-1)"}, pythonEditsOf(t, "INTEGER_DECREMENT", source))
+		})
+
+		t.Run("BRANCH_IF puts pass in place of the body of an if and of an elif", func(t *testing.T) {
+			edits := pythonEditsOf(t, "BRANCH_IF", "def f(a):\n    if a > 1:\n        g(a)\n        h(a)\n    elif a: return a\n")
+
+			require.Equal(t, []string{"g(a)\n        h(a) -> pass", "return a -> pass"}, edits)
+		})
+
+		t.Run("BRANCH_ELSE puts pass in place of the body of the else of an if, and skips the else of a loop", func(t *testing.T) {
+			edits := pythonEditsOf(t, "BRANCH_ELSE", "def f(a):\n    if a:\n        g(a)\n    else:\n        h(a)\n    for x in a:\n        g(x)\n    else:\n        h(a)\n")
+
+			require.Equal(t, []string{"h(a) -> pass"}, edits)
+		})
+
+		t.Run("BRANCH_CASE puts pass in place of the body of each case", func(t *testing.T) {
+			edits := pythonEditsOf(t, "BRANCH_CASE", "def f(a):\n    match a:\n        case 1:\n            g(a)\n        case _:\n            h(a)\n")
+
+			require.Equal(t, []string{"g(a) -> pass", "h(a) -> pass"}, edits)
+		})
+
+		t.Run("STATEMENT_REMOVE assigns the value to _ in a function, and puts pass in place of a call that stands alone", func(t *testing.T) {
+			edits := pythonEditsOf(t, "STATEMENT_REMOVE", "LIMIT = 10\n\n\nasync def f(self, client):\n    self.total = 0\n    g(self)\n    await client.close()\n")
+
+			require.Equal(t, []string{"self.total = 0 -> _ = 0", "g(self) -> pass", "await client.close() -> pass"}, edits)
+		})
+
+		t.Run("RETURN_EMPTY gives each return value the empty values, for the filter of the adapter to choose", func(t *testing.T) {
+			edits := pythonEditsOf(t, "RETURN_EMPTY", "def f(a):\n    return a.total\n")
+
+			require.ElementsMatch(t, []string{
+				"a.total -> None", "a.total -> 0", `a.total -> ""`, "a.total -> False", "a.total -> []", "a.total -> {}",
+			}, edits)
+		})
+
+		t.Run("RETURN_TRUE makes each return value True", func(t *testing.T) {
+			edits := findEditsIn(t, "a.py", "RETURN_TRUE", "def f(a, b):\n    if a:\n        return a < b\n    return g(b)\n")
+
+			require.Equal(t, []operator.Edit{
+				{File: "a.py", Operator: "RETURN_TRUE", Rule: "RETURN_TRUE/condition", Start: 38, End: 43, Original: "a < b", Replacement: "True"},
+				{File: "a.py", Operator: "RETURN_TRUE", Rule: "RETURN_TRUE/annotated", Start: 55, End: 59, Original: "g(b)", Replacement: "True"},
+			}, edits)
+		})
+
+		t.Run("ERROR_REMOVE puts return in place of a raise in a function, and skips a raise outside a function", func(t *testing.T) {
+			edits := pythonEditsOf(t, "ERROR_REMOVE", "def f(a):\n    if not a:\n        raise ValueError(a)\n\n\nraise SystemExit(1)\n")
+
+			require.Equal(t, []string{"raise ValueError(a) -> return"}, edits)
+		})
+
+		t.Run("ERROR_CAUSE_REMOVE removes the cause of a raise, and skips from None", func(t *testing.T) {
+			edits := pythonEditsOf(t, "ERROR_CAUSE_REMOVE", "def f(a):\n    try:\n        g(a)\n    except KeyError as err:\n        raise ValueError(a) from err\n    except TypeError:\n        raise ValueError(a) from None\n")
+
+			require.Equal(t, []string{"raise ValueError(a) from err -> raise ValueError(a)"}, edits)
+		})
+
+		t.Run("BREAK_AT_START stops a for loop before its first item", func(t *testing.T) {
+			source := "def f(xs):\n    for x in xs:\n        g(x)\n        h(x)\n"
+
+			edits := findEditsIn(t, "a.py", "BREAK_AT_START", source)
+
+			require.Len(t, edits, 1)
+			require.Equal(t, "def f(xs):\n    for x in xs:\n        break\n        g(x)\n        h(x)\n", source[:edits[0].Start]+edits[0].Replacement+source[edits[0].End:])
+		})
+
+		t.Run("BREAK_AT_END stops a for or while loop after its first item", func(t *testing.T) {
+			source := "def f(xs):\n    for x in xs:\n        g(x)\n"
+
+			edits := findEditsIn(t, "a.py", "BREAK_AT_END", source)
+
+			require.Len(t, edits, 1)
+			require.Equal(t, "def f(xs):\n    for x in xs:\n        g(x)\n        break\n", source[:edits[0].Start]+edits[0].Replacement+source[edits[0].End:])
+		})
+
+		t.Run("BREAK_AT_END skips a loop that ends with return, break, continue or raise", func(t *testing.T) {
+			source := "def f(xs):\n    for x in xs:\n        return x\n    while xs:\n        break\n    for x in xs:\n        continue\n    while xs:\n        raise ValueError(xs)\n"
+
+			require.Empty(t, pythonEditsOf(t, "BREAK_AT_END", source))
+		})
+
+		t.Run("NAMED_VALUE_REMOVE removes each keyword argument with its comma", func(t *testing.T) {
+			source := "def f(a):\n    return Totals(a, paid=a.paid, owed=a.owed)\n"
+
+			edits := findEditsIn(t, "a.py", "NAMED_VALUE_REMOVE", source)
+
+			require.Len(t, edits, 2)
+			require.Equal(t, "def f(a):\n    return Totals(a,  owed=a.owed)\n", source[:edits[0].Start]+edits[0].Replacement+source[edits[0].End:])
+			require.Equal(t, "def f(a):\n    return Totals(a, paid=a.paid, )\n", source[:edits[1].Start]+edits[1].Replacement+source[edits[1].End:])
+		})
+
+		t.Run("NAMED_VALUE_SWAP swaps the values of two keyword arguments next to each other, also with a # comment between them", func(t *testing.T) {
+			edits := pythonEditsOf(t, "NAMED_VALUE_SWAP", "def f(a):\n    return Totals(\n        paid=a.paid,  # the paid part\n        owed=a.owed,\n    )\n")
+
+			require.Equal(t, []string{"a.paid,  # the paid part\n        owed=a.owed -> a.owed,  # the paid part\n        owed=a.paid"}, edits)
+		})
+
+		t.Run("ARGUMENT_EMPTY gives each argument None, and skips *args and **kwargs", func(t *testing.T) {
+			edits := pythonEditsOf(t, "ARGUMENT_EMPTY", "def f(a, args, kwargs):\n    g(a.id, *args, key=a.key, **kwargs)\n")
+
+			require.Equal(t, []string{"a.id -> None", "a.key -> None"}, edits)
+		})
+
+		t.Run("each operator skips its edits in a log call, a type annotation and a TYPE_CHECKING block", func(t *testing.T) {
+			source := "from typing import TYPE_CHECKING, Literal\n\nif TYPE_CHECKING:\n    LIMIT = 1\n\n\n" +
+				"def f(n: Literal[1]) -> int:\n    logger.info(\"n %d\", n + 1)\n    self.log.debug(n + 1)\n    return n + 2\n"
+
+			require.Equal(t, []string{"2 -> (2+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
+		})
+
+		t.Run("each operator skips the test files and the generated files", func(t *testing.T) {
+			root := t.TempDir()
+			for _, file := range []string{"test_cart.py", "cart_test.py", "conftest.py", "tests/helpers.py", "cart_pb2.py", "cart.py"} {
+				writeFile(t, filepath.Join(root, file), "LIMIT = 1\n")
+			}
+			writeFile(t, filepath.Join(root, "cart_pb2.py"), "# -*- coding: utf-8 -*-\n# Generated by the protocol buffer compiler.  DO NOT EDIT!\nLIMIT = 1\n")
+			loaded, err := operator.Load("python", root)
+			require.NoError(t, err)
+			pack, err := loaded.Select([]string{"INTEGER_INCREMENT"})
+			require.NoError(t, err)
+
+			edits, err := pack.Edits(context.Background(), astgrep.New(root), root, []string{"test_cart.py", "cart_test.py", "conftest.py", "tests/helpers.py", "cart_pb2.py", "cart.py"})
+
+			require.NoError(t, err)
+			require.Equal(t, []operator.Edit{
+				{File: "cart.py", Operator: "INTEGER_INCREMENT", Rule: "INTEGER_INCREMENT", Start: 8, End: 9, Original: "1", Replacement: "(1+1)"},
+			}, edits)
 		})
 	})
 }

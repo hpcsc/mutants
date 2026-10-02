@@ -1,0 +1,9 @@
+id: test-file
+language: python
+files:
+  - '**/test_*.py'
+  - '**/*_test.py'
+  - '**/conftest.py'
+  - '**/tests/**/*.py'
+rule:
+  kind: module

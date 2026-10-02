@@ -1,0 +1,10 @@
+id: NAMED_VALUE_REMOVE
+language: python
+rule:
+  kind: keyword_argument
+  inside:
+    kind: argument_list
+fix:
+  template: ''
+  expandEnd:
+    regex: ','

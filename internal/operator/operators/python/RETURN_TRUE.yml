@@ -1,0 +1,44 @@
+id: RETURN_TRUE/condition
+language: python
+rule:
+  any:
+    - kind: comparison_operator
+    - kind: not_operator
+    - kind: 'false'
+  inside:
+    kind: return_statement
+fix: 'True'
+---
+id: RETURN_TRUE/annotated
+language: python
+rule:
+  any:
+    - kind: attribute
+    - kind: await
+    - kind: binary_operator
+    - kind: boolean_operator
+    - kind: call
+    - kind: concatenated_string
+    - kind: conditional_expression
+    - kind: dictionary
+    - kind: dictionary_comprehension
+    - kind: float
+    - kind: generator_expression
+    - kind: identifier
+    - kind: integer
+    - kind: lambda
+    - kind: list
+    - kind: list_comprehension
+    - kind: named_expression
+    - kind: 'none'
+    - kind: parenthesized_expression
+    - kind: set
+    - kind: set_comprehension
+    - kind: string
+    - kind: subscript
+    - kind: tuple
+    - kind: unary_operator
+    - kind: expression_list
+  inside:
+    kind: return_statement
+fix: 'True'

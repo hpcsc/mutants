@@ -1,0 +1,11 @@
+id: BREAK_AT_START
+language: python
+rule:
+  kind: block
+  inside:
+    kind: for_statement
+    field: body
+  pattern: $BODY
+fix: |-
+  break
+  $BODY

@@ -1,0 +1,10 @@
+id: BRANCH_ELSE
+language: python
+rule:
+  kind: block
+  inside:
+    kind: else_clause
+    field: body
+    inside:
+      kind: if_statement
+fix: pass

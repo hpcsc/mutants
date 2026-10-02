@@ -1,0 +1,6 @@
+id: INTEGER_INCREMENT
+language: python
+rule:
+  kind: integer
+  pattern: $N
+fix: ($N+1)

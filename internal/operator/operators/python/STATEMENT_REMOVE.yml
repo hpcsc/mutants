@@ -1,0 +1,23 @@
+id: STATEMENT_REMOVE/assign
+language: python
+rule:
+  kind: assignment
+  pattern: $X = $E
+  inside:
+    kind: expression_statement
+    inside:
+      kind: function_definition
+      stopBy: end
+fix: _ = $E
+---
+id: STATEMENT_REMOVE/call
+language: python
+rule:
+  kind: expression_statement
+  has:
+    any:
+      - kind: call
+      - kind: await
+        has:
+          kind: call
+fix: pass
