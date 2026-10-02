@@ -25,6 +25,18 @@ import (
 
 var defaultSettings = golang.Settings{BuildLimit: 2 * time.Minute, Workers: 2}
 
+const maybeSource = `package maybe
+
+type Maybe[T any] struct {
+	value T
+	ok    bool
+}
+
+func None[T any]() Maybe[T] { return Maybe[T]{} }
+
+func Some[T any](value T) Maybe[T] { return Maybe[T]{value: value, ok: true} }
+`
+
 func newModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -443,17 +455,7 @@ func Open(now, deadline time.Time, w Window, g Gate) []bool {
 
 		t.Run("drops a NAMED_VALUE_REMOVE edit of a call of a function that the settings name as a zero function", func(t *testing.T) {
 			root := newModule(t, map[string]string{
-				"maybe/maybe.go": `package maybe
-
-type Maybe[T any] struct {
-	value T
-	ok    bool
-}
-
-func None[T any]() Maybe[T] { return Maybe[T]{} }
-
-func Some[T any](value T) Maybe[T] { return Maybe[T]{value: value, ok: true} }
-`,
+				"maybe/maybe.go":     maybeSource,
 				"trigger/trigger.go": "package trigger\n\ntype Trigger struct{ kind int }\n\nfunc Submitted() Trigger { return Trigger{} }\n",
 				"cases/cases.go": `package cases
 
@@ -481,6 +483,61 @@ func New(owner string) Case {
 			require.False(t, adapter.Keep(editOf(t, root, "cases/cases.go", "NAMED_VALUE_REMOVE", "Trigger: trigger.Submitted()", "")))
 			require.True(t, adapter.Keep(editOf(t, root, "cases/cases.go", "NAMED_VALUE_REMOVE", "Owner: maybe.Some(owner),", "")))
 			require.True(t, golang.New(root, defaultSettings).Keep(parker))
+		})
+
+		t.Run("drops a RETURN_EMPTY edit of a struct literal whose fields hold calls of zero functions or empty struct literals", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"maybe/maybe.go": maybeSource,
+				"resolver/resolver.go": `package resolver
+
+import "example.com/fixture/maybe"
+
+type Window struct{ From, To int }
+
+type Trigger struct {
+	returnPosition maybe.Maybe[int64]
+	window         Window
+}
+
+func Unset() Trigger {
+	return Trigger{returnPosition: maybe.None[int64]()}
+}
+
+func Open() Trigger {
+	return Trigger{window: Window{}}
+}
+
+func At(position int64) Trigger {
+	return Trigger{returnPosition: maybe.Some(position)}
+}
+`,
+			})
+			adapter := golang.New(root, golang.Settings{BuildLimit: time.Minute, Workers: 1, ZeroFunctions: []string{"maybe.None"}})
+			kept := map[string]bool{}
+			for _, literal := range []string{"Trigger{returnPosition: maybe.None[int64]()}", "Trigger{window: Window{}}", "Trigger{returnPosition: maybe.Some(position)}"} {
+				kept[literal] = adapter.Keep(editOf(t, root, "resolver/resolver.go", "RETURN_EMPTY", literal, "Trigger{}"))
+			}
+
+			require.Equal(t, map[string]bool{
+				"Trigger{returnPosition: maybe.None[int64]()}":  false,
+				"Trigger{window: Window{}}":                     false,
+				"Trigger{returnPosition: maybe.Some(position)}": true,
+			}, kept)
+		})
+
+		t.Run("keeps a NAMED_VALUE_REMOVE edit of a slice whose one item points to an empty struct", func(t *testing.T) {
+			root := newModule(t, map[string]string{"plan/plan.go": `package plan
+
+type Window struct{ From, To int }
+
+type Plan struct{ windows []*Window }
+
+func Default() Plan {
+	return Plan{windows: []*Window{{}}}
+}
+`})
+
+			require.True(t, golang.New(root, defaultSettings).Keep(editOf(t, root, "plan/plan.go", "NAMED_VALUE_REMOVE", "windows: []*Window{{}}", "")))
 		})
 
 		t.Run("keeps a NAMED_VALUE_REMOVE edit in a struct literal only, and drops it when the value is zero already", func(t *testing.T) {

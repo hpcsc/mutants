@@ -287,6 +287,11 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |
 
+A value is zero already when `go/types` gives it the zero value of its type, or when it is a call of a function
+of `go.zero_functions`. A struct literal is zero already when each of its fields is zero already, so
+`RETURN_EMPTY` drops `Trigger{position: maybe.None[int64]()}` to `Trigger{}`. A `&T{}` is not zero, because
+a pointer to an empty struct is not `nil`.
+
 The Python adapter has these:
 
 | Filter | Drops |
@@ -665,7 +670,8 @@ go:
 
 `go.zero_functions` names the functions that return the zero value of their type, as `package.Function` with
 the name of the package, not its path. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of
-them, because the removal of that field changes nothing.
+them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change gives the
+same value.
 
 v1 keeps no cache. Its one state file is the store of accepted proposals, in
 `$(git rev-parse --absolute-git-dir)/mutants/`, so the work tree stays clean. The rules for a scan, the

@@ -325,7 +325,7 @@ python:
 | `caller_gaps` | `true` looks for caller gaps in each run, as `--caller-gaps` |
 | `go.tags` | the build tags, as `--tags` |
 | `python.command` | the command that starts the Python of a project, in the folder of the project. See [Python](#python). |
-| `go.zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them, because the removal of that field changes nothing. Use the name of the package, not its path. |
+| `go.zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change gives the same value. Use the name of the package, not its path. |
 
 The settings of one language are under the key of the language, such as `go`. An unknown key is an error
 that names the key, its line and the known keys.

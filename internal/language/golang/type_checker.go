@@ -202,11 +202,22 @@ func (c *typeChecker) isEmpty(literal *ast.CompositeLit, info *types.Info) bool 
 		if keyed, ok := element.(*ast.KeyValueExpr); ok {
 			element = keyed.Value
 		}
-		if !c.isZero(info.Types[element]) {
+		if !c.isZero(info.Types[element]) && !c.callsZeroFunction(element, info) && !c.isEmptyStruct(element, info) {
 			return false
 		}
 	}
 	return true
+}
+
+// isEmptyStruct takes no elided &T{}, such as the item of []*T{{}}, because a pointer to an empty struct is not
+// nil.
+func (c *typeChecker) isEmptyStruct(value ast.Expr, info *types.Info) bool {
+	literal, isLiteral := ast.Unparen(value).(*ast.CompositeLit)
+	if !isLiteral || info.TypeOf(literal) == nil {
+		return false
+	}
+	_, isStruct := info.TypeOf(literal).Underlying().(*types.Struct)
+	return isStruct && c.isEmpty(literal, info)
 }
 
 func (c *typeChecker) isErrorSlot(path string, start, end int) bool {
