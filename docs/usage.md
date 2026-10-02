@@ -58,7 +58,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 | `--limit DURATION` | stops the whole run after this time, prints the mutants that have a status, and exits with 124 |
 | `--build-limit DURATION` | the least time for the build of one mutant. The default is 2 minutes. See [Time limits](#time-limits). |
 | `--tags a,b` | the build tags for `go list`, for the coverage run and for each build |
-| `--operators=-NAME,+NAME` | `-NAME` takes an operator out, `+NAME` adds one, and `NAME` with no sign runs only the named operators |
+| `--operators=-NAME,+NAME` | `-NAME` takes an operator out, `+NAME` adds one, and `NAME` with no sign runs only the named operators. `none` runs no operator, for example to run only `--proposals`. A run with no operator, no proposal and no `--caller-gaps` exits with 2. |
 | `--format rows\|json` | prints rows, or one JSON document. The default is rows. |
 | `--json PATH` | also writes the JSON report to `PATH` |
 | `--stryker PATH` | also writes the Stryker report to `PATH` |

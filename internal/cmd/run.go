@@ -42,7 +42,7 @@ func newRunCommand() *cli.Command {
 			&cli.DurationFlag{Name: "limit", Usage: "stop the whole run after this time, and exit 124 (default: no limit)"},
 			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "the least time for the build of one mutant; it is 3 times the build of the real code when that is longer"},
 			&cli.StringSliceFlag{Name: "tags", Usage: "the build tags for go list, the coverage run and the builds"},
-			&cli.StringSliceFlag{Name: "operators", Usage: "the operators to run: -NAME takes one out, +NAME adds one, NAME runs only the named ones"},
+			&cli.StringSliceFlag{Name: "operators", Usage: "the operators to run: -NAME takes one out, +NAME adds one, NAME runs only the named ones, none runs no operator"},
 			&cli.StringFlag{Name: "format", Value: "rows", Usage: "print rows or json"},
 			&cli.StringFlag{Name: "json", Usage: "also write the JSON report to this file"},
 			&cli.StringFlag{Name: "stryker", Usage: "also write the Stryker report to this file"},

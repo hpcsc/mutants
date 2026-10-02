@@ -26,6 +26,8 @@ var ErrUnknownID = errors.New("no mutant has this id")
 
 var ErrStaleProposal = errors.New("the proposal does not fit the code")
 
+var ErrNothingToRun = errors.New("the run has no operator, no proposal and no check for caller gaps")
+
 var errLimit = errors.New("the run reached its limit")
 
 type Settings struct {
@@ -82,6 +84,9 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	pack, err := r.pack.Select(settings.Operators)
 	if err != nil {
 		return Outcome{}, err
+	}
+	if len(pack.Rules()) == 0 && len(settings.Proposals) == 0 && !settings.CallerGaps {
+		return Outcome{}, ErrNothingToRun
 	}
 	pathspec := diff.Pathspec{Extensions: r.adapter.Extensions(), Exclude: settings.Exclude}
 	var outcome Outcome

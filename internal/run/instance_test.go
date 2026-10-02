@@ -265,6 +265,29 @@ func TestInstance(t *testing.T) {
 		})
 	})
 
+	t.Run("no operator", func(t *testing.T) {
+		t.Run("with proposals, runs only the proposals", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			proposed := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "equal values count as greater"}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 2, Proposals: []proposal.Proposal{proposed}}
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", proposed.Number())}, idsAndStatuses(outcome.Mutants))
+		})
+
+		t.Run("with no proposal and no check for caller gaps, returns ErrNothingToRun", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+
+			_, err := r.instance(&fakeAdapter{}).Run(context.Background(), run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 2})
+
+			require.ErrorIs(t, err, run.ErrNothingToRun)
+		})
+	})
+
 	t.Run("caller gaps", func(t *testing.T) {
 		t.Run("with the setting, the outcome holds the caller gaps of the adapter", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareBefore})

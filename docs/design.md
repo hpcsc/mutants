@@ -193,7 +193,7 @@ change the exit code of ast-grep. The rules live in three places, and a later pl
 | --- | --- |
 | `internal/operator/operators/<language>/` in the binary (`go:embed`) | the standard pack |
 | `.mutants/operators/<language>/` in the target repository | rules for that repository, for example a shape that its code often gets wrong. A rule with the id of a standard rule replaces that rule. |
-| `--operators` | the operators to run in this call: `-NAME` takes an operator out, `+NAME` adds one, and `NAME` with no sign runs only the named operators |
+| `--operators` | the operators to run in this call: `-NAME` takes an operator out, `+NAME` adds one, and `NAME` with no sign runs only the named operators. `none` runs no operator, so a run can hold only proposals or only the check for caller gaps. |
 
 A rule with `metadata: {default: off}` runs only when `--operators` names its operator. `mutants operators`
 lists each operator, whether it runs by default, and its rules.

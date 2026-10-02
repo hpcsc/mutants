@@ -76,6 +76,10 @@ func (p Pack) Rules() []Rule {
 	return slices.Clone(p.rules)
 }
 
+// None is a name for Select that runs no operator. It has no sign, so it also turns off the default
+// operators, and "+NAME" after it adds one operator.
+const None = "none"
+
 func (p Pack) Select(names []string) (Pack, error) {
 	operators := map[string]bool{}
 	for _, rule := range p.rules {
@@ -89,6 +93,9 @@ func (p Pack) Select(names []string) (Pack, error) {
 		}
 	}
 	for _, name := range names {
+		if name == None {
+			continue
+		}
 		operator := strings.TrimLeft(name, "+-")
 		if !operators[operator] {
 			return Pack{}, fmt.Errorf("mutants has no operator %s: mutants operators lists the operators", operator)

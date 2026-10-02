@@ -165,6 +165,18 @@ func TestPack(t *testing.T) {
 			require.ElementsMatch(t, []string{"BRANCH_IF", "ERRORF_WRAP"}, operatorsOf(pack))
 		})
 
+		t.Run("none runs no operator, and a name with + after it adds one", func(t *testing.T) {
+			pack := loadPack(t, t.TempDir())
+
+			none, err := pack.Select([]string{operator.None})
+			require.NoError(t, err)
+			oneMore, err := pack.Select([]string{operator.None, "+ERRORF_WRAP"})
+			require.NoError(t, err)
+
+			require.Empty(t, operatorsOf(none))
+			require.Equal(t, []string{"ERRORF_WRAP"}, operatorsOf(oneMore))
+		})
+
 		t.Run("an unknown name returns an error that names it", func(t *testing.T) {
 			_, err := loadPack(t, t.TempDir()).Select([]string{"-NOT_AN_OPERATOR"})
 
