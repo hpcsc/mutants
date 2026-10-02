@@ -12,6 +12,16 @@ describe('the root command', () => {
       expect(result.stdout).toMatch(new RegExp(`^\\s+${command}\\s`, 'm'))
     }
   })
+
+  it.each([[[]], [['operators']], [['update']], [['version']], [['config']], [['config', 'init']]])(
+    '%j exits 2 for a flag that it does not know, with one line that names the flag',
+    async (command) => {
+      const result = await runCli(scratchDir(), [...command, '--nope'])
+
+      expect(result.status).toBe(2)
+      expect(result.stderr).toMatch(/^[^\n]*-nope[^\n]*\n$/)
+    },
+  )
 })
 
 describe('mutants config init', () => {

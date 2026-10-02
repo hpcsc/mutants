@@ -524,6 +524,8 @@ coverage runs of different packages run at the same time, as many as there are w
 | `mutants version` | prints the tag of the binary, or its commit when it has no tag | 0 |
 | `mutants update` | replaces the binary with the latest release, or with the latest prerelease | 0, or 1 on an error |
 
+Each command exits 2 for a usage error, for example a flag that it does not know.
+
 The flags of `run`: `--base`, `--workers`, `--limit`, `--build-limit`, `--tags`, `--operators`,
 `--format rows|json`, `--json PATH`, `--stryker PATH`, `--proposals PATH`, `--caller-gaps`. The flags of
 `rerun`: `--tags`, `--build-limit`.

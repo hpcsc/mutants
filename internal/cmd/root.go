@@ -33,7 +33,7 @@ func Run(ctx context.Context) int {
 }
 
 func newCommand() *cli.Command {
-	return &cli.Command{
+	root := &cli.Command{
 		Name:                  "mutants",
 		Version:               version.Current(),
 		Usage:                 "find weak tests in the lines that a branch changes",
@@ -49,6 +49,17 @@ func newCommand() *cli.Command {
 			newUpdateCommand(),
 			newBuildCacheCommand(),
 		},
+	}
+	setUsageError(root)
+	return root
+}
+
+func setUsageError(command *cli.Command) {
+	command.OnUsageError = func(_ context.Context, _ *cli.Command, err error, _ bool) error {
+		return cli.Exit(err, exitUsage)
+	}
+	for _, subcommand := range command.Commands {
+		setUsageError(subcommand)
 	}
 }
 

@@ -29,8 +29,7 @@ func newRerunCommand() *cli.Command {
 			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "the least time for the build of the mutant; it is 3 times the build of the real code when that is longer"},
 			&cli.StringSliceFlag{Name: "tags", Usage: "the build tags for go list, the coverage run and the build"},
 		},
-		OnUsageError: usageError,
-		Action:       rerunMutant,
+		Action: rerunMutant,
 	}
 }
 

@@ -50,8 +50,7 @@ func newRunCommand() *cli.Command {
 			&cli.BoolFlag{Name: "proposals-anywhere", Usage: "accept a proposal also on a line that the diff does not change"},
 			&cli.BoolFlag{Name: "caller-gaps", Usage: "also find the changed lines that the tests of their package run, but that no test of a changed caller runs"},
 		},
-		OnUsageError: usageError,
-		Action:       runMutants,
+		Action: runMutants,
 	}
 }
 
@@ -200,8 +199,4 @@ func writeFile(path string, write func(io.Writer) error) error {
 		return err
 	}
 	return file.Close()
-}
-
-func usageError(_ context.Context, _ *cli.Command, err error, _ bool) error {
-	return cli.Exit(err, exitUsage)
 }

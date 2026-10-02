@@ -85,6 +85,8 @@ no diff, so it also works after a commit. It prints one row, and the detail of t
 
 ## Exit codes
 
+Each command exits 2 for a usage error, for example a flag that it does not know.
+
 | Command | Code | Meaning |
 | --- | --- | --- |
 | `mutants run` | 0 | no mutant survived |

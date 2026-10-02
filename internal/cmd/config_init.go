@@ -24,8 +24,7 @@ func newConfigCommand() *cli.Command {
 			Usage: "write .mutants.yml at the root of the repository, with its base and the build tags of its tests",
 			Description: "mutants config init reads the default branch of origin and the build tags of the test files, and\n" +
 				"writes each other setting as a comment. It does not replace a .mutants.yml that exists.",
-			OnUsageError: usageError,
-			Action:       initConfig,
+			Action: initConfig,
 		}},
 	}
 }
