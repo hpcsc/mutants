@@ -146,4 +146,6 @@ func (a *adapter) Runner() mutant.Runner {
 
 var _ language.Adapter = (*adapter)(nil)
 
+var _ language.CallerGapFinder = (*adapter)(nil)
+
 var _ mutant.Runner = (*runner)(nil)

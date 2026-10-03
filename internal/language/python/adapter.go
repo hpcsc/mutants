@@ -5,7 +5,6 @@ import (
 	"embed"
 	"strings"
 
-	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
@@ -73,10 +72,6 @@ func (a *adapter) Function(file string, offset int) string {
 
 func (a *adapter) Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
 	return a.coverage.uncovered(ctx, mutants)
-}
-
-func (a *adapter) CallerGaps(context.Context, diff.Lines) ([]language.CallerGap, error) {
-	return nil, nil
 }
 
 func (a *adapter) Runner() mutant.Runner {

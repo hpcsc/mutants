@@ -406,6 +406,9 @@ caller gaps: 1
 A run that finds a caller gap exits 10, as a run with a survivor does. The check costs one more test run for
 each caller. It is off by default until its noise is measured on more PRs.
 
+Only the Go adapter has the check. A run whose changed files are only in other languages has no caller gaps in
+its rows and its JSON, so no reader takes it for a check that found 0 gaps.
+
 ### The Go runner
 
 The runner builds the test binary with an overlay, and then runs the binary itself. It never runs `go test`
@@ -735,7 +738,7 @@ gives back.
 | `operator` | the catalog of the operators, the rule packs, the skip rules, `operator.Rule`, `operator.Hook`, `operator.Matcher`, and the hooks |
 | `operator/astgrep` | an `operator.Matcher` that calls `ast-grep scan --json` and parses its matches |
 | `mutant` | `mutant.Mutant` with `Apply`, which puts the mutant into a source, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
-| `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage, its caller gaps and its runner |
+| `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage and its runner. `language.CallerGapFinder`: the caller gaps of a language that has the check. |
 | `language/golang` | the Go adapter |
 | `language/python` | the Python adapter, with its import hook and its pytest plugin |
 | `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends. `RunAgainAfterTimeout` runs the program a second time with twice the limit, and `process.TestLimit` gives the limit of the tests of one mutant from its baseline. |
@@ -757,8 +760,12 @@ type Adapter interface {
 	// Uncovered gives the mutants that no test runs. The value is the detail of the verdict: empty, or a text
 	// that holds for each mutant of one package.
 	Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error)
-	CallerGaps(ctx context.Context, changed diff.Lines) ([]CallerGap, error)
 	Runner() mutant.Runner
+}
+
+// An adapter must not implement CallerGapFinder without the check, because a run reads an empty result as no gap.
+type CallerGapFinder interface {
+	CallerGaps(ctx context.Context, changed diff.Lines) ([]CallerGap, error)
 }
 ```
 

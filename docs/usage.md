@@ -219,8 +219,9 @@ mutants: 3, killed: 2, lived: 1 (base 1a2b3c4d5e)
 caller gaps: 1
 ```
 
-A run that stops at `--limit` before the check ends lists no caller gaps. A run that finds a caller gap
-exits with 10. The check is off by default. Turn it on for each run with
+A run that stops at `--limit` before the check ends lists no caller gaps. A run whose changed files are only
+in Python also lists none, because the check looks at Go code only. A run that finds a caller gap exits
+with 10. The check is off by default. Turn it on for each run with
 `caller_gaps: true` in `.mutants.yml`.
 
 ## Mutant ids

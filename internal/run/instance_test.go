@@ -29,21 +29,22 @@ import (
 )
 
 type fakeAdapter struct {
-	name            string
-	root            string
-	dropped         map[string]bool
-	uncovered       map[string]string
-	statuses        map[string]mutant.Status
-	waits           map[string]bool
-	failure         error
-	callerGaps      []language.CallerGap
-	callerGapsWaits bool
-	coverageFailure error
-	onWait          func()
-	mutex           sync.Mutex
-	ran             []string
-	covered         []string
-	callerGapFiles  []string
+	name             string
+	root             string
+	dropped          map[string]bool
+	uncovered        map[string]string
+	statuses         map[string]mutant.Status
+	waits            map[string]bool
+	failure          error
+	callerGaps       []language.CallerGap
+	callerGapsWaits  bool
+	noCallerGapCheck bool
+	coverageFailure  error
+	onWait           func()
+	mutex            sync.Mutex
+	ran              []string
+	covered          []string
+	callerGapFiles   []string
 }
 
 func (f *fakeAdapter) Name() string { return cmp.Or(f.name, "go") }
@@ -171,7 +172,11 @@ func (r *gitRepository) instance(adapters ...*fakeAdapter) *run.Instance {
 		adapter.root = r.root
 		pack, err := operator.Load(adapter.Name(), r.root)
 		require.NoError(r.t, err)
-		languages = append(languages, run.Language{Adapter: adapter, Pack: pack})
+		var asAdapter language.Adapter = adapter
+		if adapter.noCallerGapCheck {
+			asAdapter = struct{ language.Adapter }{adapter}
+		}
+		languages = append(languages, run.Language{Adapter: asAdapter, Pack: pack})
 	}
 	return run.New(repository, languages, astgrep.New(r.root), io.Discard, false)
 }
@@ -454,6 +459,17 @@ func TestInstance(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, outcome.CallerGaps)
 			require.Empty(t, *outcome.CallerGaps)
+		})
+
+		t.Run("a run whose changed files are only in a language without the check gives no caller gaps", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "a.py": pythonBefore})
+			r.write("a.py", pythonAfter)
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, CallerGaps: true}
+
+			outcome, err := r.instance(&fakeAdapter{}, &fakeAdapter{name: "python", noCallerGapCheck: true}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Nil(t, outcome.CallerGaps)
 		})
 
 		t.Run("a run that stops at the limit before the check ends gives no caller gaps", func(t *testing.T) {

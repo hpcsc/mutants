@@ -805,7 +805,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 				"handler/handler.go": handlerSource, "handler/handler_test.go": handlerTest,
 			})
 
-			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "handler/handler.go"))
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "handler/handler.go"))
 
 			require.NoError(t, err)
 			require.Equal(t, []language.CallerGap{
@@ -823,7 +823,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 				"wired/wired_test.go": "package wired\n\nimport \"testing\"\n\nfunc TestAllowed(t *testing.T) {\n\tif !Allowed(\"a\") {\n\t\tt.Fatal(\"Allowed\")\n\t}\n}\n",
 			})
 
-			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "wired/wired.go"))
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "wired/wired.go"))
 
 			require.NoError(t, err)
 			require.Equal(t, []language.CallerGap{
@@ -841,7 +841,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 			changed := changedFiles(t, root, "handler/handler.go")
 			changed.Add("gate/gate.go", 15, 20)
 
-			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changed)
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changed)
 
 			require.NoError(t, err)
 			require.Equal(t, []language.CallerGap{
@@ -858,7 +858,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 				"handler/handler_test.go": "package handler\n\nimport \"testing\"\n\nfunc TestHandle(t *testing.T) {\n\tif !Handle(\"a\", func(string) bool { return true }) {\n\t\tt.Fatal(\"Handle\")\n\t}\n}\n",
 			})
 
-			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "handler/handler.go"))
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "handler/handler.go"))
 
 			require.NoError(t, err)
 			require.Equal(t, []language.CallerGap{
@@ -876,7 +876,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 			changed := changedFiles(t, root, "gate/gate.go")
 			changed.Add("handler/handler.go", 21, 26)
 
-			gaps, err := golang.New(root, defaultSettings).CallerGaps(context.Background(), changed)
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changed)
 
 			require.NoError(t, err)
 			require.Empty(t, gaps)

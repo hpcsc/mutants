@@ -39,7 +39,7 @@ sequenceDiagram
         R->>A: Function(file, start)
     end
     Note over R: number the ids, then keep the mutants on changed lines
-    opt with --caller-gaps
+    opt with --caller-gaps, when the adapter is a language.CallerGapFinder
         R->>A: CallerGaps(ctx, changed lines)
     end
     R->>A: Uncovered(ctx, mutants)
@@ -128,8 +128,13 @@ folders.
 | `Keep(edit)` | one time for each candidate edit, before the ids | give `false` for an edit to drop. See [Filters](#filters). |
 | `Function(file, offset)` | one time for each edit that `Keep` keeps | give the name of the declaration that holds the byte offset. See [Function names](#function-names). |
 | `Uncovered(ctx, mutants)` | one time with all the mutants of a run, and one time in `rerun` | give the mutants that no test runs. See [Coverage](#coverage). |
-| `CallerGaps(ctx, changed)` | only with `--caller-gaps` | give the caller gaps, or `nil, nil` when the language has no such check |
 | `Runner()` | before each mutant runs | give the `mutant.Runner` of the language. See [The runner](#the-runner). |
+
+An adapter whose language has a check for caller gaps also implements `language.CallerGapFinder`, as the Go
+adapter does. With `--caller-gaps`, the run calls `CallerGaps(ctx, changed)` of each such adapter that has
+changed files. Do not implement it for a language without the check. A run whose changed files are only in
+that language then has no caller gaps in its rows and its JSON, so no reader takes it for a check that
+found 0 gaps.
 
 ### Filters
 

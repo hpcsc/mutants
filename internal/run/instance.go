@@ -138,10 +138,7 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	finding.End()
 	if err == nil && settings.CallerGaps {
 		checking := progress.Start(r.stderr, r.terminal, "Running the tests of the changed callers")
-		var gaps []language.CallerGap
-		if gaps, err = r.callerGaps(ctx, lines); err == nil {
-			outcome.CallerGaps = &gaps
-		}
+		outcome.CallerGaps, err = r.callerGaps(ctx, lines)
 		checking.End()
 	}
 	if err != nil || len(mutants) == 0 {
@@ -485,18 +482,22 @@ func (r *Instance) languageOf(file string) (Language, bool) {
 	return r.languages[index], true
 }
 
-func (r *Instance) callerGaps(ctx context.Context, lines diff.Lines) ([]language.CallerGap, error) {
-	var gaps []language.CallerGap
+func (r *Instance) callerGaps(ctx context.Context, lines diff.Lines) (*[]language.CallerGap, error) {
+	var gaps *[]language.CallerGap
 	for _, l := range r.languages {
+		finder, hasCheck := l.Adapter.(language.CallerGapFinder)
 		changed := lines.WithExtensions(l.Adapter.Extensions())
-		if len(changed.Files()) == 0 {
+		if !hasCheck || len(changed.Files()) == 0 {
 			continue
 		}
-		found, err := l.Adapter.CallerGaps(ctx, changed)
+		found, err := finder.CallerGaps(ctx, changed)
 		if err != nil {
 			return nil, err
 		}
-		gaps = append(gaps, found...)
+		if gaps == nil {
+			gaps = &[]language.CallerGap{}
+		}
+		*gaps = append(*gaps, found...)
 	}
 	return gaps, nil
 }
