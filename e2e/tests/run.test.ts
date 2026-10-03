@@ -336,6 +336,18 @@ describe('mutants rerun', { timeout: 240_000 }, () => {
     expect(result.status).toBe(2)
     expect(result.stderr).toContain(message)
   })
+
+  it('exits 2 outside a git repository and for a key of .mutants.yml that it does not know, as run does', async () => {
+    const id = 'calc/calc.go:Max:CONDITIONALS_NEGATION#1'
+
+    const outside = await runCli(scratchDir(), ['rerun', id])
+    const unknownKey = await runCli(goRepository({ '.mutants.yml': 'workerz: 2\n' }), ['rerun', id])
+
+    expect(outside.status).toBe(2)
+    expect(outside.stderr).toContain('is not in a git repository')
+    expect(unknownKey.status).toBe(2)
+    expect(unknownKey.stderr).toContain('unknown key workerz in .mutants.yml (line 1)')
+  })
 })
 
 describe('mutants operators', () => {

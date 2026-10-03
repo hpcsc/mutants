@@ -607,7 +607,7 @@ coverage runs of different packages run at the same time, as many as there are w
 | --- | --- | --- |
 | `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors or caller gaps, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
-| `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, or an unknown id |
+| `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, an unknown id, or an error before the mutant runs |
 | `mutants operators` | lists the operators and their rules | 0 |
 | `mutants config init` | writes a first `.mutants.yml`, with the default branch of origin and the build tags of the tests | 0 written, 2 the file exists |
 | `mutants version` | prints the tag of the binary, or its commit when it has no tag | 0 |

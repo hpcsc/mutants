@@ -97,7 +97,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | `mutants rerun` | 0 | a test killed the mutant |
 | | 10 | the mutant lived, or no test runs its line |
 | | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, or the proposal of the mutant does not fit the code |
-| | 2 | the text is not a mutant id, or no mutant has this id |
+| | 2 | the text is not a mutant id, no mutant has this id, or a usage error or a tool error before the mutant runs, for example a key of `.mutants.yml` that `mutants` does not know |
 
 ## Statuses
 

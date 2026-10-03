@@ -44,11 +44,11 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	}
 	repository, err := diff.Open(ctx, ".")
 	if err != nil {
-		return cli.Exit(err, exitNoVerdict)
+		return cli.Exit(err, exitUsage)
 	}
 	configured, err := repositoryConfig(ctx, repository, cmd.Root().ErrWriter)
 	if err != nil {
-		return cli.Exit(err, exitNoVerdict)
+		return cli.Exit(err, exitUsage)
 	}
 	instance, err := newInstance(ctx, repository, golang.Settings{
 		Tags:          configured.tags(cmd),
@@ -57,7 +57,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 		ZeroFunctions: configured.Go.ZeroFunctions,
 	}, python.Settings{Command: configured.Python.Command, Workers: 1}, cmd.Root().ErrWriter)
 	if err != nil {
-		return cli.Exit(err, exitNoVerdict)
+		return cli.Exit(err, exitUsage)
 	}
 
 	m, err := instance.Rerun(ctx, id)
