@@ -33,8 +33,6 @@ type cacheResponse struct {
 	DiskPath      string     `json:",omitempty"`
 }
 
-// ServeBuildCache answers the cache requests of go on in and out, as the program of GOCACHEPROG. It reads
-// the entries of userCache and mutantCache, and writes each new entry to mutantCache only.
 func ServeBuildCache(in io.Reader, out io.Writer, userCache, mutantCache string) error {
 	requests := json.NewDecoder(in)
 	responses := json.NewEncoder(out)
@@ -129,7 +127,6 @@ func cacheFile(folder string, id []byte, suffix string) string {
 	return filepath.Join(folder, name[:2], name+suffix)
 }
 
-// writeAtomically lets the cache programs of two builds put the same entry at the same time.
 func writeAtomically(path string, content []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

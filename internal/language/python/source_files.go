@@ -26,13 +26,11 @@ func (d declaration) holds(offset int) bool {
 	return d.start <= offset && offset < d.end
 }
 
-// binding is a place where a name gets a value. Its kind is the id of the rule in declarations.yml that
-// found it, and function is the index of the innermost function that holds it.
 type binding struct {
-	name     string
-	offset   int
-	kind     string
-	function int
+	name          string
+	offset        int
+	kind          string
+	functionIndex int
 }
 
 type parsedFile struct {
@@ -51,8 +49,6 @@ func newSourceFiles(root string, matcher operator.Matcher) *sourceFiles {
 	return &sourceFiles{root: root, matcher: matcher, files: map[string]parsedFile{}}
 }
 
-// function gives the names of the classes and the functions that hold the offset, from the outside in, such
-// as Cart.total.
 func (s *sourceFiles) function(file string, offset int) string {
 	var names []string
 	for _, d := range s.parse(file).declarations {
@@ -71,8 +67,7 @@ func (s *sourceFiles) returnType(file string, offset int) string {
 	return ""
 }
 
-// unbound gives the names that an assignment from start to end assigns, and that have no value before it in
-// its function. A read of such a name after a mutant of the assignment raises NameError.
+// a read of an unbound name after a mutant of its assignment raises NameError
 func (s *sourceFiles) unbound(file string, start, end int) []string {
 	parsed := s.parse(file)
 	var names []string
@@ -81,7 +76,7 @@ func (s *sourceFiles) unbound(file string, start, end int) []string {
 			continue
 		}
 		bound := slices.ContainsFunc(parsed.bindings, func(b binding) bool {
-			return b.name == target.name && b.function == target.function && (b.kind == "parameter" || b.offset < start)
+			return b.name == target.name && b.functionIndex == target.functionIndex && (b.kind == "parameter" || b.offset < start)
 		})
 		if !bound {
 			names = append(names, target.name)
@@ -90,7 +85,6 @@ func (s *sourceFiles) unbound(file string, start, end int) []string {
 	return names
 }
 
-// functionOf gives the index of the innermost function that holds the offset, or -1.
 func (p parsedFile) functionOf(offset int) int {
 	found := -1
 	for i, d := range p.declarations {
@@ -101,8 +95,6 @@ func (p parsedFile) functionOf(offset int) int {
 	return found
 }
 
-// parse gives the classes and the functions of the file in the order of their start, so a declaration comes
-// before each declaration in it.
 func (s *sourceFiles) parse(file string) parsedFile {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -149,7 +141,7 @@ func (s *sourceFiles) parse(file string) parsedFile {
 	}
 	slices.SortFunc(parsed.declarations, func(a, b declaration) int { return a.start - b.start })
 	for _, b := range bindings {
-		b.function = parsed.functionOf(b.offset)
+		b.functionIndex = parsed.functionOf(b.offset)
 		parsed.bindings = append(parsed.bindings, b)
 	}
 	s.files[file] = parsed

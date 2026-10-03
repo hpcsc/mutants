@@ -110,8 +110,6 @@ func (p Pack) Rules() []Rule {
 	return slices.Clone(p.rules)
 }
 
-// None is a name for Select that runs no operator. It has no sign, so it also turns off the default
-// operators, and "+NAME" after it adds one operator.
 const None = "none"
 
 func Select(packs []Pack, names []string) ([]Pack, error) {
@@ -182,7 +180,6 @@ func (p Pack) Select(names []string) (Pack, error) {
 	return selected, nil
 }
 
-// Edits takes each file as a path from root.
 func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []string) ([]Edit, error) {
 	if len(p.rules) == 0 || len(files) == 0 {
 		return nil, nil
@@ -259,7 +256,6 @@ func skipped(edit Edit, skippedCode []Span) bool {
 			}
 		}
 	}
-	// the braces and separators around the skipped code have no letter and no digit
 	return changesSkippedCode && !bytes.ContainsFunc(rest, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) })
 }
 

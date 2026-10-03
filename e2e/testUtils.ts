@@ -40,8 +40,6 @@ export interface Result {
   status: number | null
 }
 
-// startCli does not block, so a fake server in this process can still answer the
-// requests the CLI makes, and a test can send a signal to the CLI while it runs.
 export function startCli(
   cwd: string,
   args: string[] = [],
@@ -69,8 +67,6 @@ export function runCli(
   return startCli(cwd, args, env, executable).result
 }
 
-// openCli starts the CLI in a pseudo-terminal. When the CLI stops, the shell
-// writes its exit status on the screen, so a test can wait for EXIT:0.
 export async function openCli(cwd: string, args: string[] = [], env: Record<string, string> = {}): Promise<Session> {
   const { launchTerminal } = await import('tuistory')
   const assignments = Object.entries(env)
@@ -78,10 +74,7 @@ export async function openCli(cwd: string, args: string[] = [], env: Record<stri
     .join(' ')
   const session = await launchTerminal({
     command: 'sh',
-    // The emulator starts in new line mode, where a line feed also goes back to
-    // column 1. A real terminal does not, and a full screen program that moves
-    // the cursor down with a line feed then draws in the wrong column, so
-    // \e[20l turns the mode off before the CLI starts.
+    // \e[20l turns off the new line mode of the emulator, because a real terminal does not use that mode
     args: ['-c', `printf '\\033[20l'; ${assignments} "${getExecutablePath()}" ${args.join(' ')}; echo "EXIT:$?"`],
     cwd,
     cols: 160,
@@ -102,7 +95,6 @@ export function writeFiles(dir: string, files: Record<string, string>): void {
   }
 }
 
-// goRepository makes a git repository with one commit, which holds a Go module and the files.
 export function goRepository(files: Record<string, string> = {}): string {
   const dir = scratchDir()
   git(dir, 'init', '--quiet', '--initial-branch=main')
@@ -115,8 +107,6 @@ export function goRepository(files: Record<string, string> = {}): string {
   return dir
 }
 
-// pythonRepository makes a git repository with one commit, which holds a Python project and the files. Its
-// .venv is a link to a venv of globalSetup.ts.
 export function pythonRepository(files: Record<string, string> = {}, venv = pythonVenv()): string {
   const dir = scratchDir()
   git(dir, 'init', '--quiet', '--initial-branch=main')
@@ -132,7 +122,6 @@ export function pythonRepository(files: Record<string, string> = {}, venv = pyth
 
 export const pyproject = '[tool.pytest.ini_options]\npythonpath = ["."]\n'
 
-// pythonVenv gives a venv with pytest and coverage.py, or with pytest only.
 export function pythonVenv(coverage = true): string {
   const name = coverage ? 'E2E_PYTHON_VENV' : 'E2E_PYTHON_VENV_WITHOUT_COVERAGE'
   const venv = process.env[name]
@@ -156,7 +145,6 @@ export interface ReportedMutant {
   detail?: string
 }
 
-// runMutants runs mutants run with --format json, and reads the mutants from the report.
 export async function runMutants(dir: string, args: string[]): Promise<{ result: Result; mutants: ReportedMutant[] }> {
   const result = await runCli(dir, ['run', '--format', 'json', ...args])
   if (result.stdout.trim() === '') {
@@ -165,7 +153,6 @@ export async function runMutants(dir: string, args: string[]): Promise<{ result:
   return { result, mutants: JSON.parse(result.stdout).mutants }
 }
 
-// verdicts gives each mutant as its operator, its original text and its status.
 export function verdicts(mutants: ReportedMutant[]): string[] {
   return mutants.map((m) => `${m.operator} ${m.original} ${m.status}`)
 }

@@ -201,7 +201,6 @@ func TestHandle(t *testing.T) {
 }
 `
 
-// changedFiles marks each line of each file as changed, as for new files.
 func changedFiles(t *testing.T, root string, files ...string) diff.Lines {
 	t.Helper()
 	var changed diff.Lines

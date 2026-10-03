@@ -128,7 +128,6 @@ func (c *typeChecker) isStructLiteral(literal *ast.CompositeLit, info *types.Inf
 	return isStruct
 }
 
-// a swap in a table such as {NoMatch: Reason{"NoMatch"}, Late: Reason{"Late"}} lives unless a test reads the text
 func (c *typeChecker) isTable(literal *ast.CompositeLit, info *types.Info) bool {
 	var named types.Type
 	for _, element := range literal.Elts {
@@ -326,8 +325,6 @@ func (c *typeChecker) returnSlot(path string, start, end int) (types.Type, ast.E
 	return signature.Results().At(index).Type(), statement.Results[index], loaded.TypesInfo
 }
 
-// parameterSlot leaves out the parameters where a zero value gives noise: a context, the text of an error,
-// and a variadic parameter, whose arguments are mostly the values of a message, such as those of fmt.Sprintf.
 func (c *typeChecker) parameterSlot(path string, start, end int) (types.Type, ast.Expr, *types.Info) {
 	loaded, syntax, lines := c.file(path)
 	if syntax == nil || start < 0 || end > lines.Size() {

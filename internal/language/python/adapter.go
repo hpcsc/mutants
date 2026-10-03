@@ -21,8 +21,6 @@ const (
 )
 
 type Settings struct {
-	// Command starts the Python of a project, in the folder of the project. When it is empty, the adapter
-	// takes .venv/bin/python of the project when the project has it, and python3 when it does not.
 	Command []string
 	Workers int
 }

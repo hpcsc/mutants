@@ -12,10 +12,8 @@ import (
 	"strings"
 )
 
-// Operator takes the place of the operator in the id of a proposed mutant.
 const Operator = "PROPOSED"
 
-// File is a path from the root of the repository.
 type Proposal struct {
 	File string `json:"file"`
 	Old  string `json:"old"`
@@ -34,7 +32,6 @@ type Summary struct {
 	Rejected []Rejection
 }
 
-// Number gives the same edit the same number, whatever the other proposals are.
 func (p Proposal) Number() int {
 	sum := sha256.Sum256([]byte(p.Old + "\x00" + p.New))
 	return int(binary.BigEndian.Uint32(sum[:4])%900000) + 100000

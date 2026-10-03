@@ -10,8 +10,6 @@ import (
 
 var projectFiles = []string{"pyproject.toml", "setup.cfg", "setup.py", "pytest.ini", "tox.ini"}
 
-// project is the folder of the tests of a file: the nearest folder above the file with one of projectFiles,
-// or the root of the repository.
 type project struct {
 	folder string
 	path   string

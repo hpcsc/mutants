@@ -18,8 +18,8 @@ const (
 	shortContext = 12
 )
 
-// Outcome is what one run gives to the reports. Proposals is nil when the run got no proposals, and
-// CallerGaps is nil when the run did not look for caller gaps.
+// Proposals is nil when the run got no proposals, and CallerGaps is nil when the run did not look for caller
+// gaps.
 type Outcome struct {
 	Base       string
 	Files      int

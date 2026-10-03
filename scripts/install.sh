@@ -1,19 +1,5 @@
 #!/bin/sh
 
-# mutants — first-time installer.
-#
-# Installs the mutants binary from the hpcsc/mutants GitHub
-# releases into a directory (default ~/.local/bin). It asks which release
-# channel to use (release or prerelease), lists the available versions in that
-# channel for selection, then asks where to put the binary.
-#
-# Requirements: curl, jq, tar, gzip, and sha256sum (or shasum on macOS).
-#
-# Environment (also used by the end-to-end tests):
-#   GITHUB_TOKEN    the token used to fetch a private repository, optional
-#   GH_TOKEN        a fallback name for the same token
-#   GITHUB_API_URL  the base of the GitHub API, default https://api.github.com
-#   INSTALL_DIR     the default install directory, default ~/.local/bin
 set -eu
 
 repo="hpcsc/mutants"
@@ -54,7 +40,6 @@ platform() {
 	printf '%s-%s\n' "$goos" "$goarch"
 }
 
-# api_releases prints the JSON body of the releases page.
 api_releases() {
 	auth_args=
 	if [ -n "$token" ]; then
@@ -69,7 +54,7 @@ api_releases() {
 		"$api/repos/$repo/releases?per_page=100" 2>/dev/null
 }
 
-# download_asset fetches a release asset through its API URL.
+# the API URL of an asset works for a private repository when the request has a token
 download_asset() {
 	url=$1
 	auth_args=
@@ -135,8 +120,6 @@ require_tools() {
 	fi
 }
 
-# choose_channel picks release or prerelease from the --channel flag
-# or interactively, and prints the choice.
 choose_channel() {
 	flag=$1
 	if [ -n "$flag" ]; then
@@ -161,7 +144,6 @@ choose_channel() {
 	esac
 }
 
-# versions_in_channel prints the tag names in the channel, newest first.
 versions_in_channel() {
 	channel=$1
 	releases_json=$2
@@ -178,8 +160,6 @@ list_versions() {
 	printf '%s\n' "$1" | awk '{ printf "  %2d) %s\n", NR, $0 }'
 }
 
-# choose_version prints the tag to install, asking which one when the
-# channel has more than one release.
 choose_version() {
 	matches=$1
 	version_count=$(printf '%s\n' "$matches" | sed -n '$=')
@@ -200,8 +180,6 @@ choose_version() {
 	printf '%s\n' "$matches" | sed -n "${pick}p"
 }
 
-# choose_install_dir prints the install directory, asking for it unless
-# --dir was given.
 choose_install_dir() {
 	default=$1
 	if [ -n "$dir_flag" ]; then
@@ -217,8 +195,7 @@ choose_install_dir() {
 	printf '%s\n' "$default"
 }
 
-# find_release looks up the tag in the release list and stores the URLs of
-# its archive and checksum assets in the globals archive_url / checksums_url.
+# find_release sets the globals archive_url and checksums_url
 find_release() {
 	releases_json=$1
 	tag=$2
@@ -233,8 +210,7 @@ find_release() {
 	[ -n "$checksums_url" ] && [ "$checksums_url" != null ] || die "release $tag has no $checksums_name"
 }
 
-# download_and_verify fetches the archive and its checksum file into a
-# temporary directory and confirms the archive matches the published checksum.
+# download_and_verify sets the global tmp, the folder of the archive that extract_binary reads
 download_and_verify() {
 	tmp=$(mktemp -d)
 	trap 'rm -rf "$tmp"' EXIT
@@ -249,8 +225,7 @@ download_and_verify() {
 	[ "$expected" = "$actual" ] || die "checksum mismatch for $archive_name: got $actual, want $expected"
 }
 
-# extract_binary unpacks the archive and finds the mutants binary
-# inside it, leaving its path in the global $binary.
+# extract_binary sets the global binary
 extract_binary() {
 	mkdir -p "$tmp/root"
 	tar -xzf "$tmp/$archive_name" -C "$tmp/root"

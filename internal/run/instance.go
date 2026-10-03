@@ -243,8 +243,6 @@ func (r *Instance) findProposed(ctx context.Context, id mutant.ID) (mutant.Mutan
 	return m, nil
 }
 
-// propose makes one mutant of the proposals with the same edit, with the ref of each, and counts each of them
-// as accepted.
 func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, inScope func(file string, first, last int) bool) ([]mutant.Mutant, int, []proposal.Rejection, error) {
 	sources := map[string][]byte{}
 	saved := map[string]proposal.Proposal{}
@@ -285,9 +283,7 @@ func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, i
 	return mutants, accepted, rejected, err
 }
 
-// proposed gives a reason when the proposal cannot become a mutant, and the last line that the edit changes
-// when it can.
-func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (mutant.Mutant, int, string, error) {
+func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (m mutant.Mutant, last int, reason string, err error) {
 	file, reason := p.RepositoryFile()
 	if reason != "" {
 		return mutant.Mutant{}, 0, reason, nil
@@ -324,7 +320,7 @@ func (r *Instance) proposed(p proposal.Proposal, sources map[string][]byte) (mut
 		return mutant.Mutant{}, 0, fmt.Sprintf("the %s adapter drops the edit, for example in a test file or in generated code", l.Adapter.Name()), nil
 	}
 	id := mutant.ID{File: file, Function: l.Adapter.Function(file, start), Operator: proposal.Operator, Number: p.Number()}
-	m, last := r.mutantOf(l, edit, id, newLineOffsets(source))
+	m, last = r.mutantOf(l, edit, id, newLineOffsets(source))
 	m.Bug = p.Bug
 	return m, last, "", nil
 }
@@ -385,10 +381,9 @@ func (r *Instance) find(ctx context.Context, l Language, files []string, inScope
 	return mutants, nil
 }
 
-// mutantOf also gives the last line that the edit changes.
-func (r *Instance) mutantOf(l Language, edit operator.Edit, id mutant.ID, lines lineOffsets) (mutant.Mutant, int) {
+func (r *Instance) mutantOf(l Language, edit operator.Edit, id mutant.ID, lines lineOffsets) (m mutant.Mutant, last int) {
 	line, column := lines.position(edit.Start)
-	last, _ := lines.position(max(edit.Start, edit.End-1))
+	last, _ = lines.position(max(edit.Start, edit.End-1))
 	endLine, endColumn := lines.position(edit.End)
 	return mutant.Mutant{
 		ID:          id,

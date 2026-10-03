@@ -30,13 +30,11 @@ type config struct {
 }
 
 type goConfig struct {
-	Tags []string `yaml:"tags"`
-	// ZeroFunctions names each function as package.Function, with the name of the package and not its path.
+	Tags          []string `yaml:"tags"`
 	ZeroFunctions []string `yaml:"zero_functions"`
 }
 
 type pythonConfig struct {
-	// Command starts the Python of a project in the folder of the project, such as [uv, run, python].
 	Command []string `yaml:"command"`
 }
 
@@ -65,7 +63,6 @@ func loadConfig(root string) (config, error) {
 	return loaded, nil
 }
 
-// checkKeys gives section as the key of the mapping, and "" for the root of the file.
 func checkKeys(mapping *yaml.Node, settings reflect.Type, section string) error {
 	keys := keysOf(settings)
 	if mapping.Kind != yaml.MappingNode {

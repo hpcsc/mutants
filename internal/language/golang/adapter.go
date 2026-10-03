@@ -34,9 +34,7 @@ type Settings struct {
 	BuildLimit    time.Duration
 	Workers       int
 	ZeroFunctions []string
-	// CacheProgram is the GOCACHEPROG of a mutant build, before the folders of the user cache and the mutant
-	// cache. When it is empty, mutant builds write to the cache of the user.
-	CacheProgram []string
+	CacheProgram  []string
 }
 
 func (s Settings) tagArguments() []string {

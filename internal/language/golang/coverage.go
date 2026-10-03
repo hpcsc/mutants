@@ -139,7 +139,6 @@ type profiled struct {
 	baseline baseline
 }
 
-// profile runs the tests of pkg once, and reads the blocks of each package in covered.
 func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPackage) (profiled, error) {
 	var result profiled
 	folder, err := os.MkdirTemp("", "mutants-coverage-")
@@ -149,10 +148,10 @@ func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPacka
 	defer os.RemoveAll(folder)
 	binary := filepath.Join(folder, "cover.test")
 	arguments := []string{"test", "-c", "-cover", "-covermode=set"}
-	dirs := map[string]string{}
+	folderOf := map[string]string{}
 	var paths []string
 	for _, p := range covered {
-		dirs[p.ImportPath] = p.Dir
+		folderOf[p.ImportPath] = p.Dir
 		paths = append(paths, p.ImportPath)
 	}
 	if len(covered) != 1 || covered[0].ImportPath != pkg.ImportPath {
@@ -194,12 +193,11 @@ func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPacka
 	if tested.Code != 0 {
 		return result, fmt.Errorf("the tests of %s fail with the real code, so no mutant can get a verdict:\n%s", pkg.ImportPath, strings.TrimSpace(tested.Tail))
 	}
-	result.blocks, err = c.readProfile(dirs, profile)
+	result.blocks, err = c.readProfile(folderOf, profile)
 	return result, err
 }
 
-// readProfile takes the folder of each package by its import path, and skips the blocks of other packages.
-func (c *coverage) readProfile(dirs map[string]string, profile string) (map[string][]block, error) {
+func (c *coverage) readProfile(folderOf map[string]string, profile string) (map[string][]block, error) {
 	file, err := os.Open(profile)
 	if err != nil {
 		return nil, err
@@ -221,7 +219,7 @@ func (c *coverage) readProfile(dirs map[string]string, profile string) (map[stri
 		if _, err := fmt.Sscanf(rest, "%d.%d,%d.%d %d %d", &b.startLine, &b.startColumn, &b.endLine, &b.endColumn, &statements, &b.count); err != nil {
 			return nil, fmt.Errorf("read the coverage line %q: %w", line, err)
 		}
-		dir, found := dirs[path.Dir(name)]
+		dir, found := folderOf[path.Dir(name)]
 		if !found {
 			continue
 		}

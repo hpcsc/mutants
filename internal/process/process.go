@@ -61,7 +61,6 @@ func (p Command) Run(ctx context.Context) (Exit, error) {
 	command.WaitDelay = time.Second
 
 	err = command.Run()
-	// a process that the program starts can outlive it, also after a normal exit
 	if command.Process != nil {
 		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
 	}

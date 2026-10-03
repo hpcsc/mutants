@@ -125,8 +125,6 @@ func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, con
 	return build.Run(ctx)
 }
 
-// buildEnv sends the new entries of a mutant build to the cache of the mutant, because no later build
-// reads them.
 func (r *runner) buildEnv(folder string) []string {
 	env := r.settings.buildEnv()
 	userCache := r.userCache()

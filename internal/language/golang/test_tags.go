@@ -14,8 +14,6 @@ import (
 
 var goVersion = regexp.MustCompile(`^go1\.\d+$`)
 
-// TagsOfTests counts the test files under root that need each build tag. It leaves out a tag that a test file
-// only excludes, and the tags that go sets itself, such as an operating system or a version of Go.
 func TagsOfTests(ctx context.Context, root string) (map[string]int, error) {
 	builtIn, err := builtInTags(ctx)
 	if err != nil {

@@ -323,7 +323,7 @@ import (
 )
 
 func TestWait(t *testing.T) {
-	// a pending timer stops the runtime from reporting a deadlock, so a missing close makes the test hang
+	// the runtime reports no deadlock while a timer waits, so a missing close makes the test hang
 	time.AfterFunc(time.Hour, func() {})
 	called := false
 	Wait(func() { called = true })
@@ -388,7 +388,7 @@ func TestWait(t *testing.T) {
 	}
 	fmt.Fprintln(children, child.Process.Pid)
 	children.Close()
-	// a pending timer stops the runtime from reporting a deadlock, so a missing close makes the test hang
+	// the runtime reports no deadlock while a timer waits, so a missing close makes the test hang
 	time.AfterFunc(time.Hour, func() {})
 	Wait()
 }

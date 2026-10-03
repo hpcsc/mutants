@@ -126,7 +126,6 @@ func entriesIn(t *testing.T, folder string) []string {
 	return slices.DeleteFunc(filesIn(t, folder), func(path string) bool { return !strings.HasSuffix(path, "-a") })
 }
 
-// goBuild builds the package in folder, with the cache program in program when it is not empty.
 func goBuild(t *testing.T, folder, userCache string, program ...string) {
 	t.Helper()
 	quoted := make([]string, len(program))

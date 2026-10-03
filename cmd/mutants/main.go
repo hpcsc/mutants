@@ -10,7 +10,6 @@ import (
 )
 
 func main() {
-	// the test binaries run in their own process groups, so mutants must stop them before it exits
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

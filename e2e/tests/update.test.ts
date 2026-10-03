@@ -15,12 +15,9 @@ function platform(): string {
 interface FakeRelease {
   tag: string
   prerelease: boolean
-  // newBinary is the mutants in the archive for this platform.
   newBinary: string
 }
 
-// fakeReleases serves a GitHub API with these releases, published in the order
-// of the list.
 async function fakeReleases(releases: FakeRelease[]): Promise<string> {
   const assets = new Map<string, Record<string, Buffer>>()
   for (const release of releases) {
@@ -72,7 +69,6 @@ async function fakeReleases(releases: FakeRelease[]): Promise<string> {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
 }
 
-// fakeRelease serves a GitHub API whose only release is tag.
 function fakeRelease(tag: string, newBinary: string): Promise<string> {
   return fakeReleases([{ tag, prerelease: false, newBinary }])
 }

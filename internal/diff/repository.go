@@ -13,7 +13,6 @@ import (
 	"strings"
 )
 
-// Repository never writes to the work tree or to the index.
 type Repository struct {
 	root string
 }
@@ -32,7 +31,6 @@ func (r *Repository) Root() string {
 	return r.root
 }
 
-// GitFolder gives the git folder of the work tree, so a linked work tree gets a folder of its own.
 func (r *Repository) GitFolder(ctx context.Context) (string, error) {
 	output, err := r.git(ctx, "rev-parse", "--absolute-git-dir")
 	if err != nil {
@@ -41,8 +39,6 @@ func (r *Repository) GitFolder(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// OriginHead gives the default branch of the remote origin, such as origin/main, and false when the clone
-// does not know it.
 func (r *Repository) OriginHead(ctx context.Context) (string, bool) {
 	output, err := r.git(ctx, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {

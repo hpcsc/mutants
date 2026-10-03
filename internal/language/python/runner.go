@@ -16,8 +16,7 @@ import (
 const (
 	// exitNotCompiled is the exit code of sitecustomize.py for a mutant that does not compile.
 	exitNotCompiled = 97
-	// maxTests keeps a command line below the limit of the operating system: with more tests, the runner gives
-	// pytest their files.
+	// maxTests keeps a command line below the limit of the operating system.
 	maxTests = 200
 )
 
@@ -107,8 +106,7 @@ func verdict(tested process.Exit, limit time.Duration) mutant.Verdict {
 	case tested.Code == pytestNoTests:
 		return mutant.Verdict{Status: mutant.InfraError, Detail: fmt.Sprintf("pytest exited with code %d:\n%s", tested.Code, strings.TrimSpace(tested.Tail))}
 	}
-	// pytest also exits with 4, its code for a usage error, when a conftest.py fails to import, and the run
-	// with the real code passed with the same arguments
+	// pytest also exits with 4 when a conftest.py fails to import, and the real code passed with these arguments
 	return mutant.Verdict{Status: mutant.Killed, Detail: failure(tested)}
 }
 

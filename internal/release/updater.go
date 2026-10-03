@@ -88,7 +88,7 @@ func (u *Updater) Install(ctx context.Context, r Release, progress func(done, to
 	if err != nil {
 		return fmt.Errorf("read %s: %w", archiveName, err)
 	}
-	return replace(u.executable, binary)
+	return replaceAtomically(u.executable, binary)
 }
 
 func checkSum(data []byte, name string, checksums []byte) error {
@@ -127,9 +127,7 @@ func extract(archive []byte, name string) ([]byte, error) {
 	}
 }
 
-// replace writes the new binary beside the old one and renames it over the
-// old one, so the executable is never half written.
-func replace(path string, binary []byte) error {
+func replaceAtomically(path string, binary []byte) error {
 	temp, err := os.CreateTemp(filepath.Dir(path), "."+binaryName+"-update-*")
 	if err != nil {
 		return fmt.Errorf("write beside %s: %w", path, err)

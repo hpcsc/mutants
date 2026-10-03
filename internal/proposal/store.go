@@ -10,8 +10,6 @@ import (
 	"slices"
 )
 
-// Store keeps the accepted proposals of each run, so that a proposed mutant can run again by its id without
-// the file of its run.
 type Store struct {
 	path string
 }
@@ -25,7 +23,6 @@ func NewStore(folder string) Store {
 	return Store{path: filepath.Join(folder, "proposals.jsonl")}
 }
 
-// Save keeps the proposals that the store holds already, and replaces a proposal with the same id.
 func (s Store) Save(proposals map[string]Proposal) error {
 	all, err := s.load()
 	if err != nil {

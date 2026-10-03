@@ -15,7 +15,6 @@ const (
 	coverageVersion = "7.16.2"
 )
 
-// withCoverage and withoutCoverage are the Python of a venv with pytest, with and without coverage.py.
 var withCoverage, withoutCoverage string
 
 func TestMain(m *testing.M) {

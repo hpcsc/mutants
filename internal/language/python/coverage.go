@@ -42,15 +42,14 @@ type coverageRun struct {
 	err       error
 }
 
-// coveredFile holds the first line of each statement. coverage.py counts a statement on more than one line
-// at its first line.
+// coverage.py counts a statement on more than one line at its first line.
 type coveredFile struct {
 	statements []int
 	missing    map[int]bool
 	tests      map[int][]string
 }
 
-// imported gives false when no statement of the file ran, because an import runs its def and class lines.
+// an import runs the def and class lines of a file, so a file that no test imports has no statement that ran
 func (f coveredFile) imported() bool {
 	return len(f.missing) < len(f.statements)
 }
@@ -66,8 +65,7 @@ func (f coveredFile) statementOf(line int) (int, bool) {
 	return f.statements[index-1], true
 }
 
-// testsOf gives nil when each test of the project must run: the coverage does not know the file, or the line
-// runs only when a module loads.
+// testsOf gives nil when each test of the project must run.
 func (r *coverageRun) testsOf(m mutant.Mutant) []string {
 	file, found := r.files[m.File]
 	if !found {
@@ -232,8 +230,6 @@ func pytestArguments() []string {
 	return []string{"-m", "pytest", "-q", "--no-header", "-rfE", "-p", "mutants_plugin", "-p", "no:cacheprovider", "-p", "no:xdist"}
 }
 
-// testEnv puts the import hook and the pytest plugin in folder first on the path of Python, and stops Python
-// from writing bytecode next to the files of the repository.
 func testEnv(folder string) []string {
 	pythonPath := folder
 	if existing := os.Getenv("PYTHONPATH"); existing != "" {

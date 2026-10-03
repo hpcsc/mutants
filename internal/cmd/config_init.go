@@ -58,8 +58,6 @@ func initConfig(ctx context.Context, cmd *cli.Command) error {
 	return err
 }
 
-// configTemplate sets tags only when the tests have one tag, because a second tag, such as integration, can
-// need a service that the machine does not have.
 func configTemplate(base string, tags map[string]int) string {
 	var text strings.Builder
 	text.WriteString("# The settings of mutants for this repository. A flag of mutants run wins over a setting here.\n\n")

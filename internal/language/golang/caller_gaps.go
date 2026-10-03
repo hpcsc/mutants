@@ -16,8 +16,6 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// callerGaps follows only the functions that the changed lines of a caller reach, so a caller whose tests
-// use a fake in place of the package gives no gap.
 type callerGaps struct {
 	root     string
 	settings Settings
@@ -30,7 +28,6 @@ type callerGaps struct {
 type caller struct {
 	pkg     goPackage
 	callees []goPackage
-	// reached holds the full name of each function of a callee that the changed lines of the caller reach
 	reached map[string]bool
 	blocks  map[string][]block
 }
@@ -105,8 +102,6 @@ func (g *callerGaps) changedPackages(ctx context.Context, changed diff.Lines) ma
 	return found
 }
 
-// entries gives the full names of the functions of callee that the changed lines of pkg call, and of the
-// methods of each type of callee that a changed line builds with a composite literal.
 func (g *callerGaps) entries(pkg, callee goPackage, changed diff.Lines) []string {
 	loaded := g.types.load(pkg.Dir)
 	if loaded == nil {
@@ -133,8 +128,7 @@ func (g *callerGaps) entries(pkg, callee goPackage, changed diff.Lines) []string
 	return names
 }
 
-// reach also follows the methods of each type that a reached function returns or builds, because a caller
-// that gets a value from a constructor can call each method of that value.
+// a caller that gets a value from a constructor can call each method of that value
 func (g *callerGaps) reach(pkg goPackage, entries []string) map[string]bool {
 	loaded := g.types.load(pkg.Dir)
 	if loaded == nil {
@@ -272,8 +266,7 @@ func (g *callerGaps) gapIn(loaded *packages.Package, file string, function *ast.
 	return gap, len(gap.Lines) > 0
 }
 
-// statementLines gives the line where each statement starts, because a version of Go can start a coverage
-// block on the line of the brace before the statement.
+// a version of Go can start a coverage block on the line of the brace before the statement
 func (g *callerGaps) statementLines(loaded *packages.Package, function *ast.FuncDecl) []int {
 	if function.Body == nil {
 		return nil

@@ -16,7 +16,6 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// parsed runs a real command with no action, so that a test reads the flags that the command declares.
 func parsed(t *testing.T, command *cli.Command, arguments ...string) *cli.Command {
 	t.Helper()
 	command.Writer, command.ErrWriter = io.Discard, io.Discard

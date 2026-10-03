@@ -10,8 +10,7 @@ RUN CGO_ENABLED=0 go build -ldflags "-X github.com/hpcsc/mutants/internal/versio
     -o /mutants ./cmd/mutants
 
 FROM node:24-trixie-slim
-# python3, make and g++ build node-pty when no prebuilt node-pty fits the platform. mutants needs git,
-# and the Go toolchain of the first stage.
+# python3, make and g++ build node-pty when no prebuilt node-pty fits the platform
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 python3-venv make g++ git ca-certificates \
     && rm -rf /var/lib/apt/lists/*

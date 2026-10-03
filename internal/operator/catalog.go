@@ -7,7 +7,6 @@ const (
 	offByDefault
 )
 
-// add an operator only when each language can make its change
 var catalog = map[string]defaultRun{
 	"ARGUMENT_EMPTY":        offByDefault,
 	"ARITHMETIC_BASE":       onByDefault,

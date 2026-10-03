@@ -10,8 +10,6 @@ import (
 	"github.com/hpcsc/mutants/internal/language/golang"
 )
 
-// buildCacheLog makes this test binary the cache program of go, so that a test can build through it and
-// read from the log which folder took the new entries.
 const buildCacheLog = "MUTANTS_TEST_BUILD_CACHE_LOG"
 
 func TestMain(m *testing.M) {
