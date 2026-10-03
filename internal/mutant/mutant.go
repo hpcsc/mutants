@@ -1,5 +1,7 @@
 package mutant
 
+import "fmt"
+
 // File is a path from the root of the repository. Line, Column, EndLine and EndColumn count from 1, and give
 // the positions of the byte offsets Start and End.
 type Mutant struct {
@@ -17,4 +19,11 @@ type Mutant struct {
 	Bug         string
 	Refs        []string
 	Verdict     Verdict
+}
+
+func (m Mutant) Apply(source []byte) (string, error) {
+	if m.Start < 0 || m.End > len(source) || string(source[m.Start:m.End]) != m.Original {
+		return "", fmt.Errorf("%s changed after mutants read it", m.File)
+	}
+	return string(source[:m.Start]) + m.Replacement + string(source[m.End:]), nil
 }

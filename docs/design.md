@@ -734,11 +734,11 @@ gives back.
 | `diff` | `diff.Lines`, the changed lines of each file, and `diff.Repository`, the git calls that read them |
 | `operator` | the catalog of the operators, the rule packs, the skip rules, `operator.Rule`, `operator.Hook`, `operator.Matcher`, and the hooks |
 | `operator/astgrep` | an `operator.Matcher` that calls `ast-grep scan --json` and parses its matches |
-| `mutant` | `mutant.Mutant`, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
+| `mutant` | `mutant.Mutant` with `Apply`, which puts the mutant into a source, `mutant.Status`, `mutant.Runner`, and `mutant.ID` with the `mutant.Counter` that numbers the ids |
 | `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage, its caller gaps and its runner |
 | `language/golang` | the Go adapter |
 | `language/python` | the Python adapter, with its import hook and its pytest plugin |
-| `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends |
+| `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends. `RunAgainAfterTimeout` runs the program a second time with twice the limit, and `process.TestLimit` gives the limit of the tests of one mutant from its baseline. |
 | `run` | one run: changed lines, candidates, filters, ids, scope, proposals, caller gaps, coverage and workers |
 | `report` | the rows, the JSON and the Stryker format |
 | `proposal` | the file format of the proposed mutants, the place of each edit in its file, the number of their ids, the summary of the proposals of a run, and the store that `rerun` reads |

@@ -10,7 +10,15 @@ import (
 	"time"
 )
 
-const tailSize = 64 * 1024
+const (
+	tailSize       = 64 * 1024
+	baselineFactor = 3
+	limitMargin    = 5 * time.Second
+)
+
+func TestLimit(baseline time.Duration) time.Duration {
+	return baselineFactor*baseline + limitMargin
+}
 
 type Command struct {
 	Program   string
@@ -70,6 +78,16 @@ func (p Command) Run(ctx context.Context) (Exit, error) {
 		result.TimedOut = errors.Is(limited.Err(), context.DeadlineExceeded)
 	}
 	return result, nil
+}
+
+func (p Command) RunAgainAfterTimeout(ctx context.Context) (exit Exit, limit time.Duration, err error) {
+	exit, err = p.Run(ctx)
+	// the load of the host can grow after the baseline run that set the limit
+	if err == nil && exit.TimedOut {
+		p.Limit *= 2
+		exit, err = p.Run(ctx)
+	}
+	return exit, p.Limit, err
 }
 
 func (p Command) tail(output *os.File) string {

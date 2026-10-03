@@ -193,13 +193,14 @@ The runner must:
 
 - Never write to the work tree or to the git index. The Go runner writes the file with the mutant and an
   overlay into a temp folder, and `go test -c -overlay` reads them.
-- Replace the bytes from `m.Start` to `m.End` with `m.Replacement`. First check that these bytes are still
-  `m.Original`.
+- Put the mutant into the source with `m.Apply(source)`. It gives an error when the source does not hold
+  `m.Original` from `m.Start` to `m.End` any more.
 - Run the tests with no cache, so that each verdict comes from a real test run.
 - Accept calls from all the workers at the same time. Protect each cache with a mutex.
 - Stop each child process when `ctx` ends, at `--limit` or at an interrupt. The Go runner starts each
   process in a process group of its own, and kills the group.
-- Set the time limits from a baseline run of the real code, as [Time limits](design.md#time-limits) tells.
+- Set the limit of the tests to `process.TestLimit` of a baseline run of the real code, and run them with
+  `RunAgainAfterTimeout` of `process.Command`, as [Time limits](design.md#time-limits) tells.
 - Give an error only when the whole run must stop. A problem with one mutant is an INFRA ERROR verdict.
 
 The Python runner keeps the work tree clean with an import hook, as

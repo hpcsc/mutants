@@ -21,10 +21,7 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-const (
-	baselineFactor = 3
-	limitMargin    = 5 * time.Second
-)
+const buildFactor = 3
 
 var (
 	unusedImport   = regexp.MustCompile(`"([^"]+)" imported (?:as \S+ )?and not used`)
@@ -57,12 +54,16 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	}
 	defer os.RemoveAll(folder)
 	original := filepath.Join(pkg.Dir, filepath.Base(path))
-	content, err := r.mutate(original, m)
+	source, err := os.ReadFile(original)
+	if err != nil {
+		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
+	}
+	content, err := m.Apply(source)
 	if err != nil {
 		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
 	}
 	binary := filepath.Join(folder, "pkg.test")
-	buildLimit := max(r.settings.BuildLimit, (baselineFactor * baseline.build).Round(time.Second))
+	buildLimit := max(r.settings.BuildLimit, (buildFactor * baseline.build).Round(time.Second))
 	built, err := r.build(ctx, pkg, folder, original, content, binary, buildLimit)
 	if err == nil && built.Code != 0 {
 		if used := r.blankImports(r.useVariables(content, filepath.Base(original), built.Tail), built.Tail); used != content {
@@ -83,39 +84,22 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 		return mutant.Verdict{Status: mutant.InfraError, Detail: "go test -c made no test binary: " + err.Error()}, nil
 	}
 
-	limit := baselineFactor*baseline.test + limitMargin
-	tested, err := r.test(ctx, pkg, binary, limit)
-	// the load of the host can grow after the baseline, so a second run with twice the limit decides
-	if err == nil && tested.TimedOut {
-		limit *= 2
-		tested, err = r.test(ctx, pkg, binary, limit)
-	}
+	tested, limit, err := r.test(ctx, pkg, binary, baseline.test)
 	if err != nil {
 		return mutant.Verdict{}, err
 	}
 	return r.verdict(tested, limit), nil
 }
 
-func (r *runner) test(ctx context.Context, pkg goPackage, binary string, limit time.Duration) (process.Exit, error) {
+func (r *runner) test(ctx context.Context, pkg goPackage, binary string, baseline time.Duration) (process.Exit, time.Duration, error) {
 	test := process.Command{
 		Program:   binary,
 		Arguments: []string{"-test.count=1", "-test.failfast"},
 		Folder:    pkg.Dir,
 		Env:       r.settings.testEnv(),
-		Limit:     limit,
+		Limit:     process.TestLimit(baseline),
 	}
-	return test.Run(ctx)
-}
-
-func (r *runner) mutate(path string, m mutant.Mutant) (string, error) {
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	if m.Start < 0 || m.End > len(source) || string(source[m.Start:m.End]) != m.Original {
-		return "", fmt.Errorf("%s changed after mutants read it", m.File)
-	}
-	return string(source[:m.Start]) + m.Replacement + string(source[m.End:]), nil
+	return test.RunAgainAfterTimeout(ctx)
 }
 
 func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, content, binary string, limit time.Duration) (process.Exit, error) {

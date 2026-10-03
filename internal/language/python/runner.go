@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	baselineFactor = 3
-	limitMargin    = 5 * time.Second
 	// exitNotCompiled is the exit code of sitecustomize.py for a mutant that does not compile.
 	exitNotCompiled = 97
 	// maxTests keeps a command line below the limit of the operating system: with more tests, the runner gives
@@ -36,7 +34,11 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 		return mutant.Verdict{}, err
 	}
 	original := filepath.Join(r.root, m.File)
-	content, err := mutate(original, m)
+	source, err := os.ReadFile(original)
+	if err != nil {
+		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
+	}
+	content, err := m.Apply(source)
 	if err != nil {
 		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
 	}
@@ -58,20 +60,14 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	}
 
 	tests := run.testsOf(m)
-	limit := baselineFactor*run.duration(tests) + limitMargin
-	tested, err := r.test(ctx, project, folder, original, mutated, tests, limit)
-	// the load of the host can grow after the baseline, so a second run with twice the limit decides
-	if err == nil && tested.TimedOut {
-		limit *= 2
-		tested, err = r.test(ctx, project, folder, original, mutated, tests, limit)
-	}
+	tested, limit, err := r.test(ctx, project, folder, original, mutated, tests, run.duration(tests))
 	if err != nil {
 		return mutant.Verdict{}, err
 	}
 	return verdict(tested, limit), nil
 }
 
-func (r *runner) test(ctx context.Context, project project, folder, original, mutated string, tests []string, limit time.Duration) (process.Exit, error) {
+func (r *runner) test(ctx context.Context, project project, folder, original, mutated string, tests []string, baseline time.Duration) (process.Exit, time.Duration, error) {
 	python := r.projects.python(project)
 	arguments := append(append(python[1:], pytestArguments()...), "-x")
 	test := process.Command{
@@ -79,9 +75,9 @@ func (r *runner) test(ctx context.Context, project project, folder, original, mu
 		Arguments: append(arguments, testArguments(tests)...),
 		Folder:    project.folder,
 		Env:       append(testEnv(folder), "MUTANTS_ORIGINAL="+original, "MUTANTS_MUTATED="+mutated),
-		Limit:     limit,
+		Limit:     process.TestLimit(baseline),
 	}
-	return test.Run(ctx)
+	return test.RunAgainAfterTimeout(ctx)
 }
 
 func testArguments(tests []string) []string {
@@ -96,17 +92,6 @@ func testArguments(tests []string) []string {
 		}
 	}
 	return files
-}
-
-func mutate(path string, m mutant.Mutant) (string, error) {
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	if m.Start < 0 || m.End > len(source) || string(source[m.Start:m.End]) != m.Original {
-		return "", fmt.Errorf("%s changed after mutants read it", m.File)
-	}
-	return string(source[:m.Start]) + m.Replacement + string(source[m.End:]), nil
 }
 
 func verdict(tested process.Exit, limit time.Duration) mutant.Verdict {
