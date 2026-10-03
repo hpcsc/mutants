@@ -661,6 +661,11 @@ A repository can keep its settings in `.mutants.yml` at its root. A flag wins ov
 is an error that names the key, its line and the known keys. The settings of one language are under the key
 of the language, so a repository with two languages keeps them apart.
 
+Without `.mutants.yml` at the root, `mutants` reads `mutants.yml` in the git folder that the work trees share,
+from `git rev-parse --git-common-dir`. Git does not track that file, and one file serves each work tree of the
+clone. When both files exist, `mutants` reads only `.mutants.yml`, and writes on stderr that it ignores
+`mutants.yml`. Each error names the file that `mutants` read.
+
 ```yaml
 base: origin/main
 workers: 4
@@ -862,6 +867,12 @@ the real code runs under the same load, so 3 × its time fits the package and th
 each language has its own operators, one setting means two different changes in two repositories, and the
 list of operators holds changes that the language of the reader cannot make. A change that only one language
 or one library has, such as the `AddDate` of calendar days in Go, is a rule of a repository.
+
+**Why the settings that git does not track are in the shared git folder.** A tool or an agent can make a
+new linked work tree for each task, and copy no untracked file into it. A file in the git folder that the work
+trees share serves each work tree with no copy, and git never tracks it. `.mutants.yml` wins and the two files
+do not merge, so a reader of `.mutants.yml` sees each setting of the run. The line on stderr tells why a
+setting in `mutants.yml` has no effect.
 
 **Why NAMED_VALUE_REMOVE runs by default.** On 12 measured PRs, it made 329 mutants, about a third more than
 the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example

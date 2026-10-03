@@ -46,7 +46,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return cli.Exit(err, exitNoVerdict)
 	}
-	configured, err := loadConfig(repository.Root())
+	configured, err := repositoryConfig(ctx, repository, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitNoVerdict)
 	}

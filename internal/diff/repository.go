@@ -39,6 +39,14 @@ func (r *Repository) GitFolder(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
+func (r *Repository) SharedGitFolder(ctx context.Context) (string, error) {
+	output, err := r.git(ctx, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	if err != nil {
+		return "", fmt.Errorf("find the git folder that the work trees share: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
 func (r *Repository) OriginHead(ctx context.Context) (string, bool) {
 	output, err := r.git(ctx, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
 	if err != nil {

@@ -311,6 +311,24 @@ func TestRepository(t *testing.T) {
 		})
 	})
 
+	t.Run("shared git folder", func(t *testing.T) {
+		t.Run("a linked work tree shares the git folder of the main work tree", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("a.go", "package a\n")
+			r.commit("start")
+			parent, err := filepath.EvalSymlinks(t.TempDir())
+			require.NoError(t, err)
+			r.git("worktree", "add", "--quiet", filepath.Join(parent, "linked"))
+			linked, err := diff.Open(context.Background(), filepath.Join(parent, "linked"))
+			require.NoError(t, err)
+
+			folder, err := linked.SharedGitFolder(context.Background())
+
+			require.NoError(t, err)
+			require.Equal(t, filepath.Join(r.root, ".git"), folder)
+		})
+	})
+
 	t.Run("all", func(t *testing.T) {
 		t.Run("reads every line of the files in a folder, and not in its subfolders", func(t *testing.T) {
 			r := newGitRepository(t)

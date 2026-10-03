@@ -292,7 +292,8 @@ Its HTML viewer shows each mutant in the code of its file.
 
 ## Settings in .mutants.yml
 
-A repository can keep its settings in `.mutants.yml` at its root. A flag wins over the file.
+A repository can keep its settings in `.mutants.yml` at its root. A flag wins over the file. To keep the
+settings out of the repository, see [Settings that git does not track](#settings-that-git-does-not-track).
 
 `mutants config init` writes a first `.mutants.yml` at the root of the repository:
 
@@ -330,6 +331,38 @@ python:
 
 The settings of one language are under the key of the language, such as `go`. An unknown key is an error
 that names the key, its line and the known keys.
+
+### Settings that git does not track
+
+Put the settings that only your work uses in `mutants.yml` in the git folder that all work trees of the
+clone share. `git rev-parse --git-common-dir` gives that folder, for example `.git`:
+
+```sh
+mutants config init
+mv .mutants.yml "$(git rev-parse --git-common-dir)/mutants.yml"
+```
+
+- Git does not track the file. One file serves the main work tree and each linked work tree, for example a
+  work tree of `git worktree add`.
+- An error in `mutants.yml` names its path, for example `unknown key workerz in .git/mutants.yml (line 1)`.
+
+`mutants run` and `mutants rerun` find the settings in this order. They read one file at most, so the
+settings of the two files do not merge:
+
+```mermaid
+flowchart TD
+    START["mutants run or mutants rerun, in the main work tree or in a linked work tree"] --> ROOT{".mutants.yml at the root of the work tree?"}
+    ROOT -- no --> SHARED{"mutants.yml in the git folder that the work trees share?"}
+    SHARED -- yes --> READSHARED["read mutants.yml"]
+    SHARED -- no --> NONE["no settings"]
+    ROOT -- yes --> BOTH{"mutants.yml in the git folder that the work trees share?"}
+    BOTH -- yes --> IGNORE["write on stderr: mutants ignores mutants.yml, because .mutants.yml exists"]
+    BOTH -- no --> READROOT["read .mutants.yml"]
+    IGNORE --> READROOT
+    READSHARED --> FLAGS["a flag wins over a setting, and a setting wins over the default"]
+    NONE --> FLAGS
+    READROOT --> FLAGS
+```
 
 ## Your own operators
 

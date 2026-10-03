@@ -33,7 +33,7 @@ func TestConfig(t *testing.T) {
 				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\npython:\n  command: [uv, run, python]\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
-			loaded, err := loadConfig(root)
+			loaded, err := loadConfig(root, t.TempDir(), io.Discard)
 
 			require.NoError(t, err)
 			require.Equal(t, config{
@@ -48,7 +48,7 @@ func TestConfig(t *testing.T) {
 		})
 
 		t.Run("no file gives no settings", func(t *testing.T) {
-			loaded, err := loadConfig(t.TempDir())
+			loaded, err := loadConfig(t.TempDir(), t.TempDir(), io.Discard)
 
 			require.NoError(t, err)
 			require.Equal(t, config{}, loaded)
@@ -58,7 +58,7 @@ func TestConfig(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("base: origin/main\nworkerz: 2\n"), 0o644))
 
-			_, err := loadConfig(root)
+			_, err := loadConfig(root, t.TempDir(), io.Discard)
 
 			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, operators, exclude, caller_gaps, go, python")
 		})
@@ -67,7 +67,7 @@ func TestConfig(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("base: origin/main\ngo:\n  tagz: [unit]\n"), 0o644))
 
-			_, err := loadConfig(root)
+			_, err := loadConfig(root, t.TempDir(), io.Discard)
 
 			require.EqualError(t, err, "unknown key go.tagz in .mutants.yml (line 3): the keys of go are tags, zero_functions")
 		})
@@ -82,17 +82,72 @@ func TestConfig(t *testing.T) {
 				root := t.TempDir()
 				require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(scenario.content), 0o644))
 
-				_, err := loadConfig(root)
+				_, err := loadConfig(root, t.TempDir(), io.Discard)
 
 				require.ErrorContains(t, err, scenario.message)
 			})
 		}
 
+		t.Run("without .mutants.yml, reads mutants.yml in the shared git folder", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".git", "mutants.yml"), []byte("base: origin/main\n"), 0o644))
+
+			loaded, err := loadConfig(root, filepath.Join(root, ".git"), io.Discard)
+
+			require.NoError(t, err)
+			require.Equal(t, config{Base: "origin/main"}, loaded)
+		})
+
+		t.Run("with both files, reads only .mutants.yml, and says on stderr that it ignores mutants.yml", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("workers: 2\n"), 0o644))
+			require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".git", "mutants.yml"), []byte("base: origin/main\n"), 0o644))
+			var stderr strings.Builder
+
+			loaded, err := loadConfig(root, filepath.Join(root, ".git"), &stderr)
+
+			require.NoError(t, err)
+			require.Equal(t, config{Workers: 2}, loaded)
+			require.Equal(t, "mutants ignores .git/mutants.yml, because .mutants.yml exists\n", stderr.String())
+		})
+
+		t.Run("with one file, says nothing on stderr", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("workers: 2\n"), 0o644))
+			var stderr strings.Builder
+
+			_, err := loadConfig(root, t.TempDir(), &stderr)
+
+			require.NoError(t, err)
+			require.Empty(t, stderr.String())
+		})
+
+		t.Run("an error in mutants.yml names it from the root when the shared git folder is in the root", func(t *testing.T) {
+			root := t.TempDir()
+			require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(root, ".git", "mutants.yml"), []byte("workerz: 2\n"), 0o644))
+
+			_, err := loadConfig(root, filepath.Join(root, ".git"), io.Discard)
+
+			require.ErrorContains(t, err, "unknown key workerz in .git/mutants.yml (line 1)")
+		})
+
+		t.Run("an error in mutants.yml names its full path when the shared git folder is outside the root, as for a linked work tree", func(t *testing.T) {
+			sharedGitFolder := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(sharedGitFolder, "mutants.yml"), []byte("go: [unit]\n"), 0o644))
+
+			_, err := loadConfig(t.TempDir(), sharedGitFolder, io.Discard)
+
+			require.ErrorContains(t, err, "go in "+filepath.Join(sharedGitFolder, "mutants.yml")+" (line 1) must hold keys and values")
+		})
+
 		t.Run("an empty file gives no settings", func(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte("# no settings\n"), 0o644))
 
-			loaded, err := loadConfig(root)
+			loaded, err := loadConfig(root, t.TempDir(), io.Discard)
 
 			require.NoError(t, err)
 			require.Equal(t, config{}, loaded)
@@ -115,7 +170,7 @@ func TestConfig(t *testing.T) {
 				text := configTemplate(scenario.base, scenario.tags)
 				require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
 
-				loaded, err := loadConfig(root)
+				loaded, err := loadConfig(root, t.TempDir(), io.Discard)
 
 				require.NoError(t, err)
 				require.Equal(t, scenario.want, loaded)
@@ -141,7 +196,7 @@ func TestConfig(t *testing.T) {
 			text := commented.ReplaceAllString(configTemplate("", nil), "$1$2: ")
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
 
-			loaded, err := loadConfig(root)
+			loaded, err := loadConfig(root, t.TempDir(), io.Discard)
 
 			require.NoError(t, err)
 			command := parsed(t, newRunCommand())

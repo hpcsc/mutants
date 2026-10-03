@@ -137,6 +137,33 @@ describe('mutants run', { timeout: 240_000 }, () => {
     expect(result.stderr).toContain('unknown key workerz in .mutants.yml (line 1)')
   })
 
+  it('in a linked work tree with no .mutants.yml, reads mutants.yml in the git folder that the work trees share', async () => {
+    const dir = goRepository()
+    const linked = join(scratchDir(), 'linked')
+    git(dir, 'worktree', 'add', '--quiet', linked)
+    writeFiles(dir, { '.git/mutants.yml': 'base: HEAD\noperators: [CONDITIONALS_NEGATION]\n' })
+    writeFiles(linked, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+
+    const { mutants } = await runMutants(linked, [])
+
+    expect(verdicts(mutants)).toEqual(['CONDITIONALS_NEGATION a > b KILLED'])
+  })
+
+  it('reads .mutants.yml and ignores mutants.yml in the git folder, and says so on stderr', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'calc/calc.go': maxSource,
+      'calc/calc_test.go': maxTest,
+      '.mutants.yml': 'base: HEAD\noperators: [CONDITIONALS_NEGATION]\n',
+      '.git/mutants.yml': 'workerz: 2\n',
+    })
+
+    const { result, mutants } = await runMutants(dir, [])
+
+    expect(verdicts(mutants)).toEqual(['CONDITIONALS_NEGATION a > b KILLED'])
+    expect(result.stderr).toContain('mutants ignores .git/mutants.yml, because .mutants.yml exists')
+  })
+
   it('exits 124 at --limit, and still writes the report', async () => {
     const dir = goRepository()
     writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
