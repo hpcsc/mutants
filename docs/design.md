@@ -743,7 +743,7 @@ gives back.
 | `language/python` | the Python adapter, with its import hook and its pytest plugin |
 | `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends. `RunAgainAfterTimeout` runs the program a second time with twice the limit, and `process.TestLimit` gives the limit of the tests of one mutant from its baseline. |
 | `run` | one run: changed lines, candidates, filters, ids, scope, proposals, caller gaps, coverage and workers |
-| `report` | the rows, the JSON and the Stryker format |
+| `report` | the rows, the line for a run with no mutant, the JSON and the Stryker format |
 | `proposal` | the file format of the proposed mutants, the place of each edit in its file, the number of their ids, the summary of the proposals of a run, and the store that `rerun` reads |
 | `progress` | the progress line of each step, on stderr |
 

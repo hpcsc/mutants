@@ -151,27 +151,24 @@ func newLanguages(root string, goSettings golang.Settings, pythonSettings python
 
 func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {
 	out := cmd.Root().Writer
-	reported := report.Outcome{Base: outcome.Base, Mutants: outcome.Mutants, Proposals: outcome.Proposals, CallerGaps: outcome.CallerGaps}
-	if len(outcome.Mutants) == 0 && !outcome.Stopped {
-		message := fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files)
-		if outcome.Base != "" {
-			message += fmt.Sprintf(" (base %s)", outcome.Base[:min(len(outcome.Base), 10)])
-		}
-		if format == "json" {
-			fmt.Fprintln(cmd.Root().ErrWriter, message)
-		} else {
-			fmt.Fprintln(out, message)
-		}
+	reported := report.Outcome{
+		Base:       outcome.Base,
+		Files:      outcome.Files,
+		Lines:      outcome.Lines,
+		Mutants:    outcome.Mutants,
+		Stopped:    outcome.Stopped,
+		Proposals:  outcome.Proposals,
+		CallerGaps: outcome.CallerGaps,
 	}
-	switch {
-	case format == "json":
+	if format == "json" {
+		if err := report.NoMutantLine(cmd.Root().ErrWriter, reported); err != nil {
+			return err
+		}
 		if err := report.JSON(out, reported); err != nil {
 			return err
 		}
-	case len(outcome.Mutants) > 0 || outcome.Stopped || reported.Proposals != nil || reported.CallerGaps != nil:
-		if err := report.Rows(out, reported); err != nil {
-			return err
-		}
+	} else if err := report.Rows(out, reported); err != nil {
+		return err
 	}
 	if path := cmd.String("json"); path != "" {
 		if err := writeFile(path, func(w io.Writer) error { return report.JSON(w, reported) }); err != nil {

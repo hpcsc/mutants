@@ -22,12 +22,36 @@ const (
 // CallerGaps is nil when the run did not look for caller gaps.
 type Outcome struct {
 	Base       string
+	Files      int
+	Lines      int
 	Mutants    []mutant.Mutant
+	Stopped    bool
 	Proposals  *proposal.Summary
 	CallerGaps *[]language.CallerGap
 }
 
 func Rows(w io.Writer, outcome Outcome) error {
+	text := noMutantLine(outcome)
+	if len(outcome.Mutants) > 0 || outcome.Stopped || outcome.Proposals != nil || outcome.CallerGaps != nil {
+		text += rows(outcome)
+	}
+	_, err := io.WriteString(w, text)
+	return err
+}
+
+func NoMutantLine(w io.Writer, outcome Outcome) error {
+	_, err := io.WriteString(w, noMutantLine(outcome))
+	return err
+}
+
+func noMutantLine(outcome Outcome) string {
+	if len(outcome.Mutants) > 0 || outcome.Stopped {
+		return ""
+	}
+	return withBase(fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files), outcome.Base) + "\n"
+}
+
+func rows(outcome Outcome) string {
 	mutants := outcome.Mutants
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Line, b.Line), cmp.Compare(a.ID.String(), b.ID.String()))
@@ -79,8 +103,7 @@ func Rows(w io.Writer, outcome Outcome) error {
 	if outcome.CallerGaps != nil {
 		fmt.Fprintf(&text, "caller gaps: %d\n", len(*outcome.CallerGaps))
 	}
-	_, err := io.WriteString(w, text.String())
-	return err
+	return text.String()
 }
 
 func Row(m mutant.Mutant) string {
@@ -104,11 +127,14 @@ func Counts(mutants []mutant.Mutant, base string) string {
 			counts = append(counts, fmt.Sprintf("%s: %d", strings.ToLower(status.String()), count))
 		}
 	}
-	line := strings.Join(counts, ", ")
-	if base != "" {
-		line += fmt.Sprintf(" (base %s)", base[:min(len(base), 10)])
+	return withBase(strings.Join(counts, ", "), base)
+}
+
+func withBase(line, base string) string {
+	if base == "" {
+		return line
 	}
-	return line
+	return line + fmt.Sprintf(" (base %s)", base[:min(len(base), 10)])
 }
 
 func lineRanges(lines []int) string {
