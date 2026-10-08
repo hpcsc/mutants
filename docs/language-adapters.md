@@ -177,8 +177,9 @@ An error from `Uncovered` stops the run with exit code 2. Give an error when the
 code, because then no mutant can get a verdict.
 
 A mutant in the map does not run, so put a mutant in the map only when the coverage proves that no test runs
-it. The Go adapter puts a mutant in the map only when a profile block with a count of 0 holds its start.
-An empty map is correct for a language with no coverage: each mutant then runs.
+it. The Go adapter puts a mutant in the map only when a profile block with a count of 0 holds its start, or
+when no test enters its function. An empty map is correct for a language with no coverage: each mutant then
+runs.
 
 ### The runner
 

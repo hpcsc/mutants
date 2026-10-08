@@ -67,8 +67,8 @@ type adapter struct {
 
 func New(root string, settings Settings) language.Adapter {
 	finder := newPackageFinder(settings.tagArguments())
-	coverage := newCoverage(root, settings, finder)
 	sources := newSourceFiles(root)
+	coverage := newCoverage(root, settings, finder, sources)
 	types := newTypeChecker(settings.tagArguments(), settings.ZeroFunctions)
 	return &adapter{
 		root:       root,

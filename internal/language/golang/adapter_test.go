@@ -781,6 +781,20 @@ func apply(xs []int, double func(int) int, extra int) int {
 			require.Equal(t, map[mutant.ID]string{value.ID: ""}, uncovered)
 		})
 
+		t.Run("marks a mutant that no block holds in a function that no test enters", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      "package calc\n\nfunc Sum(xs []int, offset int) int {\n\treturn apply(xs, func(v int) int { return v * 2 }, offset+1)\n}\n\nfunc apply(xs []int, double func(int) int, extra int) int {\n\treturn extra\n}\n\nfunc Count() int {\n\treturn 1\n}\n",
+				"calc/calc_test.go": "package calc\n\nimport \"testing\"\n\nfunc TestCount(t *testing.T) {\n\tif Count() != 1 {\n\t\tt.Fatal(\"Count\")\n\t}\n}\n",
+			})
+			afterLiteral := mutantOf(t, root, "calc/calc.go", "offset+1", "offset-1")
+
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{afterLiteral})
+
+			require.NoError(t, err)
+			require.Equal(t, map[mutant.ID]string{afterLiteral.ID: ""}, uncovered)
+		})
+
 		t.Run("with the tags, a test file with a build tag runs", func(t *testing.T) {
 			t.Parallel()
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": "//go:build unit\n\n" + maxTest})

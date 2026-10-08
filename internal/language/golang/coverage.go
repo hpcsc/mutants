@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"go/ast"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +22,7 @@ type coverage struct {
 	root     string
 	settings Settings
 	finder   *packageFinder
+	sources  *sourceFiles
 	mutex    sync.Mutex
 	runs     map[string]*coverageRun
 }
@@ -54,11 +57,10 @@ func (b block) runs(line int) bool {
 	return b.count > 0 && b.startLine <= line && line <= b.endLine
 }
 
-func newCoverage(root string, settings Settings, finder *packageFinder) *coverage {
-	return &coverage{root: root, settings: settings, finder: finder, runs: map[string]*coverageRun{}}
+func newCoverage(root string, settings Settings, finder *packageFinder, sources *sourceFiles) *coverage {
+	return &coverage{root: root, settings: settings, finder: finder, sources: sources, runs: map[string]*coverageRun{}}
 }
 
-// Go's profile has no block for the code after a function literal, so a mutant that no block holds runs.
 func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
 	group, groupContext := errgroup.WithContext(ctx)
 	group.SetLimit(max(1, c.settings.Workers))
@@ -87,20 +89,49 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[
 			uncovered[m.ID] = fmt.Sprintf("package %s has no test files", filepath.ToSlash(filepath.Dir(m.File)))
 			continue
 		}
-		heldByZero, lineRuns := false, false
-		for _, b := range run.blocks[m.File] {
-			if b.runs(m.Line) {
-				lineRuns = true
-			}
-			if b.count == 0 && b.holds(m.Line, m.Column) {
-				heldByZero = true
-			}
-		}
-		if heldByZero && !lineRuns {
+		if !c.covers(run.blocks[m.File], m) {
 			uncovered[m.ID] = ""
 		}
 	}
 	return uncovered, nil
+}
+
+// Go's profile has no block for the code after a function literal, and from Go 1.27 none for the brace that opens
+// a branch, so a mutant that no block holds runs when a test enters its function.
+func (c *coverage) covers(blocks []block, m mutant.Mutant) bool {
+	heldByZero, lineRuns := false, false
+	for _, b := range blocks {
+		if b.runs(m.Line) {
+			lineRuns = true
+		}
+		if b.count == 0 && b.holds(m.Line, m.Column) {
+			heldByZero = true
+		}
+	}
+	switch {
+	case lineRuns:
+		return true
+	case heldByZero:
+		return false
+	}
+	return c.entered(blocks, m)
+}
+
+func (c *coverage) entered(blocks []block, m mutant.Mutant) bool {
+	syntax, lines, err := c.sources.parse(m.File)
+	if err != nil || m.Start > lines.Size() {
+		return true
+	}
+	position := lines.Pos(m.Start)
+	for _, declaration := range syntax.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || position < function.Pos() || position >= function.End() {
+			continue
+		}
+		first, last := lines.Line(function.Pos()), lines.Line(function.End())
+		return slices.ContainsFunc(blocks, func(b block) bool { return b.count > 0 && first <= b.startLine && b.endLine <= last })
+	}
+	return true
 }
 
 func (c *coverage) baseline(ctx context.Context, folder string) (baseline, error) {

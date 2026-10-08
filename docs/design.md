@@ -565,10 +565,11 @@ flowchart TD
 | TIMED OUT | the tests ran past the limit | no |
 | INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past its limit | no |
 
-Go's coverage profile has no block for the part of a statement that comes after a function literal. A tool
-that reads "no block" as "not covered" never runs the mutants on those lines. So `mutants` marks a mutant
-NOT COVERED only when a block with a count of 0 holds the line and the column of its start. A mutant that no
-block holds runs.
+Go's coverage profile has no block for the part of a statement that comes after a function literal, and from
+Go 1.27 it has none for the brace that opens a branch. A tool that reads "no block" as "not covered" never
+runs the mutants on those lines. So `mutants` marks a mutant NOT COVERED when a block with a count of 0 holds
+the line and the column of its start. A mutant that no block holds runs when a test enters its function, and
+is NOT COVERED when the count of each block of its function is 0.
 
 A mutant on a line that a test runs also runs. So `BRANCH_IF` of an error branch that no test enters starts
 on the line of its `if`, and is LIVED, while the `return` inside the branch is NOT COVERED.
