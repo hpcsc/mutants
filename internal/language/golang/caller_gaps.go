@@ -19,7 +19,6 @@ import (
 type callerGaps struct {
 	root     string
 	settings Settings
-	finder   *packageFinder
 	coverage *coverage
 	types    *typeChecker
 	sources  *sourceFiles
@@ -33,19 +32,11 @@ type caller struct {
 }
 
 func (g *callerGaps) find(ctx context.Context, changed diff.Lines) ([]language.CallerGap, error) {
-	changedPackages := g.changedPackages(ctx, changed)
+	changedPackages := g.coverage.changedPackages(ctx, changed)
 	var callers []*caller
 	for _, importPath := range slices.Sorted(maps.Keys(changedPackages)) {
 		c := &caller{pkg: changedPackages[importPath], reached: map[string]bool{}}
-		loaded := g.types.load(c.pkg.Dir)
-		if loaded == nil {
-			continue
-		}
-		for _, imported := range loaded.Types.Imports() {
-			callee, isChanged := changedPackages[imported.Path()]
-			if !isChanged {
-				continue
-			}
+		for _, callee := range g.coverage.changedImports(c.pkg, changedPackages) {
 			entries := g.entries(c.pkg, callee, changed)
 			if len(entries) == 0 {
 				continue
@@ -67,8 +58,8 @@ func (g *callerGaps) find(ctx context.Context, changed diff.Lines) ([]language.C
 	group.SetLimit(max(1, g.settings.Workers))
 	for _, c := range callers {
 		group.Go(func() error {
-			measured, err := g.coverage.profile(groupContext, c.pkg, c.callees)
-			c.blocks = measured.blocks
+			run, err := g.coverage.callerRun(groupContext, c.pkg, g.coverage.changedImports(c.pkg, changedPackages))
+			c.blocks = run.blocks
 			return err
 		})
 	}
@@ -85,21 +76,6 @@ func (g *callerGaps) find(ctx context.Context, changed diff.Lines) ([]language.C
 		gaps = append(gaps, found...)
 	}
 	return gaps, nil
-}
-
-// changedPackages skips a folder that go list cannot read, because no mutant runs there either.
-func (g *callerGaps) changedPackages(ctx context.Context, changed diff.Lines) map[string]goPackage {
-	found := map[string]goPackage{}
-	for _, file := range changed.Files() {
-		if strings.HasSuffix(file, "_test.go") {
-			continue
-		}
-		pkg, err := g.finder.find(ctx, filepath.Dir(filepath.Join(g.root, file)))
-		if err == nil && pkg.builds(filepath.Base(file)) {
-			found[pkg.ImportPath] = pkg
-		}
-	}
-	return found
 }
 
 func (g *callerGaps) entries(pkg, callee goPackage, changed diff.Lines) []string {
@@ -284,9 +260,13 @@ func (g *callerGaps) statementLines(loaded *packages.Package, function *ast.Func
 }
 
 func (g *callerGaps) relative(path string) string {
-	relative, err := filepath.Rel(g.root, path)
+	return relative(g.root, path)
+}
+
+func relative(root, path string) string {
+	found, err := filepath.Rel(root, path)
 	if err != nil {
 		return path
 	}
-	return filepath.ToSlash(relative)
+	return filepath.ToSlash(found)
 }

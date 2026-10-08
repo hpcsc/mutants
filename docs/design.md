@@ -106,8 +106,11 @@ A blue border marks a step of the core. A green border marks ast-grep. An orange
    (see [Proposed mutants](#proposed-mutants)).
 7. **Caller gaps.** With `--caller-gaps`, the adapter finds the changed lines that no test of a changed caller
    runs (see [Caller gaps](#caller-gaps)).
-8. **Coverage.** The adapter of each language gets the mutants of its files. One coverage run for each package
-   marks the mutants that no test runs. Those mutants are NOT COVERED, and they do not run.
+8. **Coverage.** The adapter of each language gets the mutants of its files and the changed lines. One
+   coverage run for each package marks the mutants that no test runs. For a Go mutant that the tests of its
+   own package do not run, the tests of a changed caller can run it (see
+   [Tests of a changed caller](#tests-of-a-changed-caller)). The other mutants are NOT COVERED, and they do
+   not run.
 9. **Run.** The workers give each mutant to the runner of its language. The runner returns a status.
 10. **Report.** It prints the rows, writes the files that the user asks for, and sets the exit code.
 
@@ -574,6 +577,28 @@ is NOT COVERED when the count of each block of its function is 0.
 A mutant on a line that a test runs also runs. So `BRANCH_IF` of an error branch that no test enters starts
 on the line of its `if`, and is LIVED, while the `return` inside the branch is NOT COVERED.
 
+### Tests of a changed caller
+
+The tests of a package can leave a function out when a package that calls it has the tests. On a measured PR,
+a reactor test ran each line of a new function of another package, and that package had no test of the
+function: each mutant of the function was NOT COVERED, and a person had to put a mutant in by hand to see
+that the reactor tests caught it.
+
+For each Go mutant that the tests of its own package do not run, the adapter looks at each changed package
+that imports the package of the mutant, as the check for [caller gaps](#caller-gaps) does:
+
+1. **One test run for each caller.** The tests of the caller run once with `-coverpkg` on each changed package
+   that it imports. The check for caller gaps reads the same run, so the two checks cost one run together.
+2. **Covered.** When the profile of a caller runs the mutant, by the rules above, the mutant is not NOT
+   COVERED, and the adapter keeps the callers that run it.
+3. **Run.** The runner builds the tests of each such caller with the overlay of the mutant, and runs them,
+   one caller after the other. A failed test kills the mutant. When the tests of each caller pass, the
+   mutant is LIVED, and its detail names the callers.
+
+`Uncovered` gets the changed lines for this check, and the runner tests a mutant with the callers that
+`Uncovered` found, so `Uncovered` must see a mutant before the runner does. `rerun` reads the changed lines
+against its `--base`. When git cannot read them, `rerun` says so and uses the tests of the package only.
+
 ### Time limits
 
 | Limit | Value |
@@ -622,11 +647,11 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 
 The flags of `run`: `--base`, `--workers`, `--limit`, `--build-limit`, `--tags`, `--operators`,
 `--format rows|json`, `--json PATH`, `--stryker PATH`, `--proposals PATH`, `--caller-gaps`. The flags of
-`rerun`: `--tags`, `--build-limit`.
+`rerun`: `--base`, `--tags`, `--build-limit`.
 
 `rerun` finds the mutant with all the rules of its operator, also an operator that is off by default, and
-with no diff. Then it runs the coverage and the mutant as `run` does, and prints one row with the detail of
-the status.
+with no diff. Then it reads the changed lines against `--base` for the tests of a changed caller, runs the
+coverage and the mutant as `run` does, and prints one row with the detail of the status.
 
 ## Output
 

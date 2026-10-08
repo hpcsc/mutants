@@ -68,15 +68,15 @@ type adapter struct {
 func New(root string, settings Settings) language.Adapter {
 	finder := newPackageFinder(settings.tagArguments())
 	sources := newSourceFiles(root)
-	coverage := newCoverage(root, settings, finder, sources)
 	types := newTypeChecker(settings.tagArguments(), settings.ZeroFunctions)
+	coverage := newCoverage(root, settings, finder, types, sources)
 	return &adapter{
 		root:       root,
 		finder:     finder,
 		sources:    sources,
 		types:      types,
 		coverage:   coverage,
-		callerGaps: &callerGaps{root: root, settings: settings, finder: finder, coverage: coverage, types: types, sources: sources},
+		callerGaps: &callerGaps{root: root, settings: settings, coverage: coverage, types: types, sources: sources},
 		runner:     &runner{root: root, settings: settings, finder: finder, coverage: coverage, userCache: sync.OnceValue(func() string { return userCache(root, settings.CacheProgram) })},
 	}
 }
@@ -134,8 +134,8 @@ func (a *adapter) Function(file string, offset int) string {
 	return a.sources.function(file, offset)
 }
 
-func (a *adapter) Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
-	return a.coverage.uncovered(ctx, mutants)
+func (a *adapter) Uncovered(ctx context.Context, mutants []mutant.Mutant, changed diff.Lines) (map[mutant.ID]string, error) {
+	return a.coverage.uncovered(ctx, mutants, changed)
 }
 
 func (a *adapter) CallerGaps(ctx context.Context, changed diff.Lines) ([]language.CallerGap, error) {

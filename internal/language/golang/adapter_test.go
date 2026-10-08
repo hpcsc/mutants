@@ -201,6 +201,55 @@ func TestHandle(t *testing.T) {
 }
 `
 
+const recoverSource = `package store
+
+func Recover(id string) (string, bool) {
+	if id == "" {
+		return "", false
+	}
+	return "message " + id, true
+}
+
+func Count() int {
+	return 1
+}
+`
+
+const recoverTest = `package store
+
+import "testing"
+
+func TestCount(t *testing.T) {
+	if Count() != 1 {
+		t.Fatal("Count")
+	}
+}
+`
+
+const reactorSource = `package reactor
+
+import "example.com/fixture/store"
+
+func React(id string) string {
+	text, ok := store.Recover(id)
+	if !ok {
+		return "nothing"
+	}
+	return text
+}
+`
+
+const reactorTest = `package reactor
+
+import "testing"
+
+func TestReact(t *testing.T) {
+	if React("a") != "message a" {
+		t.Fatal("React")
+	}
+}
+`
+
 func changedFiles(t *testing.T, root string, files ...string) diff.Lines {
 	t.Helper()
 	var changed diff.Lines
@@ -709,7 +758,7 @@ func (p *Pair[K, V]) Get() int { return 6 }
 			branch := mutantOf(t, root, "calc/calc.go", "{\n\t\treturn errors.New(\"negative\")\n\t}", "{}")
 			value := mutantOf(t, root, "calc/calc.go", `errors.New("negative")`, "nil")
 
-			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{branch, value})
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{branch, value}, diff.Lines{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{value.ID: ""}, uncovered)
@@ -738,7 +787,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 			afterLiteral := mutantOf(t, root, "calc/calc.go", "offset+1", "offset-1")
 			insideLiteral := mutantOf(t, root, "calc/calc.go", "v * 2", "v / 2")
 
-			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{afterLiteral, insideLiteral})
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{afterLiteral, insideLiteral}, diff.Lines{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{insideLiteral.ID: ""}, uncovered)
@@ -749,7 +798,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource})
 			m := mutantOf(t, root, "calc/calc.go", "a < b", "a <= b")
 
-			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{m})
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{m.ID: "package calc has no test files"}, uncovered)
@@ -762,7 +811,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 				"calc/calc_test.go": "package calc\n\nimport \"testing\"\n\nfunc TestMax(t *testing.T) {\n\tt.Fatal(\"red\")\n}\n",
 			})
 
-			_, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{mutantOf(t, root, "calc/calc.go", "a < b", "a <= b")})
+			_, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{mutantOf(t, root, "calc/calc.go", "a < b", "a <= b")}, diff.Lines{})
 
 			require.ErrorContains(t, err, "the tests of example.com/fixture/calc fail with the real code")
 		})
@@ -775,7 +824,7 @@ func apply(xs []int, double func(int) int, extra int) int {
 			})
 			value := mutantOf(t, root, "handlers/check.go", `errors.New("negative")`, "nil")
 
-			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{value})
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{value}, diff.Lines{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{value.ID: ""}, uncovered)
@@ -789,10 +838,53 @@ func apply(xs []int, double func(int) int, extra int) int {
 			})
 			afterLiteral := mutantOf(t, root, "calc/calc.go", "offset+1", "offset-1")
 
-			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{afterLiteral})
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{afterLiteral}, changedFiles(t, root, "calc/calc.go"))
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{afterLiteral.ID: ""}, uncovered)
+		})
+
+		t.Run("a mutant that only the tests of a changed caller run is covered, and one that they do not run is not", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"store/store.go": recoverSource, "store/store_test.go": recoverTest,
+				"reactor/reactor.go": reactorSource, "reactor/reactor_test.go": reactorTest,
+			})
+			text := mutantOf(t, root, "store/store.go", `"message " + id`, "id")
+			empty := mutantOf(t, root, "store/store.go", `return "", false`, `return "x", false`)
+
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{text, empty}, changedFiles(t, root, "store/store.go", "reactor/reactor.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, map[mutant.ID]string{empty.ID: ""}, uncovered)
+		})
+
+		t.Run("a mutant that only the tests of a caller run is not covered when the caller did not change", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"store/store.go": recoverSource, "store/store_test.go": recoverTest,
+				"reactor/reactor.go": reactorSource, "reactor/reactor_test.go": reactorTest,
+			})
+			text := mutantOf(t, root, "store/store.go", `"message " + id`, "id")
+
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{text}, changedFiles(t, root, "store/store.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, map[mutant.ID]string{text.ID: ""}, uncovered)
+		})
+
+		t.Run("a mutant of a package with no test files is covered when the tests of a changed caller run it", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"store/store.go":     recoverSource,
+				"reactor/reactor.go": reactorSource, "reactor/reactor_test.go": reactorTest,
+			})
+			text := mutantOf(t, root, "store/store.go", `"message " + id`, "id")
+
+			uncovered, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{text}, changedFiles(t, root, "store/store.go", "reactor/reactor.go"))
+
+			require.NoError(t, err)
+			require.Empty(t, uncovered)
 		})
 
 		t.Run("with the tags, a test file with a build tag runs", func(t *testing.T) {
@@ -800,9 +892,9 @@ func apply(xs []int, double func(int) int, extra int) int {
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": "//go:build unit\n\n" + maxTest})
 			m := mutantOf(t, root, "calc/calc.go", "return b", "return a")
 
-			withoutTags, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{m})
+			withoutTags, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 			require.NoError(t, err)
-			withTags, err := golang.New(root, golang.Settings{Tags: []string{"unit"}, BuildLimit: time.Minute, Workers: 1}).Uncovered(context.Background(), []mutant.Mutant{m})
+			withTags, err := golang.New(root, golang.Settings{Tags: []string{"unit"}, BuildLimit: time.Minute, Workers: 1}).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 			require.NoError(t, err)
 
 			require.Equal(t, map[mutant.ID]string{m.ID: "package calc has no test files"}, withoutTags)
@@ -906,12 +998,43 @@ func apply(xs []int, double func(int) int, extra int) int {
 			require.Contains(t, result.Detail, "--- FAIL: TestMax")
 		})
 
+		t.Run("a mutant that only the tests of a changed caller run is KILLED by a test of the caller", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"store/store.go": recoverSource, "store/store_test.go": recoverTest,
+				"reactor/reactor.go": reactorSource, "reactor/reactor_test.go": reactorTest,
+			})
+			adapter := golang.New(root, defaultSettings)
+			text := mutantOf(t, root, "store/store.go", `"message " + id`, "id")
+			_, err := adapter.Uncovered(context.Background(), []mutant.Mutant{text}, changedFiles(t, root, "store/store.go", "reactor/reactor.go"))
+			require.NoError(t, err)
+
+			result := run(t, adapter, text)
+
+			require.Equal(t, mutant.Killed, result.Status, result.Detail)
+			require.Contains(t, result.Detail, "--- FAIL: TestReact")
+		})
+
+		t.Run("a mutant that only the tests of a changed caller run, and that each of them passes, is LIVED and names the caller", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"store/store.go": recoverSource, "store/store_test.go": recoverTest,
+				"reactor/reactor.go": reactorSource, "reactor/reactor_test.go": reactorTest,
+			})
+			adapter := golang.New(root, defaultSettings)
+			branch := mutantOf(t, root, "store/store.go", "{\n\t\treturn \"\", false\n\t}", "{}")
+			_, err := adapter.Uncovered(context.Background(), []mutant.Mutant{branch}, changedFiles(t, root, "store/store.go", "reactor/reactor.go"))
+			require.NoError(t, err)
+
+			result := run(t, adapter, branch)
+
+			require.Equal(t, mutant.Verdict{Status: mutant.Lived, Detail: "only the tests of reactor run it"}, result)
+		})
+
 		t.Run("a mutant that every test passes is LIVED", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
 
 			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "a < b", "a <= b"))
 
-			require.Equal(t, mutant.Lived, result.Status, result.Detail)
+			require.Equal(t, mutant.Verdict{Status: mutant.Lived}, result)
 		})
 
 		t.Run("a mutant that does not build is NOT VIABLE", func(t *testing.T) {

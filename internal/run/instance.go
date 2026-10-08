@@ -145,7 +145,7 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	}
 
 	covering := progress.Start(r.stderr, r.terminal, "Running the tests one time with the real code")
-	uncovered, err := r.uncovered(ctx, mutants)
+	uncovered, err := r.uncovered(ctx, mutants, lines)
 	covering.End()
 	if err != nil {
 		return outcome, err
@@ -168,7 +168,9 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	return outcome, err
 }
 
-func (r *Instance) Rerun(ctx context.Context, id mutant.ID) (mutant.Mutant, error) {
+// Rerun counts the tests of the packages that the branch changes against base, as Run does, and runs without them
+// when it cannot read that change.
+func (r *Instance) Rerun(ctx context.Context, id mutant.ID, base string, exclude []string) (mutant.Mutant, error) {
 	unknown := fmt.Errorf("%w: %s", ErrUnknownID, id)
 	l, found := r.languageOf(id.File)
 	if !found {
@@ -188,7 +190,11 @@ func (r *Instance) Rerun(ctx context.Context, id mutant.ID) (mutant.Mutant, erro
 		return mutant.Mutant{}, err
 	}
 
-	uncovered, err := l.Adapter.Uncovered(ctx, []mutant.Mutant{m})
+	changed, err := r.changed(ctx, base, exclude)
+	if err != nil {
+		fmt.Fprintf(r.stderr, "mutants runs no tests of a changed caller: %v\n", err)
+	}
+	uncovered, err := l.Adapter.Uncovered(ctx, []mutant.Mutant{m}, changed)
 	if err != nil {
 		return mutant.Mutant{}, err
 	}
@@ -519,14 +525,14 @@ func (r *Instance) callerGaps(ctx context.Context, lines diff.Lines) (*[]languag
 	return gaps, nil
 }
 
-func (r *Instance) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
+func (r *Instance) uncovered(ctx context.Context, mutants []mutant.Mutant, changed diff.Lines) (map[mutant.ID]string, error) {
 	uncovered := map[mutant.ID]string{}
 	for _, l := range r.languages {
 		own := slices.DeleteFunc(slices.Clone(mutants), func(m mutant.Mutant) bool { return !l.takes(m.File) })
 		if len(own) == 0 {
 			continue
 		}
-		found, err := l.Adapter.Uncovered(ctx, own)
+		found, err := l.Adapter.Uncovered(ctx, own, changed.WithExtensions(l.Adapter.Extensions()))
 		if err != nil {
 			return nil, err
 		}

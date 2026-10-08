@@ -43,16 +43,14 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	if err != nil {
 		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
 	}
-	baseline, err := r.coverage.baseline(ctx, pkg.Dir)
-	if err != nil {
-		return mutant.Verdict{}, err
+	testers := r.coverage.testersOf(m.ID)
+	if len(testers) == 0 {
+		own, err := r.coverage.run(ctx, pkg.Dir)
+		if err != nil {
+			return mutant.Verdict{}, err
+		}
+		testers = []*coverageRun{own}
 	}
-
-	folder, err := os.MkdirTemp("", "mutants-mutant-")
-	if err != nil {
-		return mutant.Verdict{}, err
-	}
-	defer os.RemoveAll(folder)
 	original := filepath.Join(pkg.Dir, filepath.Base(path))
 	source, err := os.ReadFile(original)
 	if err != nil {
@@ -62,6 +60,25 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	if err != nil {
 		return mutant.Verdict{Status: mutant.InfraError, Detail: err.Error()}, nil
 	}
+
+	var folders []string
+	for _, tester := range testers {
+		verdict, err := r.testIn(ctx, tester.pkg, original, content, tester.baseline)
+		if err != nil || verdict.Status != mutant.Lived || tester.pkg.Dir == pkg.Dir {
+			return verdict, err
+		}
+		folders = append(folders, relative(r.root, tester.pkg.Dir))
+	}
+	return mutant.Verdict{Status: mutant.Lived, Detail: "only the tests of " + strings.Join(folders, ", ") + " run it"}, nil
+}
+
+// testIn tests the mutant with the tests of pkg, which can be a package that calls the package of the mutant.
+func (r *runner) testIn(ctx context.Context, pkg goPackage, original, content string, baseline baseline) (mutant.Verdict, error) {
+	folder, err := os.MkdirTemp("", "mutants-mutant-")
+	if err != nil {
+		return mutant.Verdict{}, err
+	}
+	defer os.RemoveAll(folder)
 	binary := filepath.Join(folder, "pkg.test")
 	buildLimit := max(r.settings.BuildLimit, (buildFactor * baseline.build).Round(time.Second))
 	built, err := r.build(ctx, pkg, folder, original, content, binary, buildLimit)

@@ -5,6 +5,7 @@ import (
 	"embed"
 	"strings"
 
+	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
@@ -72,7 +73,7 @@ func (a *adapter) Function(file string, offset int) string {
 	return a.sources.function(file, offset)
 }
 
-func (a *adapter) Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
+func (a *adapter) Uncovered(ctx context.Context, mutants []mutant.Mutant, _ diff.Lines) (map[mutant.ID]string, error) {
 	return a.coverage.uncovered(ctx, mutants)
 }
 

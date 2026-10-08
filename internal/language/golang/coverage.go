@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"go/ast"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,18 +14,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/process"
 	"golang.org/x/sync/errgroup"
 )
 
 type coverage struct {
-	root     string
-	settings Settings
-	finder   *packageFinder
-	sources  *sourceFiles
-	mutex    sync.Mutex
-	runs     map[string]*coverageRun
+	root       string
+	settings   Settings
+	finder     *packageFinder
+	types      *typeChecker
+	sources    *sourceFiles
+	mutex      sync.Mutex
+	runs       map[string]*coverageRun
+	callerRuns map[string]*coverageRun
+	testers    map[mutant.ID][]*coverageRun
 }
 
 type coverageRun struct {
@@ -57,11 +62,16 @@ func (b block) runs(line int) bool {
 	return b.count > 0 && b.startLine <= line && line <= b.endLine
 }
 
-func newCoverage(root string, settings Settings, finder *packageFinder, sources *sourceFiles) *coverage {
-	return &coverage{root: root, settings: settings, finder: finder, sources: sources, runs: map[string]*coverageRun{}}
+func newCoverage(root string, settings Settings, finder *packageFinder, types *typeChecker, sources *sourceFiles) *coverage {
+	return &coverage{
+		root: root, settings: settings, finder: finder, types: types, sources: sources,
+		runs: map[string]*coverageRun{}, callerRuns: map[string]*coverageRun{}, testers: map[mutant.ID][]*coverageRun{},
+	}
 }
 
-func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
+// uncovered keeps a mutant that the tests of its own package do not run when the tests of a changed caller run
+// it, and the runner then tests the mutant with the tests of those callers.
+func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant, changed diff.Lines) (map[mutant.ID]string, error) {
 	group, groupContext := errgroup.WithContext(ctx)
 	group.SetLimit(max(1, c.settings.Workers))
 	measured := map[string]bool{}
@@ -80,17 +90,49 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant) (map[
 	}
 
 	uncovered := map[mutant.ID]string{}
+	callees := map[string]bool{}
 	for _, m := range mutants {
 		run, err := c.run(ctx, filepath.Dir(filepath.Join(c.root, m.File)))
 		if err != nil {
 			return nil, err
 		}
-		if run.noTests {
+		switch {
+		case run.noTests:
 			uncovered[m.ID] = fmt.Sprintf("package %s has no test files", filepath.ToSlash(filepath.Dir(m.File)))
+		case !c.covers(run.blocks[m.File], m):
+			uncovered[m.ID] = ""
+		default:
 			continue
 		}
-		if !c.covers(run.blocks[m.File], m) {
-			uncovered[m.ID] = ""
+		callees[run.pkg.ImportPath] = true
+	}
+	if len(uncovered) == 0 {
+		return uncovered, nil
+	}
+
+	callers, err := c.callers(ctx, changed, callees)
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range mutants {
+		if _, found := uncovered[m.ID]; !found {
+			continue
+		}
+		own, err := c.run(ctx, filepath.Dir(filepath.Join(c.root, m.File)))
+		if err != nil {
+			return nil, err
+		}
+		var testers []*coverageRun
+		for _, caller := range callers[own.pkg.ImportPath] {
+			if blocks := caller.blocks[m.File]; len(blocks) > 0 && c.covers(blocks, m) {
+				testers = append(testers, caller)
+			}
+		}
+		if len(testers) > 0 {
+			delete(uncovered, m.ID)
+			c.mutex.Lock()
+			c.testers[m.ID] = testers
+			c.mutex.Unlock()
 		}
 	}
 	return uncovered, nil
@@ -134,12 +176,107 @@ func (c *coverage) entered(blocks []block, m mutant.Mutant) bool {
 	return true
 }
 
-func (c *coverage) baseline(ctx context.Context, folder string) (baseline, error) {
-	run, err := c.run(ctx, folder)
-	if err != nil {
-		return baseline{}, err
+// testersOf gives nil when the tests of the package of the mutant run it.
+func (c *coverage) testersOf(id mutant.ID) []*coverageRun {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	return c.testers[id]
+}
+
+// callers runs the tests of each changed package that imports a package of callees one time, and gives them by
+// the import path of each callee.
+func (c *coverage) callers(ctx context.Context, changed diff.Lines, callees map[string]bool) (map[string][]*coverageRun, error) {
+	changedPackages := c.changedPackages(ctx, changed)
+	byCallee := map[string][]goPackage{}
+	var callers []goPackage
+	for _, importPath := range slices.Sorted(maps.Keys(changedPackages)) {
+		caller := changedPackages[importPath]
+		calls := false
+		for _, imported := range c.changedImports(caller, changedPackages) {
+			if callees[imported.ImportPath] {
+				byCallee[imported.ImportPath] = append(byCallee[imported.ImportPath], caller)
+				calls = true
+			}
+		}
+		if calls {
+			callers = append(callers, caller)
+		}
 	}
-	return run.baseline, nil
+
+	measured := map[string]*coverageRun{}
+	var mutex sync.Mutex
+	group, groupContext := errgroup.WithContext(ctx)
+	group.SetLimit(max(1, c.settings.Workers))
+	for _, caller := range callers {
+		group.Go(func() error {
+			run, err := c.callerRun(groupContext, caller, c.changedImports(caller, changedPackages))
+			mutex.Lock()
+			measured[caller.ImportPath] = run
+			mutex.Unlock()
+			return err
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
+	}
+	runs := map[string][]*coverageRun{}
+	for callee, of := range byCallee {
+		for _, caller := range of {
+			runs[callee] = append(runs[callee], measured[caller.ImportPath])
+		}
+	}
+	return runs, nil
+}
+
+// changedPackages skips a folder that go list cannot read, because no mutant runs there either.
+func (c *coverage) changedPackages(ctx context.Context, changed diff.Lines) map[string]goPackage {
+	found := map[string]goPackage{}
+	for _, file := range changed.Files() {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		pkg, err := c.finder.find(ctx, filepath.Dir(filepath.Join(c.root, file)))
+		if err == nil && pkg.builds(filepath.Base(file)) {
+			found[pkg.ImportPath] = pkg
+		}
+	}
+	return found
+}
+
+func (c *coverage) changedImports(pkg goPackage, changedPackages map[string]goPackage) []goPackage {
+	loaded := c.types.load(pkg.Dir)
+	if loaded == nil {
+		return nil
+	}
+	var imported []goPackage
+	for _, i := range loaded.Types.Imports() {
+		if callee, isChanged := changedPackages[i.Path()]; isChanged {
+			imported = append(imported, callee)
+		}
+	}
+	slices.SortFunc(imported, func(a, b goPackage) int { return strings.Compare(a.ImportPath, b.ImportPath) })
+	return imported
+}
+
+// callerRun measures what the tests of caller run in the packages of callees, one time for each caller and callees.
+func (c *coverage) callerRun(ctx context.Context, caller goPackage, callees []goPackage) (*coverageRun, error) {
+	key := caller.Dir
+	for _, callee := range callees {
+		key += "\x00" + callee.ImportPath
+	}
+	c.mutex.Lock()
+	run, found := c.callerRuns[key]
+	if !found {
+		run = &coverageRun{pkg: caller}
+		c.callerRuns[key] = run
+	}
+	c.mutex.Unlock()
+	run.once.Do(func() {
+		var measured profiled
+		measured, run.err = c.profile(ctx, caller, callees)
+		run.noTests, run.blocks, run.baseline = measured.noTests, measured.blocks, measured.baseline
+	})
+	return run, run.err
 }
 
 func (c *coverage) run(ctx context.Context, folder string) (*coverageRun, error) {

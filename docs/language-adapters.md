@@ -42,7 +42,7 @@ sequenceDiagram
     opt with --caller-gaps, when the adapter is a language.CallerGapFinder
         R->>A: CallerGaps(ctx, changed lines)
     end
-    R->>A: Uncovered(ctx, mutants)
+    R->>A: Uncovered(ctx, mutants, changed lines)
     A-->>R: the mutants that no test runs
     loop each other mutant, on all the workers at the same time
         R->>A: Runner().Run(ctx, mutant)
@@ -50,7 +50,8 @@ sequenceDiagram
     end
 ```
 
-`mutants rerun ID` makes the same calls for one mutant, with no diff. A proposed mutant from `--proposals`
+`mutants rerun ID` makes the same calls for one mutant. It needs no diff to find the mutant, and it reads the
+changed lines against `--base` for `Uncovered`. A proposed mutant from `--proposals`
 also goes through `Keep` and `Function`.
 
 ## Step 1: Choose the name and the extensions
@@ -128,8 +129,8 @@ folders.
 | `IndentationMatters()` | before it reads the diff | give `true` when a change of the white space at the start of a line can change what the code does, as in Python. The run then counts a line whose only change is its white space. |
 | `Keep(edit)` | one time for each candidate edit, before the ids | give `false` for an edit to drop. See [Filters](#filters). |
 | `Function(file, offset)` | one time for each edit that `Keep` keeps | give the name of the declaration that holds the byte offset. See [Function names](#function-names). |
-| `Uncovered(ctx, mutants)` | one time with all the mutants of a run, and one time in `rerun` | give the mutants that no test runs. See [Coverage](#coverage). |
-| `Runner()` | before each mutant runs | give the `mutant.Runner` of the language. See [The runner](#the-runner). |
+| `Uncovered(ctx, mutants, changed)` | one time with all the mutants of a run, and one time in `rerun` | give the mutants that no test runs. `changed` holds the changed lines of the files of the language. See [Coverage](#coverage). |
+| `Runner()` | before each mutant runs, after `Uncovered` saw the mutant | give the `mutant.Runner` of the language. See [The runner](#the-runner). |
 
 An adapter whose language has a check for caller gaps also implements `language.CallerGapFinder`, as the Go
 adapter does. With `--caller-gaps`, the run calls `CallerGaps(ctx, changed)` of each such adapter that has
@@ -180,6 +181,10 @@ A mutant in the map does not run, so put a mutant in the map only when the cover
 it. The Go adapter puts a mutant in the map only when a profile block with a count of 0 holds its start, or
 when no test enters its function. An empty map is correct for a language with no coverage: each mutant then
 runs.
+
+`changed` lets an adapter count the tests of another package. The Go adapter leaves out of the map a mutant
+that the tests of a changed caller run, and its runner then tests the mutant with the tests of that caller.
+An adapter that does not need `changed` can ignore it, as the Python adapter does.
 
 ### The runner
 

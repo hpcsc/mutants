@@ -27,6 +27,7 @@ func newRerunCommand() *cli.Command {
 			"internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1\n\n" +
 			"Exit codes: 0 killed, 10 lived or not covered, 1 no verdict, 2 an unknown id.",
 		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "base", Usage: "count the tests of the packages that the branch changes against the merge base of HEAD and this commit (default: " + defaultBase + ")"},
 			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "the least time for the build of the mutant; it is 3 times the build of the real code when that is longer"},
 			&cli.StringSliceFlag{Name: "tags", Usage: "the build tags for go list, the coverage run and the build"},
 		},
@@ -60,7 +61,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 		return cli.Exit(err, exitUsage)
 	}
 
-	m, err := instance.Rerun(ctx, id)
+	m, err := instance.Rerun(ctx, id, configured.base(cmd), configured.Exclude)
 	switch {
 	case errors.Is(err, run.ErrUnknownID):
 		return cli.Exit(fmt.Errorf("%w: %s", run.ErrUnknownID, cmd.Args().First()), exitUsage)

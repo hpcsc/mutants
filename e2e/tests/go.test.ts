@@ -28,6 +28,55 @@ func TestAllowed(t *testing.T) {
 }
 `
 
+const store = `package store
+
+func Recover(id string) (string, bool) {
+	if id == "" {
+		return "", false
+	}
+	return "message " + id, true
+}
+
+func Count() int {
+	return 1
+}
+`
+
+const storeTest = `package store
+
+import "testing"
+
+func TestCount(t *testing.T) {
+	if Count() != 1 {
+		t.Fatal("Count")
+	}
+}
+`
+
+const reactor = `package reactor
+
+import "example.com/fixture/store"
+
+func React(id string) string {
+	text, ok := store.Recover(id)
+	if !ok {
+		return "nothing"
+	}
+	return text
+}
+`
+
+const reactorTest = `package reactor
+
+import "testing"
+
+func TestReact(t *testing.T) {
+	if React("a") != "message a" {
+		t.Fatal("React")
+	}
+}
+`
+
 const wait = `package wait
 
 import "time"
@@ -214,6 +263,38 @@ describe('mutants run on Go', { timeout: 240_000 }, () => {
     const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,ARITHMETIC_BASE'])
 
     expect(mutants.map((m) => `${m.operator} ${m.line}`)).toEqual(['ARITHMETIC_BASE 5'])
+  })
+
+  it('a mutant that only the tests of a changed caller run gets its verdict from those tests, also in rerun with the same base', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'store/store.go': store,
+      'store/store_test.go': storeTest,
+      'reactor/reactor.go': reactor,
+      'reactor/reactor_test.go': reactorTest,
+      'proposals.jsonl':
+        JSON.stringify({ file: 'store/store.go', old: '"message " + id', new: 'id', bug: 'the text loses its start' }) +
+        '\n' +
+        JSON.stringify({ file: 'store/store.go', old: '{\n\t\treturn "", false\n\t}', new: '{}', bug: 'an empty id finds a message' }) +
+        '\n',
+    })
+
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators=none', '--proposals', 'proposals.jsonl'])
+    const [lives, dies] = mutants
+    const killedAgain = await runCli(dir, ['rerun', '--base', 'HEAD', dies.id])
+    const livesAgain = await runCli(dir, ['rerun', '--base', 'HEAD', lives.id])
+    const withoutCallers = await runCli(dir, ['rerun', '--base', 'origin/HEAD', dies.id])
+
+    expect(mutants.map((m) => `${m.bug} ${m.status} ${m.status === 'LIVED' ? m.detail : ''}`)).toEqual([
+      'an empty id finds a message LIVED only the tests of reactor run it',
+      'the text loses its start KILLED ',
+    ])
+    expect(dies.detail).toContain('--- FAIL: TestReact')
+    expect(killedAgain.status).toBe(0)
+    expect(livesAgain.status).toBe(10)
+    expect(withoutCallers.status).toBe(10)
+    expect(withoutCallers.stdout).toMatch(/^NOT COVERED: /)
+    expect(withoutCallers.stderr).toContain('mutants runs no tests of a changed caller')
   })
 
   it('stopping a loop after its first item lives when the test has one item, and dies when it has two', async () => {

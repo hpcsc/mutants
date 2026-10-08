@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/language/python"
 	"github.com/hpcsc/mutants/internal/mutant"
@@ -188,7 +189,7 @@ def limit():
 			unused := mutantOf(t, root, "shop/discount.py", "total + 1", "total - 1")
 			used := mutantOf(t, root, "shop/discount.py", "total >= LIMIT", "total > LIMIT")
 
-			uncovered, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{unused, used})
+			uncovered, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{unused, used}, diff.Lines{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{unused.ID: ""}, uncovered)
@@ -198,7 +199,7 @@ def limit():
 			root := newProject(t, shop(map[string]string{"shop/report.py": "def total(xs):\n    return sum(xs) + 1\n"}))
 			m := mutantOf(t, root, "shop/report.py", "sum(xs) + 1", "sum(xs) - 1")
 
-			uncovered, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m})
+			uncovered, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{m.ID: "no test imports shop/report.py"}, uncovered)
@@ -208,7 +209,7 @@ def limit():
 			root := newProject(t, map[string]string{"services/api/pyproject.toml": pyproject, "services/api/app.py": "LIMIT = 1\n"})
 			m := mutantOf(t, root, "services/api/app.py", "1", "2")
 
-			uncovered, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m})
+			uncovered, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 
 			require.NoError(t, err)
 			require.Equal(t, map[mutant.ID]string{m.ID: "the Python project in services/api has no tests"}, uncovered)
@@ -222,7 +223,7 @@ def limit():
 			})
 			m := mutantOf(t, root, "services/api/app.py", "1", "2")
 
-			_, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m})
+			_, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 
 			require.ErrorContains(t, err, "the tests of the Python project in services/api fail with the real code")
 		})
@@ -232,7 +233,7 @@ def limit():
 			m := mutantOf(t, root, "shop/discount.py", "total >= LIMIT", "total > LIMIT")
 			adapter := python.New(root, python.Settings{Command: []string{withoutCoverage}, Workers: 2})
 
-			_, err := adapter.Uncovered(context.Background(), []mutant.Mutant{m})
+			_, err := adapter.Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 
 			require.EqualError(t, err, "the Python project in . has no coverage.py: add coverage or pytest-cov to its dev dependencies")
 		})

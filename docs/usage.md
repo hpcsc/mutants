@@ -45,7 +45,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 | --- | --- |
 | `mutants run` | runs the mutants of the changed lines |
 | `mutants run --all FOLDER...` | runs the mutants of each line in the folders |
-| `mutants rerun ID` | runs one mutant again, by its id, with no diff and no cache |
+| `mutants rerun ID` | runs one mutant again, by its id, with no cache |
 | `mutants operators` | lists each operator of each language, whether it runs by default, and its rules |
 | `mutants config init` | writes a first `.mutants.yml`, see [Settings in .mutants.yml](#settings-in-mutantsyml) |
 | `mutants version` | prints the version, see [docs/install.md](install.md) |
@@ -78,10 +78,14 @@ mutants rerun 'internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1'
 ```
 
 It finds the mutant with all the rules of its operator, also an operator that is off by default. It needs
-no diff, so it also works after a commit. It prints one row, and the detail of the status below the row.
+no diff to find the mutant, so it also works after a commit. It reads the changes against the base only to
+find the [tests of a changed caller](#tests-of-a-changed-caller), so give it the `--base` of the run. When it
+cannot read the changes, it says so on stderr and uses only the tests of the package of the mutant. It
+prints one row, and the detail of the status below the row.
 
 | Flag | Does |
 | --- | --- |
+| `--base REF` | finds the changed callers against the merge base of `HEAD` and `REF`. The default is `origin/HEAD`. |
 | `--tags a,b` | the build tags for `go list`, for the coverage run and for the build |
 | `--build-limit DURATION` | the least time for the build of the mutant |
 
@@ -225,6 +229,20 @@ A run that stops at `--limit` before the check ends lists no caller gaps. A run 
 in Python also lists none, because the check looks at Go code only. A run that finds a caller gap exits
 with 10. The check is off by default. Turn it on for each run with
 `caller_gaps: true` in `.mutants.yml`.
+
+## Tests of a changed caller
+
+The tests of a package can leave a function out when the tests of a package that calls it run it. For each Go
+mutant that the tests of its own package do not run, `mutants` looks at the tests of each changed caller:
+
+- A caller is a changed package that imports the package of the mutant, as for [caller gaps](#caller-gaps).
+- When the tests of a caller run the line of the mutant, the mutant is not NOT COVERED. `mutants` builds the
+  tests of the caller with the mutant, and runs them. A test that fails kills the mutant.
+- When the tests of each such caller pass, the mutant lives, and its detail names the callers:
+  `only the tests of handler run it`.
+- A caller that did not change does not count. `mutants rerun` finds the changed callers against its
+  `--base`.
+- The tests of each caller run one time for the coverage, and the check for caller gaps uses the same run.
 
 ## Mutant ids
 

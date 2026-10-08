@@ -16,8 +16,10 @@ type Adapter interface {
 	Keep(candidate operator.Edit) bool
 	Function(file string, offset int) string
 	// Uncovered maps each mutant that no test runs to its detail: empty, or a text that holds for each mutant of
-	// one package.
-	Uncovered(ctx context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error)
+	// one package. An adapter can also count the tests of a package in changed that calls the package of a
+	// mutant.
+	Uncovered(ctx context.Context, mutants []mutant.Mutant, changed diff.Lines) (map[mutant.ID]string, error)
+	// Runner tests a mutant with the tests that Uncovered found to run it, so Uncovered must see the mutant first.
 	Runner() mutant.Runner
 }
 

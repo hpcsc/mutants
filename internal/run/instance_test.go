@@ -44,6 +44,7 @@ type fakeAdapter struct {
 	mutex            sync.Mutex
 	ran              []string
 	covered          []string
+	coveredChanges   []string
 	callerGapFiles   []string
 }
 
@@ -74,10 +75,11 @@ func (f *fakeAdapter) Function(file string, offset int) string {
 	return name
 }
 
-func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant) (map[mutant.ID]string, error) {
+func (f *fakeAdapter) Uncovered(_ context.Context, mutants []mutant.Mutant, changed diff.Lines) (map[mutant.ID]string, error) {
 	if f.coverageFailure != nil {
 		return nil, f.coverageFailure
 	}
+	f.coveredChanges = append(f.coveredChanges, changed.Files()...)
 	uncovered := map[mutant.ID]string{}
 	for _, m := range mutants {
 		f.covered = append(f.covered, m.ID.String())
@@ -166,6 +168,11 @@ func (r *gitRepository) head() string {
 
 func (r *gitRepository) instance(adapters ...*fakeAdapter) *run.Instance {
 	r.t.Helper()
+	return r.instanceWritingTo(io.Discard, adapters...)
+}
+
+func (r *gitRepository) instanceWritingTo(stderr io.Writer, adapters ...*fakeAdapter) *run.Instance {
+	r.t.Helper()
 	repository, err := diff.Open(context.Background(), r.root)
 	require.NoError(r.t, err)
 	var languages []run.Language
@@ -179,7 +186,7 @@ func (r *gitRepository) instance(adapters ...*fakeAdapter) *run.Instance {
 		}
 		languages = append(languages, run.Language{Adapter: asAdapter, Pack: pack})
 	}
-	return run.New(repository, languages, astgrep.New(r.root), io.Discard, false)
+	return run.New(repository, languages, astgrep.New(r.root), stderr, false)
 }
 
 func idsAndStatuses(mutants []mutant.Mutant) []string {
@@ -243,6 +250,7 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#2 KILLED", "a.py:f:CONDITIONALS_BOUNDARY#1 KILLED"}, idsAndStatuses(outcome.Mutants))
 			require.Equal(t, [][]string{{"a.go:f:CONDITIONALS_BOUNDARY#2"}, {"a.go:f:CONDITIONALS_BOUNDARY#2"}}, [][]string{inGo.covered, inGo.ran})
 			require.Equal(t, [][]string{{"a.py:f:CONDITIONALS_BOUNDARY#1"}, {"a.py:f:CONDITIONALS_BOUNDARY#1"}}, [][]string{inPython.covered, inPython.ran})
+			require.Equal(t, [][]string{{"a.go"}, {"a.py"}}, [][]string{inGo.coveredChanges, inPython.coveredChanges})
 		})
 
 		t.Run("a change to the amount of white space in a line counts in Python, and not in Go", func(t *testing.T) {
@@ -642,7 +650,7 @@ func TestInstance(t *testing.T) {
 			require.NoError(t, err)
 			id := mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()}
 
-			m, err := r.instance(&fakeAdapter{statuses: map[string]mutant.Status{id.String(): mutant.Lived}}).Rerun(context.Background(), id)
+			m, err := r.instance(&fakeAdapter{statuses: map[string]mutant.Status{id.String(): mutant.Lived}}).Rerun(context.Background(), id, "HEAD", nil)
 
 			require.NoError(t, err)
 			require.Equal(t, []string{id.String() + " LIVED"}, idsAndStatuses([]mutant.Mutant{m}))
@@ -659,7 +667,7 @@ func TestInstance(t *testing.T) {
 			require.NoError(t, err)
 			r.write("a.go", compareBefore)
 
-			_, err = r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()})
+			_, err = r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()}, "HEAD", nil)
 
 			require.ErrorIs(t, err, run.ErrStaleProposal)
 			require.ErrorContains(t, err, "old not found")
@@ -672,7 +680,7 @@ func TestInstance(t *testing.T) {
 			inGo, inPython := &fakeAdapter{}, &fakeAdapter{name: "python"}
 			id := mutant.ID{File: "a.py", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}
 
-			m, err := r.instance(inGo, inPython).Rerun(context.Background(), id)
+			m, err := r.instance(inGo, inPython).Rerun(context.Background(), id, "HEAD", nil)
 
 			require.NoError(t, err)
 			require.Equal(t, "a > b -> a >= b", m.Original+" -> "+m.Replacement)
@@ -683,7 +691,7 @@ func TestInstance(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			adapter := &fakeAdapter{statuses: map[string]mutant.Status{"a.go:f:CONDITIONALS_BOUNDARY#1": mutant.Lived}}
 
-			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1})
+			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
 
 			require.NoError(t, err)
 			require.Equal(t, "a < b -> a <= b", m.Original+" -> "+m.Replacement)
@@ -695,17 +703,42 @@ func TestInstance(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			r.write("a.go", "package a\n\nfunc g(a, b int) bool {\n\treturn a < b\n}\n\n"+strings.TrimPrefix(compareAfter, "package a\n\n"))
 
-			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1})
+			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
 
 			require.NoError(t, err)
 			require.Equal(t, 8, m.Line)
+		})
+
+		t.Run("gives the adapter the lines that the branch changes against the base", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareAfter, "b.go": "package a\n"})
+			r.write("b.go", "package a\n\nvar b = 1\n")
+			adapter := &fakeAdapter{}
+
+			_, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"b.go"}, adapter.coveredChanges)
+		})
+
+		t.Run("with a base that git cannot read, says so and runs the mutant with no changed lines", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
+			adapter := &fakeAdapter{}
+			var stderr bytes.Buffer
+
+			m, err := r.instanceWritingTo(&stderr, adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "origin/HEAD", nil)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Killed, m.Verdict.Status)
+			require.Empty(t, adapter.coveredChanges)
+			require.Contains(t, stderr.String(), "mutants runs no tests of a changed caller")
+			require.Contains(t, stderr.String(), "origin/HEAD")
 		})
 
 		t.Run("a mutant that no test runs is NOT COVERED, and does not run", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			adapter := &fakeAdapter{uncovered: map[string]string{"a.go:f:CONDITIONALS_BOUNDARY#1": ""}}
 
-			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1})
+			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
 
 			require.NoError(t, err)
 			require.Equal(t, mutant.NotCovered, m.Verdict.Status)
@@ -715,7 +748,7 @@ func TestInstance(t *testing.T) {
 		t.Run("finds a mutant of an operator that is off by default", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": "package a\n\nimport \"fmt\"\n\nfunc f(err error) error {\n\treturn fmt.Errorf(\"load: %w\", err)\n}\n"})
 
-			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "ERROR_CAUSE_REMOVE", Number: 1})
+			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "ERROR_CAUSE_REMOVE", Number: 1}, "HEAD", nil)
 
 			require.NoError(t, err)
 			require.Equal(t, `fmt.Errorf("load: %v", err)`, m.Replacement)
@@ -732,7 +765,7 @@ func TestInstance(t *testing.T) {
 				{File: "notes.md", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1},
 			}
 			for _, id := range ids {
-				_, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), id)
+				_, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), id, "HEAD", nil)
 
 				require.ErrorIs(t, err, run.ErrUnknownID, id.String())
 			}

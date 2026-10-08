@@ -131,7 +131,7 @@ you did not write, or an assertion that is too weak. When you add the test, the 
 | Status | Meaning | What to do |
 | --- | --- | --- |
 | LIVED | every test passed with the mutant | Add a test that fails with the mutant, or make an assertion stricter. |
-| NOT COVERED | no test runs the line | Add a test that runs the line. |
+| NOT COVERED | no test runs the line | Add a test that runs the line. In Go, a test of a changed package that calls the line counts too. |
 | TIMED OUT | the tests with the mutant ran past the time limit, for example in an endless loop | Nothing. A mutant that makes the tests hang counts as found. |
 | INFRA ERROR | the computer stopped the run, for example when it had no more memory | Run the mutant again with `mutants rerun`. |
 
