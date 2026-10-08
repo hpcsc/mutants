@@ -247,13 +247,19 @@ describe('mutants run on Go', { timeout: 240_000 }, () => {
     expect(dies.result.status).toBe(0)
   })
 
-  it('in an error branch that no test enters, BRANCH_IF lives and the return in it is not covered', async () => {
+  it('in an error branch that no test enters, BRANCH_IF lives, and the return in it is not covered and shows under its row', async () => {
     const dir = goRepository()
     writeFiles(dir, { 'accounts/accounts.go': accounts, 'accounts/accounts_test.go': accountsTest })
+    const args = ['--base', 'HEAD', '--operators', 'BRANCH_IF,ERROR_REMOVE']
 
-    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'BRANCH_IF,ERROR_REMOVE'])
+    const { mutants } = await runMutants(dir, args)
+    const rows = await runCli(dir, ['run', ...args])
 
-    expect(mutants.map((m) => `${m.operator} ${m.line} ${m.status}`)).toEqual(['BRANCH_IF 6 LIVED', 'ERROR_REMOVE 7 NOT COVERED'])
+    expect(mutants.map((m) => `${m.operator} ${m.line} ${m.status} ${m.inside ?? '-'}`)).toEqual([
+      'BRANCH_IF 6 LIVED -',
+      'ERROR_REMOVE 7 NOT COVERED accounts/accounts.go:Load:BRANCH_IF#1',
+    ])
+    expect(rows.stdout).toMatch(/^LIVED:\n {2}accounts\/accounts\.go:6 BRANCH_IF: .*\n {4}and 1 mutant inside it that no test runs\nmutants: 2, lived: 1, not covered: 1 /)
   })
 
   it('a line whose only change is the amount of white space gives no mutant', async () => {

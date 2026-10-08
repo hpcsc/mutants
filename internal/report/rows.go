@@ -62,12 +62,17 @@ func rows(outcome Outcome) string {
 			details[m.Verdict.Detail]++
 		}
 	}
+	outerOf := insideOf(mutants)
+	insiders := map[mutant.ID]int{}
+	for _, outer := range outerOf {
+		insiders[outer]++
+	}
 	printed := map[string]bool{}
 	var text strings.Builder
 	for _, status := range []mutant.Status{mutant.Lived, mutant.NotCovered, mutant.TimedOut, mutant.InfraError} {
 		header := false
 		for _, m := range sorted {
-			if m.Verdict.Status != status {
+			if _, isInside := outerOf[m.ID]; isInside || m.Verdict.Status != status {
 				continue
 			}
 			if !header {
@@ -78,6 +83,9 @@ func rows(outcome Outcome) string {
 			switch {
 			case status != mutant.NotCovered || detail == "":
 				fmt.Fprintf(&text, "  %s\n", Row(m))
+				if count := insiders[m.ID]; count > 0 {
+					fmt.Fprintf(&text, "    and %s inside it that no test runs\n", plural(count, "mutant"))
+				}
 			case !printed[detail]:
 				fmt.Fprintf(&text, "  %s: %s\n", detail, plural(details[detail], "mutant"))
 				printed[detail] = true
@@ -104,6 +112,28 @@ func rows(outcome Outcome) string {
 		fmt.Fprintf(&text, "caller gaps: %d\n", len(*outcome.CallerGaps))
 	}
 	return text.String()
+}
+
+// insideOf maps each NOT COVERED mutant in the code of another survivor to that survivor, whose row already says
+// that no test runs the code.
+func insideOf(mutants []mutant.Mutant) map[mutant.ID]mutant.ID {
+	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
+		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start), cmp.Compare(b.End, a.End), cmp.Compare(a.ID.String(), b.ID.String()))
+	})
+	holds := func(outer, inner mutant.Mutant) bool {
+		canHold := outer.Verdict.Status == mutant.Lived || outer.Verdict.Status == mutant.NotCovered && outer.Verdict.Detail == ""
+		return canHold && outer.File == inner.File && outer.Start < outer.End && outer.Start <= inner.Start && inner.End <= outer.End
+	}
+	outerOf := map[mutant.ID]mutant.ID{}
+	for i, m := range sorted {
+		if m.Verdict.Status != mutant.NotCovered || m.Verdict.Detail != "" {
+			continue
+		}
+		if outer := slices.IndexFunc(sorted[:i], func(o mutant.Mutant) bool { return holds(o, m) }); outer >= 0 {
+			outerOf[m.ID] = sorted[outer].ID
+		}
+	}
+	return outerOf
 }
 
 func Row(m mutant.Mutant) string {

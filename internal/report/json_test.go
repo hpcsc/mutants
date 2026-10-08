@@ -43,6 +43,22 @@ func TestJSON(t *testing.T) {
 			}, document)
 		})
 
+		t.Run("gives a NOT COVERED mutant in the code of another survivor the id of that survivor", func(t *testing.T) {
+			branch := spanning(reported("handler.go", 42, "BRANCH_IF", 1, "{ return err }", "{}", mutant.Lived), 100, 114)
+			value := spanning(reported("handler.go", 42, "ERROR_REMOVE", 1, "err", "nil", mutant.NotCovered), 109, 112)
+			var output strings.Builder
+
+			require.NoError(t, report.JSON(&output, report.Outcome{Mutants: []mutant.Mutant{value, branch}}))
+
+			require.JSONEq(t, `{"mutants": [
+				{"id": "handler.go:(*Handler).accounts:BRANCH_IF#1", "file": "handler.go", "line": 42, "column": 2,
+				 "operator": "BRANCH_IF", "status": "LIVED", "original": "{ return err }", "replacement": "{}"},
+				{"id": "handler.go:(*Handler).accounts:ERROR_REMOVE#1", "file": "handler.go", "line": 42, "column": 2,
+				 "operator": "ERROR_REMOVE", "status": "NOT COVERED", "original": "err", "replacement": "nil",
+				 "inside": "handler.go:(*Handler).accounts:BRANCH_IF#1"}
+			]}`, output.String())
+		})
+
 		t.Run("holds the bug and the refs of a proposed mutant, and each rejected proposal with its ref and reason", func(t *testing.T) {
 			proposed := reported("case.go", 91, "PROPOSED", 418273, "a", "b", mutant.Lived)
 			proposed.Bug = "the case never closes"

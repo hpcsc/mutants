@@ -72,7 +72,7 @@ Each fixture has a known answer from the design:
 | Fixture | Expected |
 | --- | --- |
 | Two figures of one type with equal values in the test | `NAMED_VALUE_SWAP` LIVED. With different values in the test: KILLED. |
-| An error branch that no test enters | `BRANCH_IF` LIVED and `ERROR_REMOVE` NOT COVERED |
+| An error branch that no test enters | `BRANCH_IF` LIVED and `ERROR_REMOVE` NOT COVERED, with `inside` in the JSON and no row of its own |
 | A line whose only change is its white space, and a line with a real change | a mutant on the second line only |
 | A function that only the tests of a changed caller run, and two proposals in it | KILLED by the test of the caller, and LIVED with the caller in the detail. `rerun --base HEAD` gives the same verdicts, and `rerun` with a base that git cannot read gives NOT COVERED and says why. |
 | A condition that holds the only use of a variable and of an import | `EXPRESSION_REMOVE` LIVED, not NOT VIABLE |

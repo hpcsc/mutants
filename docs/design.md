@@ -575,7 +575,8 @@ the line and the column of its start. A mutant that no block holds runs when a t
 is NOT COVERED when the count of each block of its function is 0.
 
 A mutant on a line that a test runs also runs. So `BRANCH_IF` of an error branch that no test enters starts
-on the line of its `if`, and is LIVED, while the `return` inside the branch is NOT COVERED.
+on the line of its `if`, and is LIVED, while the `return` inside the branch is NOT COVERED. The rows show the
+`return` under the `BRANCH_IF` (see [Output](#output)).
 
 ### Tests of a changed caller
 
@@ -661,10 +662,17 @@ or a NOT VIABLE mutant gets no row:
 ```text
 LIVED:
   internal/order/handler.go:42 BRANCH_IF: { return nil, fmt.Errorf("load the accounts ... -> {}  [internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1]
-NOT COVERED:
-  internal/order/handler.go:43 ERROR_REMOVE: fmt.Errorf("load the accounts ... -> nil  [internal/order/handler.go:(*Handler).accounts:ERROR_REMOVE#1]
+    and 1 mutant inside it that no test runs
 mutants: 81, killed: 64, lived: 1, not covered: 3, not viable: 13 (base 1a2b3c4d5e)
 ```
+
+A NOT COVERED mutant in the code of another survivor gets no row of its own: the row of that survivor counts
+it. Here the `ERROR_REMOVE` of the `fmt.Errorf` on line 43 is inside the branch that the `BRANCH_IF` empties.
+Both rows told one fact, that no test makes the call fail, and a review that read them as two gaps paid
+twice. The last line still counts each mutant, and the JSON gives the folded mutant the id of its survivor in
+`inside`. Only a NOT COVERED mutant folds, and only when its whole edit lies in the edit of a LIVED mutant or
+of a NOT COVERED mutant with its own row. A LIVED mutant inside another one keeps its row, because a test runs
+its code and the gap is a different one.
 
 Each row shows the original and the replacement on one line, cut at 40 characters. When both are long, both
 start a few words before the first difference, so that the row shows it. An empty replacement shows as
@@ -678,9 +686,9 @@ NOT COVERED:
 ```
 
 `--format json` prints every mutant as one JSON document: `base`, and `mutants` with the fields `id`, `file`,
-`line`, `column`, `operator`, `status`, `original`, `replacement`, `bug` and `detail`. `detail` tells why the
-mutant has its status. With `--proposals` and `--caller-gaps`, the document also holds `proposals` and
-`callerGaps`, as [The JSON report](usage.md#the-json-report) shows.
+`line`, `column`, `operator`, `status`, `original`, `replacement`, `bug`, `detail` and `inside`. `detail`
+tells why the mutant has its status. With `--proposals` and `--caller-gaps`, the document also holds
+`proposals` and `callerGaps`, as [The JSON report](usage.md#the-json-report) shows.
 `--stryker` writes version 2 of the `mutation-testing-elements` report format, which has an HTML viewer and
 does not depend on the language. The progress lines and the messages go to stderr, so they do not mix with
 the JSON on stdout.

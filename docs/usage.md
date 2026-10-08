@@ -126,9 +126,11 @@ The rows are the default output. They show only the mutants that need a look, gr
 ```text
 LIVED:
   internal/order/handler.go:42 BRANCH_IF: { return nil, fmt.Errorf("load the accounts ... -> {}  [internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1]
+    and 1 mutant inside it that no test runs
 NOT COVERED:
   package cmd/report has no test files: 12 mutants
-  internal/order/handler.go:43 ERROR_REMOVE: fmt.Errorf("load the accounts ... -> nil  [internal/order/handler.go:(*Handler).accounts:ERROR_REMOVE#1]
+  internal/order/payment.go:17 RETURN_EMPTY: Payment{ID: id, Amount: amount} -> Payment{}  [internal/order/payment.go:newPayment:RETURN_EMPTY#1]
+    and 2 mutants inside it that no test runs
 mutants: 81, killed: 64, lived: 1, not covered: 15, not viable: 1 (base 1a2b3c4d5e)
 ```
 
@@ -137,6 +139,10 @@ mutants: 81, killed: 64, lived: 1, not covered: 15, not viable: 1 (base 1a2b3c4d
   first difference, so that you see the difference.
 - An empty replacement shows as `(nothing)`.
 - A package with no test files gives one row for all its mutants.
+- A NOT COVERED mutant in the code of another survivor has no row of its own. The row of that survivor
+  counts it, because that row already tells that no test runs the code. In the example, the BRANCH_IF lives
+  because no test makes the call fail, so no test runs the `fmt.Errorf` inside it either. One test that
+  makes the call fail kills both.
 - The last line counts the mutants of each status, and gives the base.
 
 The progress lines and the messages go to stderr, so they do not mix with a report on stdout.
@@ -282,7 +288,9 @@ each mutant, also the killed ones:
 ```
 
 `detail` tells why the mutant has its status, for example the test that failed or the build error. It is
-not there when the status has no detail. `bug` holds the bug of a proposed mutant.
+not there when the status has no detail. `bug` holds the bug of a proposed mutant. `inside` holds the id of
+the survivor that holds a NOT COVERED mutant, as the rows show it under that survivor. A mutant that no other
+survivor holds has no `inside`.
 
 With `--proposals`, the document also holds `proposals`, with the number of accepted proposals and each
 rejected proposal with its reason:

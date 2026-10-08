@@ -26,6 +26,11 @@ func reported(file string, line int, operator string, number int, original, repl
 	}
 }
 
+func spanning(m mutant.Mutant, start, end int) mutant.Mutant {
+	m.Start, m.End = start, end
+	return m
+}
+
 func TestRows(t *testing.T) {
 	t.Run("rows", func(t *testing.T) {
 		t.Run("groups the mutants that need a look by status, and leaves out the killed and the not viable ones", func(t *testing.T) {
@@ -72,6 +77,30 @@ mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, in
   handler.go:43 ERROR_REMOVE: err -> nil  [handler.go:(*Handler).accounts:ERROR_REMOVE#1]
   package report has no test files: 3 mutants
 mutants: 4, not covered: 4
+`, output.String())
+		})
+
+		t.Run("prints a NOT COVERED mutant in the code of another survivor under the row of that survivor, and a LIVED one in its own row", func(t *testing.T) {
+			mutants := []mutant.Mutant{
+				spanning(reported("handler.go", 42, "BRANCH_IF", 1, "{ return nil, err }", "{}", mutant.Lived), 100, 130),
+				spanning(reported("handler.go", 43, "ERROR_REMOVE", 1, "err", "nil", mutant.NotCovered), 120, 123),
+				spanning(reported("handler.go", 50, "RETURN_EMPTY", 1, "Message{Text: text, Sent: true}", "Message{}", mutant.NotCovered), 200, 231),
+				spanning(reported("handler.go", 50, "NAMED_VALUE_REMOVE", 1, "Text: text,", "", mutant.NotCovered), 208, 219),
+				spanning(reported("handler.go", 50, "NAMED_VALUE_REMOVE", 2, "Sent: true", "", mutant.NotCovered), 220, 230),
+				spanning(reported("handler.go", 42, "ERROR_REMOVE", 2, "err", "nil", mutant.Lived), 115, 118),
+			}
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+
+			require.Equal(t, `LIVED:
+  handler.go:42 BRANCH_IF: { return nil, err } -> {}  [handler.go:(*Handler).accounts:BRANCH_IF#1]
+    and 1 mutant inside it that no test runs
+  handler.go:42 ERROR_REMOVE: err -> nil  [handler.go:(*Handler).accounts:ERROR_REMOVE#2]
+NOT COVERED:
+  handler.go:50 RETURN_EMPTY: Message{Text: text, Sent: true} -> Message{}  [handler.go:(*Handler).accounts:RETURN_EMPTY#1]
+    and 2 mutants inside it that no test runs
+mutants: 6, lived: 2, not covered: 4
 `, output.String())
 		})
 

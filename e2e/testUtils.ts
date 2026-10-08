@@ -143,6 +143,7 @@ export interface ReportedMutant {
   bug?: string
   refs?: string[]
   detail?: string
+  inside?: string
 }
 
 export async function runMutants(dir: string, args: string[]): Promise<{ result: Result; mutants: ReportedMutant[] }> {

@@ -21,6 +21,7 @@ type jsonMutant struct {
 	Bug         string   `json:"bug,omitempty"`
 	Refs        []string `json:"refs,omitempty"`
 	Detail      string   `json:"detail,omitempty"`
+	Inside      string   `json:"inside,omitempty"`
 }
 
 type jsonRejection struct {
@@ -77,7 +78,12 @@ func JSON(w io.Writer, outcome Outcome) error {
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start), cmp.Compare(a.ID.String(), b.ID.String()))
 	})
+	outerOf := insideOf(mutants)
 	for _, m := range sorted {
+		inside := ""
+		if outer, found := outerOf[m.ID]; found {
+			inside = outer.String()
+		}
 		report.Mutants = append(report.Mutants, jsonMutant{
 			ID:          m.ID.String(),
 			File:        m.File,
@@ -90,6 +96,7 @@ func JSON(w io.Writer, outcome Outcome) error {
 			Bug:         m.Bug,
 			Refs:        m.Refs,
 			Detail:      m.Verdict.Detail,
+			Inside:      inside,
 		})
 	}
 	encoder := json.NewEncoder(w)
