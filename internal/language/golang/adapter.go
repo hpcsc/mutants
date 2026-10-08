@@ -89,6 +89,10 @@ func (a *adapter) Extensions() []string {
 	return []string{".go"}
 }
 
+func (a *adapter) IndentationMatters() bool {
+	return false
+}
+
 func (a *adapter) Keep(candidate operator.Edit) bool {
 	if candidate.Replacement == candidate.Original || strings.HasSuffix(candidate.File, "_test.go") {
 		return false

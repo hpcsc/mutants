@@ -49,6 +49,10 @@ func (a *adapter) Extensions() []string {
 	return []string{".py"}
 }
 
+func (a *adapter) IndentationMatters() bool {
+	return true
+}
+
 func (a *adapter) Keep(candidate operator.Edit) bool {
 	if candidate.Replacement == candidate.Original {
 		return false

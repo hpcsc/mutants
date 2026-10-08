@@ -2,9 +2,12 @@ package diff
 
 import "path"
 
+// IgnoreSpaceChange leaves out a line whose only change is the amount of white space in it, so it must be
+// false for a language in which indentation matters.
 type Pathspec struct {
-	Extensions []string
-	Exclude    []string
+	Extensions        []string
+	Exclude           []string
+	IgnoreSpaceChange bool
 }
 
 func (p Pathspec) patterns(folders ...string) []string {

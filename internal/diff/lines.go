@@ -27,6 +27,14 @@ func (l *Lines) Add(file string, first, last int) {
 	}
 }
 
+func (l *Lines) AddAll(other Lines) {
+	for file, lines := range other.files {
+		for line := range lines {
+			l.Add(file, line, line)
+		}
+	}
+}
+
 func (l Lines) WithExtensions(extensions []string) Lines {
 	var kept Lines
 	for file, lines := range l.files {

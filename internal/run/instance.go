@@ -103,15 +103,14 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	if !hasRules && len(settings.Proposals) == 0 && !settings.CallerGaps {
 		return Outcome{}, ErrNothingToRun
 	}
-	pathspec := diff.Pathspec{Extensions: r.extensions(), Exclude: settings.Exclude}
 	var outcome Outcome
 	var lines diff.Lines
 	if len(settings.Folders) > 0 {
-		lines, err = r.repository.All(ctx, settings.Folders, pathspec)
+		lines, err = r.repository.All(ctx, settings.Folders, diff.Pathspec{Extensions: r.extensions(), Exclude: settings.Exclude})
 	} else {
 		outcome.Base, err = r.repository.MergeBase(ctx, settings.Base)
 		if err == nil {
-			lines, err = r.repository.Changed(ctx, settings.Base, pathspec)
+			lines, err = r.changed(ctx, settings.Base, settings.Exclude)
 		}
 	}
 	if err != nil {
@@ -459,6 +458,29 @@ func (r *Instance) selected(names []string) ([]Language, error) {
 		languages[i].Pack = chosen[i]
 	}
 	return languages, nil
+}
+
+// changed leaves out a change to the amount of white space in a line only for a language whose indentation does
+// not matter.
+func (r *Instance) changed(ctx context.Context, base string, exclude []string) (diff.Lines, error) {
+	var lines diff.Lines
+	for _, indentationMatters := range []bool{false, true} {
+		var extensions []string
+		for _, l := range r.languages {
+			if l.Adapter.IndentationMatters() == indentationMatters {
+				extensions = append(extensions, l.Adapter.Extensions()...)
+			}
+		}
+		if len(extensions) == 0 {
+			continue
+		}
+		found, err := r.repository.Changed(ctx, base, diff.Pathspec{Extensions: extensions, Exclude: exclude, IgnoreSpaceChange: !indentationMatters})
+		if err != nil {
+			return diff.Lines{}, err
+		}
+		lines.AddAll(found)
+	}
+	return lines, nil
 }
 
 func (r *Instance) extensions() []string {

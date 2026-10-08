@@ -207,6 +207,15 @@ describe('mutants run on Go', { timeout: 240_000 }, () => {
     expect(mutants.map((m) => `${m.operator} ${m.line} ${m.status}`)).toEqual(['BRANCH_IF 6 LIVED', 'ERROR_REMOVE 7 NOT COVERED'])
   })
 
+  it('a line whose only change is the amount of white space gives no mutant', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    writeFiles(dir, { 'calc/calc.go': maxSource.replace('if a > b {', 'if a >  b {').replace('return a\n', 'return a + 0\n') })
+
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,ARITHMETIC_BASE'])
+
+    expect(mutants.map((m) => `${m.operator} ${m.line}`)).toEqual(['ARITHMETIC_BASE 5'])
+  })
+
   it('stopping a loop after its first item lives when the test has one item, and dies when it has two', async () => {
     const one = goRepository()
     writeFiles(one, { 'total/total.go': total, 'total/total_test.go': totalTest([3]) })

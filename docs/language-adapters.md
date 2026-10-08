@@ -125,6 +125,7 @@ folders.
 | --- | --- | --- |
 | `Name()` | to load the pack, and in messages | give the name of the language in ast-grep |
 | `Extensions()` | before it reads the diff | give the extensions of the files, with the dot |
+| `IndentationMatters()` | before it reads the diff | give `true` when a change of the white space at the start of a line can change what the code does, as in Python. The run then counts a line whose only change is its white space. |
 | `Keep(edit)` | one time for each candidate edit, before the ids | give `false` for an edit to drop. See [Filters](#filters). |
 | `Function(file, offset)` | one time for each edit that `Keep` keeps | give the name of the declaration that holds the byte offset. See [Function names](#function-names). |
 | `Uncovered(ctx, mutants)` | one time with all the mutants of a run, and one time in `rerun` | give the mutants that no test runs. See [Coverage](#coverage). |

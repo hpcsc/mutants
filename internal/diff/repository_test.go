@@ -103,6 +103,21 @@ func TestRepository(t *testing.T) {
 			require.Equal(t, []int{4}, changedLines(t, lines, "a.go"))
 		})
 
+		t.Run("with IgnoreSpaceChange, a line whose only change is the amount of white space does not count", func(t *testing.T) {
+			r := newGitRepository(t)
+			r.write("a.go", "package a\n\nvar (\n\ta = 1\n\tbb = 2\n)\n\nfunc f() int {\n\treturn a\n}\n")
+			r.commit("add a")
+			r.write("a.go", "package a\n\nvar (\n\ta  = 1\n\tbb = 3\n)\n\nfunc f() int {\n\t\treturn a \n}\n")
+
+			ignored, err := r.open().Changed(context.Background(), "HEAD", diff.Pathspec{Extensions: []string{".go"}, IgnoreSpaceChange: true})
+			require.NoError(t, err)
+			counted, err := r.open().Changed(context.Background(), "HEAD", goFiles)
+			require.NoError(t, err)
+
+			require.Equal(t, []int{5}, changedLines(t, ignored, "a.go"))
+			require.Equal(t, []int{4, 5, 9}, changedLines(t, counted, "a.go"))
+		})
+
 		t.Run("every line of an untracked file counts, and the index stays the same", func(t *testing.T) {
 			r := newGitRepository(t)
 			r.write("a.go", "package a\n")

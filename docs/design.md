@@ -130,6 +130,10 @@ git ls-files --others --exclude-standard -z -- ':(glob)**/*.go' ':(glob,exclude)
 - **The default base** is the merge base of `HEAD` and `origin/HEAD`. `--base` sets it.
 - **A name that git quotes** keeps its name: `mutants` reads the C quotes of git, and the tab that git puts
   after a name with a space.
+- **`--ignore-space-change`** is on for the files of a language whose indentation does not matter, such as Go.
+  A line that `gofmt` aligns again then does not count, and gives no mutant that tests nothing new. Python
+  reads the diff without it, because a change of indentation moves a statement into or out of a block.
+  `mutants` asks git once for each of the two groups of extensions.
 - **`--all FOLDER...`** reads every line of the files in each folder, tracked or untracked, from
   `git ls-files`. `FOLDER/...` adds the subfolders.
 

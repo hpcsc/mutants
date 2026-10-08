@@ -64,14 +64,17 @@ func (r *Repository) MergeBase(ctx context.Context, base string) (string, error)
 }
 
 func (r *Repository) Changed(ctx context.Context, base string, pathspec Pathspec) (Lines, error) {
-	output, err := r.git(ctx, append([]string{
+	arguments := []string{
 		"-c", "core.quotePath=false",
 		"diff", "--merge-base", base,
 		"--unified=0", "--inter-hunk-context=0",
 		"--no-color", "--no-ext-diff", "--no-textconv", "--no-relative", "--find-renames",
 		"--src-prefix=a/", "--dst-prefix=b/",
-		"--",
-	}, pathspec.patterns()...)...)
+	}
+	if pathspec.IgnoreSpaceChange {
+		arguments = append(arguments, "--ignore-space-change")
+	}
+	output, err := r.git(ctx, append(append(arguments, "--"), pathspec.patterns()...)...)
 	if err != nil {
 		return Lines{}, fmt.Errorf("read the diff against %s: %w", base, err)
 	}

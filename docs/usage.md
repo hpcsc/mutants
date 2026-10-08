@@ -29,6 +29,8 @@ so its lines do not count.
 - `mutants run --base HEAD` tests only the changes that you did not commit.
 - `mutants run --all FOLDER...` tests each line of the files in each folder, tracked or untracked.
   `FOLDER/...` adds the subfolders.
+- In Go, a line whose only change is the amount of white space in it does not count, for example a line
+  that `gofmt` aligns again. In Python, such a line counts, because indentation changes what the code does.
 
 A mutant runs when its change touches a changed line. `mutants` never writes to the work tree or to the git
 index. When the changed lines give no mutant, it says so in one line:

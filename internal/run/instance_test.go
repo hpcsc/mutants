@@ -51,6 +51,7 @@ func (f *fakeAdapter) Name() string { return cmp.Or(f.name, "go") }
 func (f *fakeAdapter) Extensions() []string {
 	return []string{map[string]string{"go": ".go", "python": ".py"}[f.Name()]}
 }
+func (f *fakeAdapter) IndentationMatters() bool { return f.Name() == "python" }
 func (f *fakeAdapter) Keep(edit operator.Edit) bool {
 	return !f.dropped[edit.Original+" -> "+edit.Replacement]
 }
@@ -242,6 +243,22 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, []string{"a.go:f:CONDITIONALS_BOUNDARY#2 KILLED", "a.py:f:CONDITIONALS_BOUNDARY#1 KILLED"}, idsAndStatuses(outcome.Mutants))
 			require.Equal(t, [][]string{{"a.go:f:CONDITIONALS_BOUNDARY#2"}, {"a.go:f:CONDITIONALS_BOUNDARY#2"}}, [][]string{inGo.covered, inGo.ran})
 			require.Equal(t, [][]string{{"a.py:f:CONDITIONALS_BOUNDARY#1"}, {"a.py:f:CONDITIONALS_BOUNDARY#1"}}, [][]string{inPython.covered, inPython.ran})
+		})
+
+		t.Run("a change to the amount of white space in a line counts in Python, and not in Go", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{
+				"a.go": compareBefore,
+				"a.py": "def f(a, b):\n    if a:\n        a = b\n    return a < b\n",
+			})
+			r.write("a.go", strings.Replace(compareBefore, "if a < b {", "if a <  b  {", 1))
+			r.write("a.py", "def f(a, b):\n    if a:\n        a = b\n        return a < b\n")
+
+			outcome, err := r.instance(&fakeAdapter{}, &fakeAdapter{name: "python"}).Run(context.Background(), boundary)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"a.py:f:CONDITIONALS_BOUNDARY#1 KILLED"}, idsAndStatuses(outcome.Mutants))
+			require.Equal(t, 1, outcome.Files)
+			require.Equal(t, 1, outcome.Lines)
 		})
 
 		t.Run("each mutant names the language of its file", func(t *testing.T) {

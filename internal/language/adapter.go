@@ -12,6 +12,7 @@ import (
 type Adapter interface {
 	Name() string
 	Extensions() []string
+	IndentationMatters() bool
 	Keep(candidate operator.Edit) bool
 	Function(file string, offset int) string
 	// Uncovered maps each mutant that no test runs to its detail: empty, or a text that holds for each mutant of
