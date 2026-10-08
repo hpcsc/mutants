@@ -77,6 +77,30 @@ func TestReact(t *testing.T) {
 }
 `
 
+const counter = `package counter
+
+type Counter struct{ n int }
+
+func (c *Counter) Next() int { return c.n + 1 }
+
+type FakeCounter struct{ n int }
+
+func NewFakeCounter() *FakeCounter { return &FakeCounter{n: 1 + 1} }
+
+func (f *FakeCounter) Next() int { return f.n + 1 }
+`
+
+const counterTest = `package counter
+
+import "testing"
+
+func TestNext(t *testing.T) {
+	if (&Counter{n: 1}).Next() != 2 {
+		t.Fatal("Next")
+	}
+}
+`
+
 const wait = `package wait
 
 import "time"
@@ -301,6 +325,15 @@ describe('mutants run on Go', { timeout: 240_000 }, () => {
     expect(withoutCallers.status).toBe(10)
     expect(withoutCallers.stdout).toMatch(/^NOT COVERED: /)
     expect(withoutCallers.stderr).toContain('mutants runs no tests of a changed caller')
+  })
+
+  it('gives no mutant to a method of a type that exclude_types names, or to a function that returns one', async () => {
+    const dir = goRepository({ '.mutants.yml': 'go:\n  exclude_types: [Fake*]\n' })
+    writeFiles(dir, { 'counter/counter.go': counter, 'counter/counter_test.go': counterTest })
+
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'ARITHMETIC_BASE'])
+
+    expect(mutants.map((m) => `${m.id} ${m.status}`)).toEqual(['counter/counter.go:(*Counter).Next:ARITHMETIC_BASE#1 KILLED'])
   })
 
   it('stopping a loop after its first item lives when the test has one item, and dies when it has two', async () => {

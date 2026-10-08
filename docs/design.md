@@ -719,6 +719,12 @@ the name of the package, not its path. `NAMED_VALUE_REMOVE` skips a field whose 
 them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change gives the
 same value.
 
+`go.exclude_types` names the types that get no mutant, as globs of the name of the type, such as `Fake*`. A
+method of such a type, and a function that returns one, get no mutant. A fake that the tests of other
+packages use must live in a file that is not a test file, and its mutants are noise: on a measured PR, two
+NOT COVERED rows of a `FakeService` reached the review. The filter reads the receiver and the results of the
+declaration, so it needs no type check and does not depend on the diff.
+
 v1 keeps no cache. Its one state file is the store of accepted proposals, in
 `$(git rev-parse --absolute-git-dir)/mutants/`, so the work tree stays clean. The rules for a scan, the
 mutated files, the overlays, the test binaries, the build cache entries of the mutants and the coverage

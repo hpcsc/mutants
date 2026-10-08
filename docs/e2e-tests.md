@@ -75,6 +75,7 @@ Each fixture has a known answer from the design:
 | An error branch that no test enters | `BRANCH_IF` LIVED and `ERROR_REMOVE` NOT COVERED, with `inside` in the JSON and no row of its own |
 | A line whose only change is its white space, and a line with a real change | a mutant on the second line only |
 | A function that only the tests of a changed caller run, and two proposals in it | KILLED by the test of the caller, and LIVED with the caller in the detail. `rerun --base HEAD` gives the same verdicts, and `rerun` with a base that git cannot read gives NOT COVERED and says why. |
+| `go.exclude_types: [Fake*]`, a fake with a method and a constructor | a mutant in the real type only |
 | A condition that holds the only use of a variable and of an import | `EXPRESSION_REMOVE` LIVED, not NOT VIABLE |
 | A deadline that a test checks one hour before and one hour after | `CONDITIONALS_BOUNDARY` LIVED. With a check at the deadline itself: KILLED. |
 | A due date three calendar days after a start, the `CALENDAR_DAY` rule of [operators.md](operators.md#operators-of-your-own) in the repository, and a test in UTC | `CALENDAR_DAY` LIVED. With a test in Sydney across the start of daylight saving time: KILLED. |

@@ -30,7 +30,7 @@ func TestConfig(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
 			content := "base: origin/main\nworkers: 2\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\ncaller_gaps: true\n" +
-				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\npython:\n  command: [uv, run, python]\n"
+				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\n  exclude_types: [Fake*]\npython:\n  command: [uv, run, python]\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
 			loaded, err := loadConfig(root, t.TempDir(), io.Discard)
@@ -42,7 +42,7 @@ func TestConfig(t *testing.T) {
 				Operators:  []string{"-ERROR_CAUSE_REMOVE"},
 				Exclude:    []string{"**/*_gen.go", "vendor/**"},
 				CallerGaps: true,
-				Go:         goConfig{Tags: []string{"unit"}, ZeroFunctions: []string{"maybe.None"}},
+				Go:         goConfig{Tags: []string{"unit"}, ZeroFunctions: []string{"maybe.None"}, ExcludeTypes: []string{"Fake*"}},
 				Python:     pythonConfig{Command: []string{"uv", "run", "python"}},
 			}, loaded)
 		})
@@ -69,13 +69,13 @@ func TestConfig(t *testing.T) {
 
 			_, err := loadConfig(root, t.TempDir(), io.Discard)
 
-			require.EqualError(t, err, "unknown key go.tagz in .mutants.yml (line 3): the keys of go are tags, zero_functions")
+			require.EqualError(t, err, "unknown key go.tagz in .mutants.yml (line 3): the keys of go are tags, zero_functions, exclude_types")
 		})
 
 		for _, scenario := range []struct{ name, content, message string }{
 			{"a value of the wrong type returns an error that names its line", "workers: four\n", "line 1: cannot unmarshal !!str `four` into int"},
 			{"a file that is not keys and values returns an error that lists the keys", "- base\n", ".mutants.yml must hold keys and values"},
-			{"a language that is not keys and values returns an error that names its line", "go: [unit]\n", "go in .mutants.yml (line 1) must hold keys and values, and the keys are tags, zero_functions"},
+			{"a language that is not keys and values returns an error that names its line", "go: [unit]\n", "go in .mutants.yml (line 1) must hold keys and values, and the keys are tags, zero_functions, exclude_types"},
 			{"a file that is not YAML returns an error", "base: [origin/main\n", "read .mutants.yml: yaml: line 1"},
 		} {
 			t.Run(scenario.name, func(t *testing.T) {

@@ -342,6 +342,7 @@ caller_gaps: true
 go:
   tags: [unit]
   zero_functions: [maybe.None, caseautoresolve.Submitted]
+  exclude_types: [Fake*]
 python:
   command: [uv, run, python]
 ```
@@ -356,6 +357,7 @@ python:
 | `go.tags` | the build tags, as `--tags` |
 | `python.command` | the command that starts the Python of a project, in the folder of the project. See [Python](#python). |
 | `go.zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change gives the same value. Use the name of the package, not its path. |
+| `go.exclude_types` | the types that get no mutant, as globs of the name of the type, such as `Fake*`. A method of such a type, and a function that returns one, get no mutant. Use it for the fakes that live in a file that is not a test file, so that the tests of other packages can use them. |
 
 The settings of one language are under the key of the language, such as `go`. An unknown key is an error
 that names the key, its line and the known keys.

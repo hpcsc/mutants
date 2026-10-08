@@ -1,10 +1,13 @@
 package golang
 
 import (
+	"cmp"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"path"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -102,22 +105,63 @@ func (s *sourceFiles) funcName(declaration *ast.FuncDecl) string {
 		return declaration.Name.Name
 	}
 	receiver := declaration.Recv.List[0].Type
-	pointer := false
-	if star, ok := receiver.(*ast.StarExpr); ok {
-		pointer, receiver = true, star.X
-	}
-	switch generic := receiver.(type) {
-	case *ast.IndexExpr:
-		receiver = generic.X
-	case *ast.IndexListExpr:
-		receiver = generic.X
-	}
-	name := "?"
-	if identifier, ok := receiver.(*ast.Ident); ok {
-		name = identifier.Name
-	}
-	if pointer {
+	name := cmp.Or(typeName(receiver), "?")
+	if _, pointer := receiver.(*ast.StarExpr); pointer {
 		return "(*" + name + ")." + declaration.Name.Name
 	}
 	return name + "." + declaration.Name.Name
+}
+
+// belongsTo is true for an offset in a method of a type whose name matches one of patterns, or in a function that
+// returns such a type.
+func (s *sourceFiles) belongsTo(file string, offset int, patterns []string) bool {
+	syntax, lines, err := s.parse(file)
+	if len(patterns) == 0 || err != nil || offset < 0 || offset > lines.Size() {
+		return false
+	}
+	position := lines.Pos(offset)
+	for _, declaration := range syntax.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || position < function.Pos() || position >= function.End() {
+			continue
+		}
+		var types []ast.Expr
+		if function.Recv != nil {
+			for _, receiver := range function.Recv.List {
+				types = append(types, receiver.Type)
+			}
+		}
+		if function.Type.Results != nil {
+			for _, result := range function.Type.Results.List {
+				types = append(types, result.Type)
+			}
+		}
+		return slices.ContainsFunc(types, func(t ast.Expr) bool {
+			return slices.ContainsFunc(patterns, func(pattern string) bool {
+				matched, _ := path.Match(pattern, typeName(t))
+				return matched
+			})
+		})
+	}
+	return false
+}
+
+// typeName gives "" for a type that has no name, such as a map or a function.
+func typeName(expression ast.Expr) string {
+	for {
+		switch e := expression.(type) {
+		case *ast.StarExpr:
+			expression = e.X
+		case *ast.IndexExpr:
+			expression = e.X
+		case *ast.IndexListExpr:
+			expression = e.X
+		case *ast.SelectorExpr:
+			return e.Sel.Name
+		case *ast.Ident:
+			return e.Name
+		default:
+			return ""
+		}
+	}
 }

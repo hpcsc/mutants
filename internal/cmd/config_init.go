@@ -97,6 +97,9 @@ func configTemplate(base string, tags map[string]int) string {
 	text.WriteString("  # The functions that return the zero value of their type, as package.Function with the name of\n" +
 		"  # the package. NAMED_VALUE_REMOVE skips a field whose value is a call of one of them, and RETURN_EMPTY\n" +
 		"  # skips a struct literal whose fields are all such calls.\n  # zero_functions: [maybe.None]\n\n")
+	text.WriteString("  # The types that get no mutant, as globs of the name of the type: the methods of each such type, and\n" +
+		"  # the functions that return one, for example the fakes that the tests of other packages use.\n" +
+		"  # exclude_types: [Fake*]\n\n")
 
 	text.WriteString("# The settings of Python.\npython:\n")
 	text.WriteString("  # The command that starts the Python of a project, in the folder of the project. The default is\n" +

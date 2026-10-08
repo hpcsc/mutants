@@ -151,6 +151,8 @@ When you find one:
   `operators: [-NAMED_VALUE_REMOVE]`.
 - Name a function that returns a zero value, such as `maybe.None`, under `go:` in `.mutants.yml`:
   `zero_functions: [maybe.None]`.
+- Name the fakes that the tests of other packages use, under `go:` in `.mutants.yml`:
+  `exclude_types: [Fake*]`.
 - Skip the calls of your logger with a skip rule in `.mutants/skip/go/`, as
   [docs/usage.md](docs/usage.md#code-that-mutants-skips) tells.
 

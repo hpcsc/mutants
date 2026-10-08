@@ -34,6 +34,7 @@ type Settings struct {
 	BuildLimit    time.Duration
 	Workers       int
 	ZeroFunctions []string
+	ExcludeTypes  []string
 	CacheProgram  []string
 }
 
@@ -56,13 +57,14 @@ func (s Settings) testEnv() []string {
 }
 
 type adapter struct {
-	root       string
-	finder     *packageFinder
-	sources    *sourceFiles
-	types      *typeChecker
-	coverage   *coverage
-	callerGaps *callerGaps
-	runner     *runner
+	root         string
+	excludeTypes []string
+	finder       *packageFinder
+	sources      *sourceFiles
+	types        *typeChecker
+	coverage     *coverage
+	callerGaps   *callerGaps
+	runner       *runner
 }
 
 func New(root string, settings Settings) language.Adapter {
@@ -71,13 +73,14 @@ func New(root string, settings Settings) language.Adapter {
 	types := newTypeChecker(settings.tagArguments(), settings.ZeroFunctions)
 	coverage := newCoverage(root, settings, finder, types, sources)
 	return &adapter{
-		root:       root,
-		finder:     finder,
-		sources:    sources,
-		types:      types,
-		coverage:   coverage,
-		callerGaps: &callerGaps{root: root, settings: settings, coverage: coverage, types: types, sources: sources},
-		runner:     &runner{root: root, settings: settings, finder: finder, coverage: coverage, userCache: sync.OnceValue(func() string { return userCache(root, settings.CacheProgram) })},
+		root:         root,
+		excludeTypes: settings.ExcludeTypes,
+		finder:       finder,
+		sources:      sources,
+		types:        types,
+		coverage:     coverage,
+		callerGaps:   &callerGaps{root: root, settings: settings, coverage: coverage, types: types, sources: sources},
+		runner:       &runner{root: root, settings: settings, finder: finder, coverage: coverage, userCache: sync.OnceValue(func() string { return userCache(root, settings.CacheProgram) })},
 	}
 }
 
@@ -98,7 +101,7 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return false
 	}
 	syntax, _, err := a.sources.parse(candidate.File)
-	if err != nil || ast.IsGenerated(syntax) {
+	if err != nil || ast.IsGenerated(syntax) || a.sources.belongsTo(candidate.File, candidate.Start, a.excludeTypes) {
 		return false
 	}
 	path := filepath.Join(a.root, candidate.File)

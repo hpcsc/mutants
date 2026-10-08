@@ -35,6 +35,7 @@ type config struct {
 type goConfig struct {
 	Tags          []string `yaml:"tags"`
 	ZeroFunctions []string `yaml:"zero_functions"`
+	ExcludeTypes  []string `yaml:"exclude_types"`
 }
 
 type pythonConfig struct {

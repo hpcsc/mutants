@@ -501,6 +501,32 @@ func Open(now, deadline time.Time, w Window, g Gate) []bool {
 			require.True(t, adapter.Keep(edit))
 		})
 
+		t.Run("drops an edit in a method of a type that the settings exclude, or in a function that returns one", func(t *testing.T) {
+			root := newModule(t, map[string]string{"store/store.go": `package store
+
+type Store struct{}
+
+func (s *Store) Get() int { return 1 }
+
+type FakeStore[T any] struct{ n int }
+
+func NewFakeStore() (*FakeStore[int], error) { return &FakeStore[int]{n: 1}, nil }
+
+func (f *FakeStore[T]) Get() int { return f.n + 1 }
+
+func (f FakeStore[T]) Count() int { return f.n * 2 }
+`})
+			settings := golang.Settings{BuildLimit: time.Minute, Workers: 1, ExcludeTypes: []string{"Fake*"}}
+			adapter := golang.New(root, settings)
+			fakeGet := editOf(t, root, "store/store.go", "ARITHMETIC_BASE", "f.n + 1", "f.n - 1")
+
+			require.True(t, adapter.Keep(editOf(t, root, "store/store.go", "TEST", "return 1", "return 2")))
+			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "TEST", "n: 1", "n: 2")))
+			require.False(t, adapter.Keep(fakeGet))
+			require.False(t, adapter.Keep(editOf(t, root, "store/store.go", "ARITHMETIC_BASE", "f.n * 2", "f.n / 2")))
+			require.True(t, golang.New(root, defaultSettings).Keep(fakeGet))
+		})
+
 		t.Run("drops a NAMED_VALUE_REMOVE edit of a call of a function that the settings name as a zero function", func(t *testing.T) {
 			root := newModule(t, map[string]string{
 				"maybe/maybe.go":     maybeSource,
