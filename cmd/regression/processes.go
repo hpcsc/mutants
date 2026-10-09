@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -19,6 +20,21 @@ func newMarker() string {
 	random := make([]byte, 8)
 	_, _ = rand.Read(random)
 	return "MUTANTS_REGRESSION_RUN=" + hex.EncodeToString(random)
+}
+
+func (c command) runInSession(ctx context.Context) (exit, []string, error) {
+	marker := newMarker()
+	if c.env == nil {
+		c.env = os.Environ()
+	}
+	c.env = append(slices.Clone(c.env), marker)
+	c.newSession = true
+	ran, err := c.run(ctx)
+	if err != nil {
+		return ran, nil, err
+	}
+	leftover, err := killLeftoverProcesses(ctx, ran.pid, marker)
+	return ran, leftover, err
 }
 
 // killLeftoverProcesses finds a process by its session, and also by the marker in its environment, because a

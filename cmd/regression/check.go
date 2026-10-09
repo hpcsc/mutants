@@ -98,15 +98,12 @@ func (k checker) runMutants(ctx context.Context, commit string, result *commitRe
 	if err != nil {
 		return mutantsRun{}, err
 	}
-	marker := newMarker()
-	ran, err := command{
-		program:    k.settings.mutants,
-		arguments:  []string{"run", "--base", commit + "^", "--format", "json", "--limit", k.settings.limit.String()},
-		folder:     k.clone.folder,
-		env:        append(os.Environ(), marker),
-		limit:      k.settings.limit + 5*time.Minute,
-		newSession: true,
-	}.run(ctx)
+	ran, leftover, err := command{
+		program:   k.settings.mutants,
+		arguments: []string{"run", "--base", commit + "^", "--format", "json", "--limit", k.settings.limit.String()},
+		folder:    k.clone.folder,
+		limit:     k.settings.limit + 5*time.Minute,
+	}.runInSession(ctx)
 	if err != nil {
 		return mutantsRun{}, err
 	}
@@ -123,10 +120,6 @@ func (k checker) runMutants(ctx context.Context, commit string, result *commitRe
 	}
 	if after != before {
 		result.find("work tree", "", fmt.Sprintf("git status before the run:\n%safter the run:\n%s", before, after))
-	}
-	leftover, err := killLeftoverProcesses(ctx, ran.pid, marker)
-	if err != nil {
-		return mutantsRun{}, err
 	}
 	for _, process := range leftover {
 		result.find("processes", "", "alive after the run: "+process)
@@ -203,23 +196,16 @@ func (k checker) compareRuns(ctx context.Context, tester tester, first, second r
 func (k checker) checkReruns(ctx context.Context, tester tester, commit string, result *commitResult) error {
 	for _, status := range []string{killed, lived, notCovered, notViable} {
 		for _, m := range sample(result.Mutants, status, k.settings.sample) {
-			marker := newMarker()
-			ran, err := command{
-				program:    k.settings.mutants,
-				arguments:  []string{"rerun", "--base", commit + "^", m.ID},
-				folder:     k.clone.folder,
-				env:        append(os.Environ(), marker),
-				limit:      plainLimit,
-				newSession: true,
-			}.run(ctx)
+			ran, leftover, err := command{
+				program:   k.settings.mutants,
+				arguments: []string{"rerun", "--base", commit + "^", m.ID},
+				folder:    k.clone.folder,
+				limit:     plainLimit,
+			}.runInSession(ctx)
 			if err != nil {
 				return err
 			}
 			result.Reruns++
-			leftover, err := killLeftoverProcesses(ctx, ran.pid, marker)
-			if err != nil {
-				return err
-			}
 			for _, process := range leftover {
 				result.find("processes", m.ID, "alive after the rerun: "+process)
 			}
