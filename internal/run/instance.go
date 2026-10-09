@@ -168,8 +168,6 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	return outcome, err
 }
 
-// Rerun counts the tests of the packages that the branch changes against base, as Run does, and runs without them
-// when it cannot read that change.
 func (r *Instance) Rerun(ctx context.Context, id mutant.ID, base string, exclude []string) (mutant.Mutant, error) {
 	unknown := fmt.Errorf("%w: %s", ErrUnknownID, id)
 	l, found := r.languageOf(id.File)
@@ -466,8 +464,6 @@ func (r *Instance) selected(names []string) ([]Language, error) {
 	return languages, nil
 }
 
-// changed leaves out a change to the amount of white space in a line only for a language whose indentation does
-// not matter.
 func (r *Instance) changed(ctx context.Context, base string, exclude []string) (diff.Lines, error) {
 	var lines diff.Lines
 	for _, indentationMatters := range []bool{false, true} {

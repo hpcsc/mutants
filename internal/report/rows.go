@@ -101,8 +101,6 @@ func rows(outcome run.Outcome) string {
 	return text.String()
 }
 
-// insideOf maps each NOT COVERED mutant in the code of another survivor to that survivor, whose row already says
-// that no test runs the code.
 func insideOf(mutants []mutant.Mutant) map[mutant.ID]mutant.ID {
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start), cmp.Compare(b.End, a.End), cmp.Compare(a.ID.String(), b.ID.String()))

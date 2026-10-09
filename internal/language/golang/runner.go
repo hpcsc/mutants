@@ -73,8 +73,7 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	return mutant.Verdict{Status: mutant.Lived, Detail: "only the tests of " + strings.Join(folders, ", ") + " run it"}, nil
 }
 
-// testIn tests the mutant with the tests of pkg, which can be a package that calls the package of the mutant.
-func (r *runner) testIn(ctx context.Context, pkg goPackage, original, content string, baseline baseline) (mutant.Verdict, error) {
+func (r *runner) testIn(ctx context.Context, suite goPackage, original, content string, baseline baseline) (mutant.Verdict, error) {
 	folder, err := os.MkdirTemp("", "mutants-mutant-")
 	if err != nil {
 		return mutant.Verdict{}, err
@@ -82,11 +81,11 @@ func (r *runner) testIn(ctx context.Context, pkg goPackage, original, content st
 	defer os.RemoveAll(folder)
 	binary := filepath.Join(folder, "pkg.test")
 	buildLimit := max(r.settings.BuildLimit, (buildFactor * baseline.build).Round(time.Second))
-	built, err := r.build(ctx, pkg, folder, original, content, binary, buildLimit)
+	built, err := r.build(ctx, suite, folder, original, content, binary, buildLimit)
 	if err == nil && built.Code != 0 {
 		file := filepath.Base(original)
 		if used := r.dropLabels(r.blankImports(r.useVariables(content, file, built.Tail), built.Tail), file, built.Tail); used != content {
-			built, err = r.build(ctx, pkg, folder, original, used, binary, buildLimit)
+			built, err = r.build(ctx, suite, folder, original, used, binary, buildLimit)
 		}
 	}
 	switch {
@@ -103,7 +102,7 @@ func (r *runner) testIn(ctx context.Context, pkg goPackage, original, content st
 		return mutant.Verdict{Status: mutant.InfraError, Detail: "go test -c made no test binary: " + err.Error()}, nil
 	}
 
-	tested, limit, err := r.test(ctx, pkg, binary, baseline.test)
+	tested, limit, err := r.test(ctx, suite, binary, baseline.test)
 	if err != nil {
 		return mutant.Verdict{}, err
 	}

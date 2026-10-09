@@ -125,7 +125,7 @@ func (k *checker) runMutants(ctx context.Context) (mutantsRun, error) {
 	if ran.timedOut {
 		k.result.find("exit code", "", "mutants run did not stop at --limit "+k.settings.limit.String())
 	}
-	if panicked(ran.stderr) {
+	if mutantsPanicked(ran.stderr) {
 		k.result.find("exit code", "", "mutants run panicked:\n"+ran.stderr)
 	}
 	after, err := k.clone.status(ctx)
@@ -300,8 +300,6 @@ func (k *checker) checkPlainTest(ctx context.Context, m reportedMutant) error {
 	return nil
 }
 
-// findUnlessFlaky runs the plain tests with the mutant again, because a test that depends on timing or on the
-// order of the tests can kill a mutant in one run and let it live in the next.
 func (k *checker) findUnlessFlaky(ctx context.Context, m reportedMutant, check, text string) error {
 	source, err := os.ReadFile(filepath.Join(k.clone.folder, m.File))
 	if err != nil {
@@ -376,7 +374,6 @@ func stopMessage(stderr string) string {
 	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
-// panicked tells a panic of mutants from a panic in the output of a test that mutants shows.
-func panicked(stderr string) bool {
+func mutantsPanicked(stderr string) bool {
 	return strings.Contains(stderr, "\ngoroutine ") && strings.Contains(stderr, "github.com/hpcsc/mutants/internal/")
 }

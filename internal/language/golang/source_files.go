@@ -241,8 +241,6 @@ func (s *sourceFiles) funcName(declaration *ast.FuncDecl) string {
 	return name + "." + declaration.Name.Name
 }
 
-// belongsTo is true for an offset in a method of a type whose name matches one of patterns, or in a function that
-// returns such a type.
 func (s *sourceFiles) belongsTo(file string, offset int, patterns []string) bool {
 	syntax, lines, err := s.parse(file)
 	if len(patterns) == 0 || err != nil || offset < 0 || offset > lines.Size() {
@@ -275,7 +273,6 @@ func (s *sourceFiles) belongsTo(file string, offset int, patterns []string) bool
 	return false
 }
 
-// typeName gives "" for a type that has no name, such as a map or a function.
 func typeName(expression ast.Expr) string {
 	for {
 		switch e := expression.(type) {

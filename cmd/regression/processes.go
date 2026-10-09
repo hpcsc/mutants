@@ -37,8 +37,7 @@ func (c command) runInSession(ctx context.Context) (exit, []string, error) {
 	return ran, leftover, err
 }
 
-// killLeftoverProcesses finds a process by its session, and also by the marker in its environment, because a
-// test can start a new session, and macOS does not show the environment of a system program such as sleep.
+// a test can start its own session, and macOS ps does not show the environment of a system program such as sleep
 func killLeftoverProcesses(ctx context.Context, session int, marker string) ([]string, error) {
 	var alive []int
 	for range 3 {

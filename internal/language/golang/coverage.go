@@ -69,8 +69,7 @@ func newCoverage(root string, settings Settings, finder *packageFinder, types *t
 	}
 }
 
-// uncovered keeps a mutant that the tests of its own package do not run when the tests of a changed caller run
-// it, and the runner then tests the mutant with the tests of those callers.
+// the runner tests a mutant with the callers that uncovered records in testers
 func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant, changed diff.Lines) (map[mutant.ID]string, error) {
 	group, groupContext := errgroup.WithContext(ctx)
 	group.SetLimit(max(1, c.settings.Workers))
@@ -138,8 +137,8 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant, chang
 	return uncovered, nil
 }
 
-// Go's profile has no block for the code after a function literal, and from Go 1.27 none for the brace that opens
-// a branch, so a mutant that no block holds runs when a test enters its function.
+// Go's profile has no block for the code after a function literal, or, from Go 1.27, for the brace of a branch.
+// A mutant that no block holds therefore runs when a test enters its function.
 func (c *coverage) covers(blocks []block, m mutant.Mutant) bool {
 	heldByZero, lineRuns := false, false
 	for _, b := range blocks {
