@@ -23,6 +23,12 @@ tasks:
       - npm install --no-audit --no-fund
       - EXECUTABLE=../bin/mutants-e2e BUILD_TAG={{.E2E_TAG}} npx vitest run
 
+  regression:
+    desc: Run mutants on the newest commits of open-source repositories, and check each run (needs go, git, python3 and ast-grep)
+    cmds:
+      - task: :build
+      - go run ./cmd/regression {{.CLI_ARGS}}
+
   shellcheck:
     cmds:
       - |

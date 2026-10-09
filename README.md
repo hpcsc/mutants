@@ -185,3 +185,4 @@ finds a caller gap. A CI step or a script can use this exit code.
 | [docs/design.md](docs/design.md) | how `mutants` works, and why |
 | [docs/language-adapters.md](docs/language-adapters.md) | how to add a language to `mutants` |
 | [docs/e2e-tests.md](docs/e2e-tests.md) | how the end-to-end tests work |
+| [docs/regression-test.md](docs/regression-test.md) | how the regression test runs `mutants` on open-source repositories |

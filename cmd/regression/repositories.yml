@@ -1,0 +1,43 @@
+- name: cobra
+  url: https://github.com/spf13/cobra
+  commit: adbc8813901bba65827259daa8e22ff94ec1f30e
+  language: go
+
+- name: chi
+  url: https://github.com/go-chi/chi
+  commit: 167e1e3bd039d060696b99c8da4e876ae04f42c1
+  language: go
+
+- name: zap
+  url: https://github.com/uber-go/zap
+  commit: 4892335e05f14bce8a98a69a577fcf3844a42623
+  language: go
+
+- name: uuid
+  url: https://github.com/google/uuid
+  commit: 2d3c2a9cc518326daf99a383f07c4d3c44317e4d
+  language: go
+
+- name: more-itertools
+  url: https://github.com/more-itertools/more-itertools
+  commit: 81c21a8db1c922260cd673841257fb9b112c1318
+  language: python
+  install: ["-e", ".", "pytest", "coverage"]
+
+- name: toolz
+  url: https://github.com/pytoolz/toolz
+  commit: 451af60dec590a6010e2babdbf391ea8f815122f
+  language: python
+  install: ["-e", ".", "pytest", "coverage"]
+
+- name: click
+  url: https://github.com/pallets/click
+  commit: 2247b35ea1c47c727d7a06e51fa280e12a863ff6
+  language: python
+  install: ["-e", ".", "pytest", "coverage"]
+
+- name: attrs
+  url: https://github.com/python-attrs/attrs
+  commit: 644b4e165bfbeee7e127de6fcbda08b64014316f
+  language: python
+  install: ["-e", ".", "pytest>9", "coverage", "hypothesis", "pympler", "cloudpickle"]
