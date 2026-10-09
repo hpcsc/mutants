@@ -12,13 +12,15 @@ add one.
 ## What it must do
 
 Each requirement comes from a fault that a measurement of five Go mutation tools found on a large Go
-monorepo (1,652 packages): gremlins, mutago, gomutants, mutest and togi.
+monorepo (1,652 packages): gremlins, mutago, gomutants, mutest and togi. This document calls it the measured
+monorepo. Later measurements ran `mutants` on pull requests of the same monorepo, and this document calls them
+the measured PRs.
 
 | Requirement | The fault that it prevents |
 | --- | --- |
 | Mutate only the lines that the branch changes. | On whole packages, 138 of 143 survivors were in code that the branch did not change. |
 | Read the diff with fixed prefixes. | With `diff.mnemonicPrefix` set, git prints `+++ w/<path>`. gomutants, mutago and togi then found no changed line, and each reported a clean result with exit 0. |
-| Count uncommitted and untracked lines. | The build step of a flow runs before the commit. togi reads only `<base>..HEAD`, and no tool reads untracked files. |
+| Count uncommitted and untracked lines. | A developer or an AI coding agent runs `mutants` before the commit, on a change that is not committed yet. togi reads only `<base>..HEAD`, and no tool reads untracked files. |
 | Never write into the work tree or the index. | gomutants, mutago and togi left report or lock files in the project root. mewt and universalmutator write each mutant into the real file. |
 | Find each package with `go list`. | gremlins matches the folder name to the package name. Where they differ, it ran the wrong package and reported every mutant as killed. That was 31 % of the packages. |
 | Keep a test failure, a build failure, a timeout and a host failure apart. | mutago and gremlins count every exit code 1 as a kill, and both reported false kills. |
@@ -31,31 +33,36 @@ monorepo (1,652 packages): gremlins, mutago, gomutants, mutest and togi.
 
 ## Where it runs
 
-`mutants` is a command. An implementation flow calls it at two points, and a reviewer calls it to check one
-survivor.
+`mutants` is a command. A developer, a reviewer or an AI coding agent runs it at three points of the work on
+a branch:
 
 ```mermaid
 flowchart TD
-    subgraph BUILD["build step, once for each task"]
+    subgraph CHANGE["1. after each change, before the commit"]
         direction LR
-        T1["tests pass"] --> M1["mutants run --base HEAD"]
-        M1 -- "LIVED or NOT COVERED rows" --> F1["add a test, or say why none"]
+        T1["the tests pass"] --> M1["mutants run --base HEAD"]
+        M1 -- "LIVED or NOT COVERED rows" --> F1["add a test, or write down why no test is needed"]
         F1 --> R1["mutants rerun ID"]
         R1 --> C1["commit"]
     end
-    subgraph AUDIT["audit, once for each round"]
+    subgraph REVIEW["2. before the review of the branch"]
         direction LR
-        M2["mutants run --base MERGE_BASE --format json"] --> L["test lens"]
-        L -- "finding with a mutant id" --> RF["refuter"]
-        RF --> R2["mutants rerun ID"]
+        M2["mutants run --format json"] --> L["read each survivor"]
+        L -- "a gap in the tests, with its mutant id" --> R2["3. mutants rerun ID"]
     end
     C1 --> M2
 ```
 
-- **In the build step**, `--base HEAD` covers the uncommitted lines of the open task.
-- **In the audit**, `--base` is the merge base of the branch, so the run covers the whole branch.
-- **`rerun` exits 10 when the mutant lives** and 0 when a test kills it. So the refuter gets a verdict from the
-  exit code, and needs no judgement.
+1. **After each change, before the commit.** `--base HEAD` limits the run to the lines that are not committed
+   yet, so the run stays short enough to follow each small step. Each survivor gets a test, or a note that
+   says why no test is needed.
+2. **Before the review of the branch.** The default base is the point where the branch left `origin/HEAD`, so
+   the run covers each line that the branch changes, committed or not. `--format json` gives each survivor,
+   with its mutant id, to a tool or an agent.
+3. **To check one survivor.** `mutants rerun ID` runs that one mutant again. It exits 10 when the mutant lives
+   and 0 when a test kills it, so a script or an agent gets the verdict from the exit code, and needs no
+   judgement. A reviewer can name a gap in the tests with one id, and the author can show the fix with the
+   same id.
 
 ## How a run works
 
@@ -338,16 +345,16 @@ internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1
 
 So an edit in another function does not change the id, and a mutant has the same id with `--base HEAD` and
 with the merge base of the branch. An id with a line number changes each time the code above it moves, so a
-survivor from the build step does not match a row in the audit.
+survivor of a run with `--base HEAD` does not match the same mutant in a later run on the whole branch.
 
 ### Proposed mutants
 
 An operator cannot make a bug of the domain, for example a condition that is too narrow for the rule of
-the business. An agent that has the task and the diff can propose such a bug. `mutants run --proposals PATH`
-reads the proposals of the agent from a file, one JSON object on each line:
+the business. A person or an AI coding agent that knows the purpose of the change can propose such a bug.
+`mutants run --proposals PATH` reads the proposals from a file, one JSON object on each line:
 
 ```json
-{"file": "internal/order/wait.go", "old": "waited && !note", "new": "waited && open && !note", "bug": "a note after the deadline no longer stops the close"}
+{"file": "internal/order/refund.go", "old": "paid && !cancelled", "new": "paid && shipped && !cancelled", "bug": "a paid order that has not shipped gets no refund"}
 ```
 
 | Field | Holds |
@@ -373,7 +380,7 @@ mutant is rejected with its reason:
 | not on a changed line | the edit does not touch a changed line, and the run has no `--proposals-anywhere` |
 
 - **The id** is `<file>:<function>:PROPOSED#<n>`. `n` has six digits from a hash of `old` and `new`, so an
-  edit keeps its id when the agent proposes a different set of other edits.
+  edit keeps its id when a later file proposes a different set of other edits.
 - **The same edit.** Proposals with the same edit have the same id, so they make one mutant. Each of them
   counts as accepted, and the mutant carries the `ref` of each, so no source of a proposal loses its verdict.
 - **The store.** The run saves each accepted proposal in
@@ -385,7 +392,7 @@ mutant is rejected with its reason:
   proposal stop the run with exit 2. The rows list each rejected proposal with its reason, and a last line
   counts the accepted and the rejected proposals.
 
-On two reviewed commits of the measured monorepo, two agents read only the code and the diff, and each
+On two reviewed commits of the measured monorepo, two AI agents read only the code and the diff, and each
 proposed 8 mutants. On one commit 4 of 8 lived, and on the other 8 of 8 lived. Each commit had one survivor
 that a reviewer found by hand, and that no operator makes.
 
@@ -393,8 +400,8 @@ that a reviewer found by hand, and that no operator makes.
 
 A change can wire new code of one package into another changed package, while the tests of the caller use a
 fake for that code. No test then runs the new code from the caller. The tests of the new package kill each
-mutant there, so no mutant shows the gap. On a measured PR, two reactors wired in a new gate, and a reviewer
-found that no reactor test reached it.
+mutant there, so no mutant shows the gap. On a measured PR, two event handlers in other packages started to
+call a new check, and a reviewer found that no test of these handlers reached it.
 
 With `--caller-gaps`, or `caller_gaps: true` in `.mutants.yml`, the run looks for these gaps:
 
@@ -415,7 +422,7 @@ The rows list each gap apart from the statuses of the mutants, by function:
 
 ```text
 CALLER GAPS:
-  common/modules/informationsufficiency/checker.go:102-104,106 (*Checker).closingItemArrived, not run by the tests of collect/handler/CustomerCaseRequestInformation, collect/handler/EmailConversationRecordInformation
+  gate/gate.go:12-14,16 (*Checker).Allow, not run by the tests of orders/handler, refunds/handler
 mutants: 81, killed: 64, lived: 1, not covered: 3, not viable: 13 (base 1a2b3c4d5e)
 caller gaps: 1
 ```
@@ -594,9 +601,9 @@ on the line of its `if`, and is LIVED, while the `return` inside the branch is N
 ### Tests of a changed caller
 
 The tests of a package can leave a function out when a package that calls it has the tests. On a measured PR,
-a reactor test ran each line of a new function of another package, and that package had no test of the
-function: each mutant of the function was NOT COVERED, and a person had to put a mutant in by hand to see
-that the reactor tests caught it.
+a test of an event handler ran each line of a new function of another package, and that package had no test
+of the function: each mutant of the function was NOT COVERED, and a person had to put a mutant in by hand to
+see that the tests of the handler caught it.
 
 For each Go mutant that the tests of its own package do not run, the adapter looks at each changed package
 that imports the package of the mutant, as the check for [caller gaps](#caller-gaps) does:
@@ -695,7 +702,7 @@ A package with no test files gives one row for all its mutants, not one row for 
 
 ```text
 NOT COVERED:
-  package cmd/evalreport has no test files: 502 mutants
+  package cmd/report has no test files: 502 mutants
 ```
 
 `--format json` prints every mutant as one JSON document: `base`, and `mutants` with the fields `id`, `file`,
@@ -724,7 +731,7 @@ operators: [-ERROR_CAUSE_REMOVE]
 exclude: ["**/*_gen.go", "vendor/**"]
 go:
   tags: [unit]
-  zero_functions: [maybe.None, caseautoresolve.Submitted]
+  zero_functions: [maybe.None, money.Zero]
 ```
 
 `go.zero_functions` names the functions that return the zero value of their type, as `package.Function` with
@@ -861,7 +868,7 @@ The end-to-end fixtures:
 | A file of proposals, with one that lives, one that dies and one whose `old` occurs two times | LIVED and KILLED, the third rejected with "old found 2 times", and `git status` the same after the run |
 | A committed file, with `--operators=none` and `--proposals-anywhere`, and two proposals with the same edit and different refs | one mutant with both refs, the rejected proposal with its ref, and exit 2 for `--operators=none` alone |
 | A proposed mutant after the run | `rerun` finds it by its id without the file. After its `old` changes: exit 1, "the proposal does not fit the code". |
-| A new gate, and a changed caller that wires it in but whose tests use a fake | with `--caller-gaps`: the statements of the gate in the rows and the JSON, and exit 10 |
+| A new check in one package, and a changed caller that calls it but whose tests use a fake | with `--caller-gaps`: the statements of the check in the rows and the JSON, and exit 10 |
 
 ## Later
 
@@ -871,7 +878,7 @@ The end-to-end fixtures:
 | v2 | **A cache.** A verdict keyed by a hash of the package files, the test files, the rules and the `mutants` version, so a second run reuses it. |
 | v3 | **TypeScript.** A rule pack, and a runner that writes each mutant into a git worktree for each worker, in a temp folder, and runs `vitest related <file> --run`. |
 | v3 | Other languages that ast-grep parses: the same shape, a rule pack and a runner. |
-| later | **A command that proposes mutants.** For CI with no agent, `.mutants.yml` names a command. The command reads a JSON request on stdin, with the changed functions and the diff, and writes proposals on stdout in the format of `--proposals`. Any model then works through its own CLI, and `mutants` still holds no key and makes no network call. |
+| later | **A command that proposes mutants.** For a CI job with no AI agent, `.mutants.yml` names a command. The command reads a JSON request on stdin, with the changed functions and the diff, and writes proposals on stdout in the format of `--proposals`. Any model then works through its own CLI, and `mutants` still holds no key and makes no network call. |
 
 ## Decisions
 
@@ -890,9 +897,9 @@ changed files, and the rule packs that live in the binary.
 
 A pipe does not remove the tie to ast-grep. `mutants` still parses the JSON of ast-grep, because the hooks,
 the filters and the ids take matches as input. With a pipe, `rerun ID` needs the user to repeat the exact
-ast-grep call, and an implementation flow gets two commands and two exit codes. A unit test can give `run` a
-fake `operator.Matcher` with fixed matches, so a test of the core does not need ast-grep. Another generator, for example
-comby, is a second `operator.Matcher`.
+ast-grep call, and a script or an agent that runs `mutants` gets two commands and two exit codes. A unit test
+can give `run` a fake `operator.Matcher` with fixed matches, so a test of the core does not need ast-grep.
+Another generator, for example comby, is a second `operator.Matcher`.
 
 **Why the binary rather than `go test`.** The binary gives a test failure and a build failure from two
 different commands, and Go's test cache never answers.
@@ -906,9 +913,10 @@ mutant. The code after a function literal shares a line with the end of the bloc
 profile has no block for that code. So the adapter needs the line and the column of each mutant, and
 returns the ids of the mutants that no test runs.
 
-**Why the ids count after the filters and before the scope.** The scope depends on the diff, and the diff
-of the build step differs from the diff of the audit. When `n` counts only the mutants in scope, one mutant
-gets two ids. The filters depend only on the code, so the ids can count after them, and have no gaps.
+**Why the ids count after the filters and before the scope.** The scope depends on the diff, and the diff of a
+run with `--base HEAD` differs from the diff of a run on the whole branch. When `n` counts only the mutants in
+scope, one mutant gets two ids. The filters depend only on the code, so the ids can count after them, and have
+no gaps.
 
 **Why the limit has a margin and a second run.** A limit of only 3 × the baseline gave false TIMED OUT
 verdicts on the measured monorepo, under a load average of 10 to 20: 3 × 1.2 s for a mutant that a test
@@ -924,16 +932,16 @@ each language has its own operators, one setting means two different changes in 
 list of operators holds changes that the language of the reader cannot make. A change that only one language
 or one library has, such as the `AddDate` of calendar days in Go, is a rule of a repository.
 
-**Why the settings that git does not track are in the shared git folder.** A tool or an agent can make a
-new linked work tree for each task, and copy no untracked file into it. A file in the git folder that the work
+**Why the settings that git does not track are in the shared git folder.** A tool or an agent can make a new
+linked work tree for each change, and copy no untracked file into it. A file in the git folder that the work
 trees share serves each work tree with no copy, and git never tracks it. `.mutants.yml` wins and the two files
 do not merge, so a reader of `.mutants.yml` sees each setting of the run. The line on stderr tells why a
 setting in `mutants.yml` has no effect.
 
 **Why NAMED_VALUE_REMOVE runs by default.** On 12 measured PRs, it made 329 mutants, about a third more than
 the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example
-a close rule that loses a blocker. Three more were values that `zero_functions` now skips. So most of its
-survivors are real test gaps, and they are worth the longer run.
+a rule that loses one of its conditions. Three more were values that `zero_functions` now skips. So most of
+its survivors are real test gaps, and they are worth the longer run.
 
 **Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_EMPTY`.
 Without it, a guard that returns `false` gets no mutant.
@@ -944,10 +952,10 @@ reported each line of each callee that no caller test runs, those callers gave r
 changed line that calls the callee directly, for example a call of a constructor in the setup of the caller, is new code that
 depends on the real callee, so its reach is where a gap matters.
 
-**Why mutants reads proposals and never calls a model.** In the flow, the agent that builds the change is
-already a model, and it has the task and the diff. A model SDK, its keys and network access do not belong in
-a test tool that must give the same verdict offline, each time. A file of proposals keeps `mutants`
-deterministic: the same file and the same code give the same mutants and ids.
+**Why mutants reads proposals and never calls a model.** An AI agent that writes or reviews the change is
+already a model, and it knows the purpose of the change and the diff. A model SDK, its keys and network access
+do not belong in a test tool that must give the same verdict offline, each time. A file of proposals keeps
+`mutants` deterministic: the same file and the same code give the same mutants and ids.
 
 **Why read untracked files rather than add them to the index.** A change to the index can stay behind when a
 run stops halfway, and the user then sees files that they did not stage.

@@ -341,7 +341,7 @@ exclude: ["**/*_gen.go", "vendor/**"]
 caller_gaps: true
 go:
   tags: [unit]
-  zero_functions: [maybe.None, caseautoresolve.Submitted]
+  zero_functions: [maybe.None, money.Zero]
   exclude_types: [Fake*]
 python:
   command: [uv, run, python]
