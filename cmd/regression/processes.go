@@ -14,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 func newMarker() string {
@@ -67,7 +69,7 @@ func processesOf(session int, marker string) ([]int, error) {
 	}
 	var found []int
 	for pid, hasMarker := range marked {
-		if sid, err := syscall.Getsid(pid); hasMarker || (err == nil && sid == session) {
+		if sid, err := unix.Getsid(pid); hasMarker || (err == nil && sid == session) {
 			found = append(found, pid)
 		}
 	}
