@@ -3,6 +3,7 @@
 package proposal_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -191,5 +192,33 @@ func TestStore(t *testing.T) {
 			require.NoError(t, err)
 			require.False(t, ok)
 		})
+	})
+}
+
+func FuzzProposalRead(f *testing.F) {
+	for _, seed := range []string{
+		`{"file": "a.go", "old": "x > 0", "new": "x >= 0", "bug": "zero counts as positive"}`,
+		"{\"file\": \"a.go\", \"old\": \"close(done)\\n\", \"new\": \"\", \"bug\": \"b\", \"ref\": \"finding-7\"}\n\n{\"file\": \"b.py\", \"old\": \"a\", \"new\": \"b\", \"bug\": \"c\"}\r\n",
+		`{"file": "a.go", "old": "", "new": "b", "bug": "c"}`,
+		`null`,
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, text string) {
+		proposals, err := proposal.Read(strings.NewReader(text))
+		if err != nil {
+			return
+		}
+		var lines []string
+		for _, p := range proposals {
+			line, err := json.Marshal(p)
+			require.NoError(t, err)
+			lines = append(lines, string(line))
+		}
+
+		again, err := proposal.Read(strings.NewReader(strings.Join(lines, "\n")))
+
+		require.NoError(t, err)
+		require.Equal(t, proposals, again)
 	})
 }

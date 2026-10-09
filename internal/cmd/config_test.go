@@ -246,3 +246,29 @@ func TestConfig(t *testing.T) {
 		})
 	})
 }
+
+func FuzzConfigLoad(f *testing.F) {
+	for _, seed := range []string{
+		"base: origin/main\nworkers: 2\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"vendor/**\"]\ncaller_gaps: true\ngo:\n  tags: [unit]\n  zero_functions: [maybe.None]\n  exclude_types: [Fake*]\npython:\n  command: [uv, run, python]\n",
+		"go: null\n",
+		"go: [unit]\n",
+		"unknown: 1\n",
+		"- base\n",
+		"base: [origin\n",
+		"defaults: &defaults\n  tags: [unit]\ngo:\n  <<: *defaults\n",
+		"workers: many\n",
+		"---\n---\n",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, content string) {
+		root := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
+
+		_, err := loadConfig(root, t.TempDir(), io.Discard)
+
+		if err != nil {
+			require.Contains(t, err.Error(), ".mutants.yml")
+		}
+	})
+}

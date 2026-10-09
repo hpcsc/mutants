@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/stretchr/testify/require"
@@ -396,4 +397,54 @@ func TestRepository(t *testing.T) {
 			require.ErrorContains(t, err, "is not in the repository")
 		})
 	})
+}
+
+func FuzzRepositoryChanged(f *testing.F) {
+	f.Add("calc", "a\nb\nc\n", "a\nB\nc\nd\n")
+	f.Add("with space", "x\n", "x\ny")
+	f.Add(`quote"name`, "", "first\n")
+	f.Add("tab\tname", "a\n", "")
+	f.Add("ünïcode", "a\r\nb\r\n", "a\r\nc\r\n")
+	f.Add(`back\slash`, "same\n", "same\n")
+	f.Add("-dash", "+a\n-b\n", "-b\n+a\n")
+	f.Fuzz(func(t *testing.T, stem, old, changed string) {
+		if stem == "" || len(stem) > 200 || strings.ContainsAny(stem, "/\x00") || !utf8.ValidString(stem) || strings.ContainsRune(old+changed, 0) {
+			t.Skip()
+		}
+		r := newGitRepository(t)
+		name := stem + ".go"
+		r.write(name, old)
+		r.commit("old")
+		r.write(name, changed)
+
+		lines, err := r.open().Changed(context.Background(), "HEAD", diff.Pathspec{Extensions: []string{".go"}})
+
+		require.NoError(t, err)
+		files := lines.Files()
+		require.LessOrEqual(t, len(files), 1, "the diff names more files than the repository has: %q", files)
+		for _, file := range files {
+			_, err = os.Stat(filepath.Join(r.root, file))
+			require.NoError(t, err, "the diff names a file that does not exist: %q", file)
+			require.False(t, lines.Touches(file, len(textLines(changed))+1, len(textLines(changed))+100), "a line after the end of the file")
+		}
+		oldLines := map[string]bool{}
+		for _, line := range textLines(old) {
+			oldLines[line] = true
+		}
+		for i, line := range textLines(changed) {
+			if !oldLines[line] {
+				require.Len(t, files, 1, "line %d, %q, is new", i+1, line)
+				require.True(t, lines.Has(files[0], i+1), "line %d, %q, is new", i+1, line)
+			}
+		}
+	})
+}
+
+// textLines splits as git does: at each line end, and the last line counts also without a line end.
+func textLines(text string) []string {
+	lines := strings.SplitAfter(text, "\n")
+	if lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return lines
 }

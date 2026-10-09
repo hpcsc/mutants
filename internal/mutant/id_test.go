@@ -67,3 +67,27 @@ func TestCounter(t *testing.T) {
 		})
 	})
 }
+
+func FuzzIDParse(f *testing.F) {
+	for _, seed := range []string{
+		"internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1",
+		"a:b.go:f:ARITHMETIC_BASE#2",
+		"a.go:f:PROPOSED#000000",
+		"a.go::RETURN_EMPTY#3",
+		"a.go:f#g:BRANCH_IF#4",
+		"handler.go:f:BRANCH_IF#-1",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, text string) {
+		id, err := mutant.ParseID(text)
+		if err != nil {
+			return
+		}
+
+		again, err := mutant.ParseID(id.String())
+
+		require.NoError(t, err)
+		require.Equal(t, id, again)
+	})
+}

@@ -26,6 +26,7 @@ task run -- --help    # runs the CLI from the source, with the arguments after -
 | `task test:unit` | the Go tests, with the build tag `unit`, the race detector and coverage |
 | `task test:e2e` | the end-to-end tests in Docker, against a new binary, as CI runs them |
 | `task test:e2e:local` | the end-to-end tests on this machine. They need node, Go and ast-grep. |
+| `task test:fuzz` | the fuzz tests of the readers of mutant ids, proposals, `.mutants.yml` and git diffs, for 30 s each. `task test:fuzz FUZZ_TIME=5m` changes the time. `task test:unit` runs only their seeds. |
 | `task test:regression` | `mutants` on the newest commits of open-source repositories, with a check of each run. [docs/regression-test.md](regression-test.md) tells how it works. |
 | `task test:shellcheck` | shellcheck on the shell scripts and the git hooks |
 | `task test:vulnerabilities` | govulncheck on the Go code |

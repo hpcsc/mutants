@@ -23,6 +23,16 @@ tasks:
       - npm install --no-audit --no-fund
       - EXECUTABLE=../bin/mutants-e2e BUILD_TAG={{.E2E_TAG}} npx vitest run
 
+  fuzz:
+    desc: Fuzz each reader of text that comes from outside mutants, for FUZZ_TIME each (default 30s)
+    vars:
+      FUZZ_TIME: '{{.FUZZ_TIME | default "30s"}}'
+    cmds:
+      - go test -tags=unit -run='^$' -fuzz='^FuzzIDParse$' -fuzztime={{.FUZZ_TIME}} ./internal/mutant
+      - go test -tags=unit -run='^$' -fuzz='^FuzzProposalRead$' -fuzztime={{.FUZZ_TIME}} ./internal/proposal
+      - go test -tags=unit -run='^$' -fuzz='^FuzzConfigLoad$' -fuzztime={{.FUZZ_TIME}} ./internal/cmd
+      - go test -tags=unit -run='^$' -fuzz='^FuzzRepositoryChanged$' -fuzztime={{.FUZZ_TIME}} ./internal/diff
+
   regression:
     desc: Run mutants on the newest commits of open-source repositories, and check each run (needs go, git, python3 and ast-grep)
     cmds:
