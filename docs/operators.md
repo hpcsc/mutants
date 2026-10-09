@@ -100,7 +100,8 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 - a change in a zerolog line that ends in `Msg`, `Msgf` or `Send`, and the removal of a branch that holds
   only such lines
 - a change in a `_test.go` file, in a Python test file, or in generated code
-- a change in a call of a Python logger, in a type annotation, or in an `if TYPE_CHECKING:` block
+- a change in a call of a Python logger, in a type annotation, in an `if TYPE_CHECKING:` block, or in a
+  comparison with `sys.version_info`
 - a value that is already the zero value of its type
 - a swap of two values with different types, or in a table of named values such as
   `NoMatch: Reason{"NoMatch"}`

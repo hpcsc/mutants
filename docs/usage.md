@@ -420,7 +420,7 @@ A skip rule is an [ast-grep](https://ast-grep.github.io) rule with no `fix`. `mu
 a match of a skip rule, and it does not empty a branch that holds only such matches. The standard skip rule
 of Go, `zerolog`, matches a zerolog call that ends in `Msg`, `Msgf` or `Send`. The standard skip rules of
 Python match a call of a logger, such as `logger.info(...)`, a type annotation, an `if TYPE_CHECKING:` block,
-a test file, and a file whose first comments say that it is generated.
+a comparison with `sys.version_info`, a test file, and a file whose first comments say that it is generated.
 
 To skip the calls of another logger, or other code whose change no test can see, put a rule in a YAML file
 in `.mutants/skip/go/`:

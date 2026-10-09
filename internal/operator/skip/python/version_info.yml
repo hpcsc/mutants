@@ -1,0 +1,8 @@
+id: version-info
+language: python
+rule:
+  kind: comparison_operator
+  has:
+    kind: identifier
+    regex: ^version_info$
+    stopBy: end

@@ -765,6 +765,14 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"2 -> (2+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
 		})
 
+		t.Run("each operator skips its edits in a comparison with sys.version_info, and keeps the ones in the branches", func(t *testing.T) {
+			source := "import sys\nfrom sys import version_info\n\n\ndef f(n):\n    if sys.version_info >= (3, 14):\n        return n + 1\n" +
+				"    if version_info[0] > 2 and sys.version_info.minor < 10:\n        return n + 2\n    if n >= 3:\n        return n + 3\n    return n\n"
+
+			require.Equal(t, []string{"1 -> (1+1)", "2 -> (2+1)", "3 -> (3+1)", "3 -> (3+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"n >= 3 -> n > 3"}, pythonEditsOf(t, "CONDITIONALS_BOUNDARY", source))
+		})
+
 		t.Run("each operator skips the test files and the generated files", func(t *testing.T) {
 			root := t.TempDir()
 			for _, file := range []string{"test_cart.py", "cart_test.py", "conftest.py", "tests/helpers.py", "cart_pb2.py", "cart.py"} {

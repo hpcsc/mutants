@@ -315,7 +315,10 @@ The Python adapter has these:
 | No value before | a `STATEMENT_REMOVE` of `x = e` when `x` has no value before the statement in its function: no parameter, no earlier assignment, no `for` or `with` target, and no `global` or `nonlocal`. The next read of `x` then raises `NameError`. |
 
 The skip rules of Python drop the edits in the test files, in the generated files, in the calls of a logger,
-in the type annotations and in the `if TYPE_CHECKING:` blocks.
+in the type annotations, in the `if TYPE_CHECKING:` blocks and in the comparisons with `sys.version_info`. The
+tests run on one version of Python. On it, a change of the version in such a comparison gives the same result,
+or it runs the code that is for another version of Python. A survivor of either kind shows no gap in the
+tests. The branches of such an `if` keep their mutants.
 
 A candidate that passes the filters and still fails to build is NOT VIABLE.
 

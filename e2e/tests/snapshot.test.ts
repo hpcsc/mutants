@@ -105,6 +105,7 @@ func Shout(text string, times int) string {
 `
 
 const pythonShop = `import logging
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -173,6 +174,12 @@ def kind(n: int) -> str:
 
 def close(client) -> None:
     client.close()
+
+
+def stamp() -> str:
+    if sys.version_info >= (3, 14):
+        return "new"
+    return "old"
 `
 
 const allOperators = ['--operators=+ARGUMENT_EMPTY,+ERROR_CAUSE_REMOVE']
