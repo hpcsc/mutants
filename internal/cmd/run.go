@@ -152,27 +152,18 @@ func newLanguages(root string, goSettings golang.Settings, pythonSettings python
 
 func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) error {
 	out := cmd.Root().Writer
-	reported := report.Outcome{
-		Base:       outcome.Base,
-		Files:      outcome.Files,
-		Lines:      outcome.Lines,
-		Mutants:    outcome.Mutants,
-		Stopped:    outcome.Stopped,
-		Proposals:  outcome.Proposals,
-		CallerGaps: outcome.CallerGaps,
-	}
 	if format == "json" {
-		if err := report.NoMutantLine(cmd.Root().ErrWriter, reported); err != nil {
+		if err := report.NoMutantLine(cmd.Root().ErrWriter, outcome); err != nil {
 			return err
 		}
-		if err := report.JSON(out, reported); err != nil {
+		if err := report.JSON(out, outcome); err != nil {
 			return err
 		}
-	} else if err := report.Rows(out, reported); err != nil {
+	} else if err := report.Rows(out, outcome); err != nil {
 		return err
 	}
 	if path := cmd.String("json"); path != "" {
-		if err := writeFile(path, func(w io.Writer) error { return report.JSON(w, reported) }); err != nil {
+		if err := writeFile(path, func(w io.Writer) error { return report.JSON(w, outcome) }); err != nil {
 			return err
 		}
 	}

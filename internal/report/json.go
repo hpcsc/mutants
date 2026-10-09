@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/hpcsc/mutants/internal/mutant"
+	"github.com/hpcsc/mutants/internal/run"
 )
 
 type jsonMutant struct {
@@ -52,7 +53,7 @@ type jsonReport struct {
 	CallerGaps *[]jsonCallerGap `json:"callerGaps,omitempty"`
 }
 
-func JSON(w io.Writer, outcome Outcome) error {
+func JSON(w io.Writer, outcome run.Outcome) error {
 	mutants, base := outcome.Mutants, outcome.Base
 	report := jsonReport{Base: base, Mutants: []jsonMutant{}}
 	if outcome.CallerGaps != nil {

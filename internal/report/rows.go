@@ -8,9 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
-	"github.com/hpcsc/mutants/internal/proposal"
+	"github.com/hpcsc/mutants/internal/run"
 )
 
 const (
@@ -18,19 +17,7 @@ const (
 	shortContext = 12
 )
 
-// Proposals is nil when the run got no proposals, and CallerGaps is nil when the run did not look for caller
-// gaps.
-type Outcome struct {
-	Base       string
-	Files      int
-	Lines      int
-	Mutants    []mutant.Mutant
-	Stopped    bool
-	Proposals  *proposal.Summary
-	CallerGaps *[]language.CallerGap
-}
-
-func Rows(w io.Writer, outcome Outcome) error {
+func Rows(w io.Writer, outcome run.Outcome) error {
 	text := noMutantLine(outcome)
 	if len(outcome.Mutants) > 0 || outcome.Stopped || outcome.Proposals != nil || outcome.CallerGaps != nil {
 		text += rows(outcome)
@@ -39,19 +26,19 @@ func Rows(w io.Writer, outcome Outcome) error {
 	return err
 }
 
-func NoMutantLine(w io.Writer, outcome Outcome) error {
+func NoMutantLine(w io.Writer, outcome run.Outcome) error {
 	_, err := io.WriteString(w, noMutantLine(outcome))
 	return err
 }
 
-func noMutantLine(outcome Outcome) string {
+func noMutantLine(outcome run.Outcome) string {
 	if len(outcome.Mutants) > 0 || outcome.Stopped {
 		return ""
 	}
 	return withBase(fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files), outcome.Base) + "\n"
 }
 
-func rows(outcome Outcome) string {
+func rows(outcome run.Outcome) string {
 	mutants := outcome.Mutants
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Line, b.Line), cmp.Compare(a.ID.String(), b.ID.String()))

@@ -784,9 +784,8 @@ flowchart TD
     LANG --> DIFF
     LANG --> OP
     LANG --> MUT
-    REP --> LANG
+    REP --> RUN
     REP --> MUT
-    REP --> PROP
 ```
 
 An arrow means "imports". The diagram leaves out the other imports of `cmd`, and the packages `release` and

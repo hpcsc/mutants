@@ -11,6 +11,7 @@ import (
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/report"
+	"github.com/hpcsc/mutants/internal/run"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func TestJSON(t *testing.T) {
 			killed.Verdict.Detail = "--- FAIL: TestAccounts"
 			var output strings.Builder
 
-			require.NoError(t, report.JSON(&output, report.Outcome{Mutants: []mutant.Mutant{killed, lived}, Base: "1a2b3c4d5e"}))
+			require.NoError(t, report.JSON(&output, run.Outcome{Mutants: []mutant.Mutant{killed, lived}, Base: "1a2b3c4d5e"}))
 
 			var document map[string]any
 			require.NoError(t, json.Unmarshal([]byte(output.String()), &document))
@@ -48,7 +49,7 @@ func TestJSON(t *testing.T) {
 			value := spanning(reported("handler.go", 42, "ERROR_REMOVE", 1, "err", "nil", mutant.NotCovered), 109, 112)
 			var output strings.Builder
 
-			require.NoError(t, report.JSON(&output, report.Outcome{Mutants: []mutant.Mutant{value, branch}}))
+			require.NoError(t, report.JSON(&output, run.Outcome{Mutants: []mutant.Mutant{value, branch}}))
 
 			require.JSONEq(t, `{"mutants": [
 				{"id": "handler.go:(*Handler).accounts:BRANCH_IF#1", "file": "handler.go", "line": 42, "column": 2,
@@ -66,7 +67,7 @@ func TestJSON(t *testing.T) {
 			rejected := proposal.Rejection{Proposal: proposal.Proposal{File: "case.go", Old: "return", New: "", Bug: "the note is lost", Ref: "finding-3"}, Reason: "old found 3 times"}
 			var output strings.Builder
 
-			require.NoError(t, report.JSON(&output, report.Outcome{
+			require.NoError(t, report.JSON(&output, run.Outcome{
 				Mutants:   []mutant.Mutant{proposed},
 				Proposals: &proposal.Summary{Accepted: 1, Rejected: []proposal.Rejection{rejected}},
 			}))
@@ -88,8 +89,8 @@ func TestJSON(t *testing.T) {
 			gaps := []language.CallerGap{{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{16, 17}, Callers: []string{"handler"}}}
 			var found, none strings.Builder
 
-			require.NoError(t, report.JSON(&found, report.Outcome{CallerGaps: &gaps}))
-			require.NoError(t, report.JSON(&none, report.Outcome{CallerGaps: &[]language.CallerGap{}}))
+			require.NoError(t, report.JSON(&found, run.Outcome{CallerGaps: &gaps}))
+			require.NoError(t, report.JSON(&none, run.Outcome{CallerGaps: &[]language.CallerGap{}}))
 
 			require.JSONEq(t, `{"mutants": [], "callerGaps": [{"file": "gate/gate.go", "function": "(*Checker).Allow", "lines": [16, 17], "callers": ["handler"]}]}`, found.String())
 			require.JSONEq(t, `{"mutants": [], "callerGaps": []}`, none.String())
@@ -98,7 +99,7 @@ func TestJSON(t *testing.T) {
 		t.Run("proposals with no rejection give an empty list of rejections", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.JSON(&output, report.Outcome{Proposals: &proposal.Summary{Accepted: 2}}))
+			require.NoError(t, report.JSON(&output, run.Outcome{Proposals: &proposal.Summary{Accepted: 2}}))
 
 			require.JSONEq(t, `{"mutants": [], "proposals": {"accepted": 2, "rejected": []}}`, output.String())
 		})
@@ -106,7 +107,7 @@ func TestJSON(t *testing.T) {
 		t.Run("no mutant gives an empty list", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.JSON(&output, report.Outcome{}))
+			require.NoError(t, report.JSON(&output, run.Outcome{}))
 
 			require.JSONEq(t, `{"mutants": []}`, output.String())
 		})

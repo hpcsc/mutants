@@ -10,6 +10,7 @@ import (
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/proposal"
 	"github.com/hpcsc/mutants/internal/report"
+	"github.com/hpcsc/mutants/internal/run"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +45,7 @@ func TestRows(t *testing.T) {
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants, Base: "1a2b3c4d5e6f7a8b"}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: mutants, Base: "1a2b3c4d5e6f7a8b"}))
 
 			require.Equal(t, `LIVED:
   handler.go:42 BRANCH_IF: { return nil, err } -> {}  [handler.go:(*Handler).accounts:BRANCH_IF#1]
@@ -71,7 +72,7 @@ mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, in
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: mutants}))
 
 			require.Equal(t, `NOT COVERED:
   handler.go:43 ERROR_REMOVE: err -> nil  [handler.go:(*Handler).accounts:ERROR_REMOVE#1]
@@ -91,7 +92,7 @@ mutants: 4, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: mutants}))
 
 			require.Equal(t, `LIVED:
   handler.go:42 BRANCH_IF: { return nil, err } -> {}  [handler.go:(*Handler).accounts:BRANCH_IF#1]
@@ -110,7 +111,7 @@ mutants: 6, lived: 2, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: mutants}))
 
 			require.Equal(t, "LIVED:\n  a.go:3 BRANCH_CASE: g() h(\"a long argument that goes past th ... -> (nothing)  [a.go:(*Handler).accounts:BRANCH_CASE#1]\nmutants: 1, lived: 1\n", output.String())
 		})
@@ -121,7 +122,7 @@ mutants: 6, lived: 2, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: mutants}))
 
 			require.Equal(t, "LIVED:\n  a.go:5 BREAK_AT_END: ... total += item } -> ... total += item break }  [a.go:(*Handler).accounts:BREAK_AT_END#1]\nmutants: 1, lived: 1\n", output.String())
 		})
@@ -133,7 +134,7 @@ mutants: 6, lived: 2, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: mutants}))
 
 			require.Equal(t, "LIVED:\n  a.go:450 CALENDAR_DAY: ... ation()).AddDate(0, 0, -1) -> ... ation()).Add(time.Duration(-1) * 24 * ti ...  [a.go:(*Handler).accounts:CALENDAR_DAY#1]\nmutants: 1, lived: 1\n", output.String())
 		})
@@ -143,13 +144,13 @@ mutants: 6, lived: 2, not covered: 4
 			proposed.Bug = "a note after the deadline no longer stops the close"
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: []mutant.Mutant{proposed}}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: []mutant.Mutant{proposed}}))
 
 			require.Equal(t, "LIVED:\n  case.go:91 PROPOSED: a note after the deadline no longer stops the close  [case.go:(*Handler).accounts:PROPOSED#418273]\nmutants: 1, lived: 1\n", output.String())
 		})
 
 		t.Run("lists each rejected proposal with its reason, and counts the proposals", func(t *testing.T) {
-			outcome := report.Outcome{
+			outcome := run.Outcome{
 				Mutants: []mutant.Mutant{reported("case.go", 91, "PROPOSED", 418273, "a", "b", mutant.Killed)},
 				Proposals: &proposal.Summary{Accepted: 1, Rejected: []proposal.Rejection{
 					{Proposal: proposal.Proposal{File: "case.go", Old: "return", New: "", Bug: "the case never closes"}, Reason: "old found 3 times"},
@@ -168,7 +169,7 @@ mutants: 6, lived: 2, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{CallerGaps: &gaps}))
+			require.NoError(t, report.Rows(&output, run.Outcome{CallerGaps: &gaps}))
 
 			require.Equal(t, "no mutant: 0 changed lines in 0 files\nCALLER GAPS:\n  gate/gate.go:12-13,16-18,21 (*Checker).Allow, not run by the tests of handler, wired\nmutants: 0\ncaller gaps: 1\n", output.String())
 		})
@@ -176,7 +177,7 @@ mutants: 6, lived: 2, not covered: 4
 		t.Run("a run that looked for caller gaps and found none says so", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{CallerGaps: &[]language.CallerGap{}}))
+			require.NoError(t, report.Rows(&output, run.Outcome{CallerGaps: &[]language.CallerGap{}}))
 
 			require.Equal(t, "no mutant: 0 changed lines in 0 files\nmutants: 0\ncaller gaps: 0\n", output.String())
 		})
@@ -188,7 +189,7 @@ mutants: 6, lived: 2, not covered: 4
 			}
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Mutants: mutants}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: mutants}))
 
 			require.Equal(t, "LIVED:\n  a.go:3 BRANCH_IF: { g() } -> {}  [a.go:(*Handler).accounts:BRANCH_IF#1]\n"+
 				"  a.go:9 BRANCH_IF: { h() } -> {}  [a.go:(*Handler).accounts:BRANCH_IF#2]\nmutants: 2, lived: 2\n", output.String())
@@ -197,7 +198,7 @@ mutants: 6, lived: 2, not covered: 4
 		t.Run("proposals with no rejection give the count and no empty list", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Proposals: &proposal.Summary{Accepted: 2}}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Proposals: &proposal.Summary{Accepted: 2}}))
 
 			require.Equal(t, "no mutant: 0 changed lines in 0 files\nmutants: 0\nproposals: 2 accepted, 0 rejected\n", output.String())
 		})
@@ -205,7 +206,7 @@ mutants: 6, lived: 2, not covered: 4
 		t.Run("a run with no mutant gives only the line with its changed lines, its files and its base", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Base: "1a2b3c4d5e6f7a8b", Files: 1, Lines: 2}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Base: "1a2b3c4d5e6f7a8b", Files: 1, Lines: 2}))
 
 			require.Equal(t, "no mutant: 2 changed lines in 1 files (base 1a2b3c4d5e)\n", output.String())
 		})
@@ -213,7 +214,7 @@ mutants: 6, lived: 2, not covered: 4
 		t.Run("a run that stopped at its limit with no mutant gives the count and no line about its changed lines", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.Rows(&output, report.Outcome{Base: "1a2b3c4d5e", Files: 1, Lines: 2, Stopped: true}))
+			require.NoError(t, report.Rows(&output, run.Outcome{Base: "1a2b3c4d5e", Files: 1, Lines: 2, Stopped: true}))
 
 			require.Equal(t, "mutants: 0 (base 1a2b3c4d5e)\n", output.String())
 		})
@@ -225,7 +226,7 @@ func TestNoMutantLine(t *testing.T) {
 		t.Run("a run with no mutant gives its changed lines, its files and its base", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.NoMutantLine(&output, report.Outcome{Base: "1a2b3c4d5e6f7a8b", Files: 3, Lines: 12}))
+			require.NoError(t, report.NoMutantLine(&output, run.Outcome{Base: "1a2b3c4d5e6f7a8b", Files: 3, Lines: 12}))
 
 			require.Equal(t, "no mutant: 12 changed lines in 3 files (base 1a2b3c4d5e)\n", output.String())
 		})
@@ -234,7 +235,7 @@ func TestNoMutantLine(t *testing.T) {
 			var output strings.Builder
 			mutants := []mutant.Mutant{reported("a.go", 3, "BRANCH_IF", 1, "{ g() }", "{}", mutant.Lived)}
 
-			require.NoError(t, report.NoMutantLine(&output, report.Outcome{Files: 1, Lines: 2, Mutants: mutants}))
+			require.NoError(t, report.NoMutantLine(&output, run.Outcome{Files: 1, Lines: 2, Mutants: mutants}))
 
 			require.Empty(t, output.String())
 		})
@@ -242,7 +243,7 @@ func TestNoMutantLine(t *testing.T) {
 		t.Run("a run that stopped at its limit gives no line", func(t *testing.T) {
 			var output strings.Builder
 
-			require.NoError(t, report.NoMutantLine(&output, report.Outcome{Files: 1, Lines: 2, Stopped: true}))
+			require.NoError(t, report.NoMutantLine(&output, run.Outcome{Files: 1, Lines: 2, Stopped: true}))
 
 			require.Empty(t, output.String())
 		})
