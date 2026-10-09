@@ -39,9 +39,20 @@ func (r *commitResult) find(check, mutant, text string) {
 	r.Findings = append(r.Findings, finding{Check: check, Mutant: mutant, Text: text})
 }
 
+func (r *commitResult) skip(text string) {
+	r.Skips = append(r.Skips, text)
+}
+
 type checker struct {
 	settings settings
 	clone    *clone
+	commit   string
+	tester   tester
+	result   commitResult
+}
+
+func newChecker(s settings, c *clone, commit string) *checker {
+	return &checker{settings: s, clone: c, commit: commit, tester: newTester(c), result: commitResult{Repository: c.Name, Commit: commit}}
 }
 
 type mutantsRun struct {
@@ -51,56 +62,59 @@ type mutantsRun struct {
 	report   report
 }
 
-func (k checker) check(ctx context.Context, commit string) (commitResult, error) {
-	result := commitResult{Repository: k.clone.Name, Commit: commit}
-	if err := k.clone.checkout(ctx, commit); err != nil {
-		return result, err
+func (k *checker) check(ctx context.Context) (commitResult, error) {
+	err := k.runChecks(ctx)
+	return k.result, err
+}
+
+func (k *checker) runChecks(ctx context.Context) error {
+	if err := k.clone.checkout(ctx, k.commit); err != nil {
+		return err
 	}
-	first, err := k.runMutants(ctx, commit, &result)
+	first, err := k.runMutants(ctx)
 	if err != nil {
-		return result, err
+		return err
 	}
-	result.Exit, result.Seconds, result.Mutants = first.exit, first.duration.Seconds(), first.report.Mutants
-	tester := newTester(k.clone)
+	k.result.Exit, k.result.Seconds, k.result.Mutants = first.exit, first.duration.Seconds(), first.report.Mutants
 	switch first.exit {
 	case 0, exitSurvivors:
 	case exitLimit:
-		result.Stop = "the run reached --limit " + k.settings.limit.String()
+		k.result.Stop = "the run reached --limit " + k.settings.limit.String()
 	case exitUsage:
-		result.Stop = stopMessage(first.stderr)
-		return result, k.checkStop(ctx, tester, &result)
+		k.result.Stop = stopMessage(first.stderr)
+		return k.checkStop(ctx)
 	default:
-		result.find("exit code", "", fmt.Sprintf("mutants run exited with code %d: %s", first.exit, stopMessage(first.stderr)))
-		return result, nil
+		k.result.find("exit code", "", fmt.Sprintf("mutants run exited with code %d: %s", first.exit, stopMessage(first.stderr)))
+		return nil
 	}
 
 	if k.settings.repeat && first.exit != exitLimit {
-		second, err := k.runMutants(ctx, commit, &result)
+		second, err := k.runMutants(ctx)
 		switch {
 		case err != nil:
-			return result, err
+			return err
 		case second.exit != first.exit && second.exit != 0 && second.exit != exitSurvivors:
-			result.find("second run", "", fmt.Sprintf("exit %d in the first run, exit %d in the second: %s", first.exit, second.exit, stopMessage(second.stderr)))
+			k.result.find("second run", "", fmt.Sprintf("exit %d in the first run, exit %d in the second: %s", first.exit, second.exit, stopMessage(second.stderr)))
 		default:
-			if err := k.compareRuns(ctx, tester, first.report, second.report, &result); err != nil {
-				return result, err
+			if err := k.compareRuns(ctx, first.report, second.report); err != nil {
+				return err
 			}
 		}
 	}
-	if err := k.checkReruns(ctx, tester, commit, &result); err != nil {
-		return result, err
+	if err := k.checkReruns(ctx); err != nil {
+		return err
 	}
-	return result, k.checkPlainTests(ctx, tester, &result)
+	return k.checkPlainTests(ctx)
 }
 
-func (k checker) runMutants(ctx context.Context, commit string, result *commitResult) (mutantsRun, error) {
+func (k *checker) runMutants(ctx context.Context) (mutantsRun, error) {
 	before, err := k.clone.status(ctx)
 	if err != nil {
 		return mutantsRun{}, err
 	}
 	ran, leftover, err := command{
 		program:   k.settings.mutants,
-		arguments: []string{"run", "--base", commit + "^", "--format", "json", "--limit", k.settings.limit.String()},
+		arguments: []string{"run", "--base", k.commit + "^", "--format", "json", "--limit", k.settings.limit.String()},
 		folder:    k.clone.folder,
 		limit:     k.settings.limit + 5*time.Minute,
 	}.runInSession(ctx)
@@ -109,67 +123,67 @@ func (k checker) runMutants(ctx context.Context, commit string, result *commitRe
 	}
 	run := mutantsRun{exit: ran.code, stderr: ran.stderr, duration: ran.duration}
 	if ran.timedOut {
-		result.find("exit code", "", "mutants run did not stop at --limit "+k.settings.limit.String())
+		k.result.find("exit code", "", "mutants run did not stop at --limit "+k.settings.limit.String())
 	}
 	if panicked(ran.stderr) {
-		result.find("exit code", "", "mutants run panicked:\n"+ran.stderr)
+		k.result.find("exit code", "", "mutants run panicked:\n"+ran.stderr)
 	}
 	after, err := k.clone.status(ctx)
 	if err != nil {
 		return mutantsRun{}, err
 	}
 	if after != before {
-		result.find("work tree", "", fmt.Sprintf("git status before the run:\n%safter the run:\n%s", before, after))
+		k.result.find("work tree", "", fmt.Sprintf("git status before the run:\n%safter the run:\n%s", before, after))
 	}
 	for _, process := range leftover {
-		result.find("processes", "", "alive after the run: "+process)
+		k.result.find("processes", "", "alive after the run: "+process)
 	}
 	if ran.code == 0 || ran.code == exitSurvivors || ran.code == exitLimit {
 		if err := json.Unmarshal([]byte(ran.stdout), &run.report); err != nil {
-			result.find("exit code", "", "the JSON report does not parse: "+err.Error())
+			k.result.find("exit code", "", "the JSON report does not parse: "+err.Error())
 		}
 	}
 	return run, nil
 }
 
-func (k checker) checkStop(ctx context.Context, tester tester, result *commitResult) error {
+func (k *checker) checkStop(ctx context.Context) error {
 	var folder string
-	if match := goStop.FindStringSubmatch(result.Stop); match != nil && k.clone.Language == "go" {
+	if match := goStop.FindStringSubmatch(k.result.Stop); match != nil && k.clone.Language == "go" {
 		listed, err := goCommand(k.clone.folder, "list", "-f", "{{.Dir}}", match[1]).run(ctx)
 		if err != nil {
 			return err
 		}
 		folder = strings.TrimSpace(listed.stdout)
 	}
-	if match := pythonStop.FindStringSubmatch(result.Stop); match != nil {
+	if match := pythonStop.FindStringSubmatch(k.result.Stop); match != nil {
 		folder = filepath.Join(k.clone.folder, match[1])
 	}
 	if folder == "" {
-		result.find("exit code", "", "mutants run exited with code 2: "+result.Stop)
+		k.result.find("exit code", "", "mutants run exited with code 2: "+k.result.Stop)
 		return nil
 	}
-	err := tester.baseline(ctx, folder)
+	err := k.tester.baseline(ctx, folder)
 	switch {
 	case ctx.Err() != nil:
 		return ctx.Err()
 	case err != nil:
-		result.Skips = append(result.Skips, err.Error())
+		k.result.skip(err.Error())
 		return nil
 	}
-	text := "mutants says that the tests fail with the real code, but a plain run of them passes: " + firstLine(result.Stop)
-	passes, runs, err := k.countPasses(1, 1, func() (plainResult, error) { return tester.testIn(ctx, folder) })
+	text := "mutants says that the tests fail with the real code, but a plain run of them passes: " + firstLine(k.result.Stop)
+	passes, runs, err := k.countPasses(1, 1, func() (plainResult, error) { return k.tester.testIn(ctx, folder) })
 	switch {
 	case err != nil:
 		return err
 	case passes < runs:
-		result.Skips = append(result.Skips, fmt.Sprintf("%s, and the plain tests pass in %d of %d runs with the real code", text, passes, runs))
+		k.result.skip(fmt.Sprintf("%s, and the plain tests pass in %d of %d runs with the real code", text, passes, runs))
 	default:
-		result.find("plain tests", "", text)
+		k.result.find("plain tests", "", text)
 	}
 	return nil
 }
 
-func (k checker) compareRuns(ctx context.Context, tester tester, first, second report, result *commitResult) error {
+func (k *checker) compareRuns(ctx context.Context, first, second report) error {
 	statusIn := func(r report) map[string]string {
 		statuses := map[string]string{}
 		for _, m := range r.Mutants {
@@ -180,38 +194,38 @@ func (k checker) compareRuns(ctx context.Context, tester tester, first, second r
 	firstStatuses, secondStatuses := statusIn(first), statusIn(second)
 	for _, m := range first.Mutants {
 		if status := secondStatuses[m.ID]; status != m.Status {
-			if err := k.findUnlessFlaky(ctx, tester, m, "second run", fmt.Sprintf("%s in the first run, %q in the second", m.Status, status), result); err != nil {
+			if err := k.findUnlessFlaky(ctx, m, "second run", fmt.Sprintf("%s in the first run, %q in the second", m.Status, status)); err != nil {
 				return err
 			}
 		}
 	}
 	for _, m := range second.Mutants {
 		if _, found := firstStatuses[m.ID]; !found {
-			result.find("second run", m.ID, "only in the second run, with "+m.Status)
+			k.result.find("second run", m.ID, "only in the second run, with "+m.Status)
 		}
 	}
 	return nil
 }
 
-func (k checker) checkReruns(ctx context.Context, tester tester, commit string, result *commitResult) error {
+func (k *checker) checkReruns(ctx context.Context) error {
 	for _, status := range []string{killed, lived, notCovered, notViable} {
-		for _, m := range sample(result.Mutants, status, k.settings.sample) {
+		for _, m := range sample(k.result.Mutants, status, k.settings.sample) {
 			ran, leftover, err := command{
 				program:   k.settings.mutants,
-				arguments: []string{"rerun", "--base", commit + "^", m.ID},
+				arguments: []string{"rerun", "--base", k.commit + "^", m.ID},
 				folder:    k.clone.folder,
 				limit:     plainLimit,
 			}.runInSession(ctx)
 			if err != nil {
 				return err
 			}
-			result.Reruns++
+			k.result.Reruns++
 			for _, process := range leftover {
-				result.find("processes", m.ID, "alive after the rerun: "+process)
+				k.result.find("processes", m.ID, "alive after the rerun: "+process)
 			}
 			if got := statusOfRerun(ran.stdout); got != m.Status || ran.code != rerunExit(m.Status) {
 				text := fmt.Sprintf("%s in the run, but rerun exits %d with %q: %s", m.Status, ran.code, got, firstLine(ran.output()))
-				if err := k.findUnlessFlaky(ctx, tester, m, "rerun", text, result); err != nil {
+				if err := k.findUnlessFlaky(ctx, m, "rerun", text); err != nil {
 					return err
 				}
 			}
@@ -230,10 +244,10 @@ func rerunExit(status string) int {
 	return exitNoVerdict
 }
 
-func (k checker) checkPlainTests(ctx context.Context, tester tester, result *commitResult) error {
+func (k *checker) checkPlainTests(ctx context.Context) error {
 	for _, status := range []string{lived, killed, notCovered} {
-		for _, m := range sample(result.Mutants, status, k.settings.sample) {
-			if err := k.checkPlainTest(ctx, tester, m, result); err != nil {
+		for _, m := range sample(k.result.Mutants, status, k.settings.sample) {
+			if err := k.checkPlainTest(ctx, m); err != nil {
 				return err
 			}
 		}
@@ -241,87 +255,87 @@ func (k checker) checkPlainTests(ctx context.Context, tester tester, result *com
 	return nil
 }
 
-func (k checker) checkPlainTest(ctx context.Context, tester tester, m reportedMutant, result *commitResult) error {
+func (k *checker) checkPlainTest(ctx context.Context, m reportedMutant) error {
 	source, err := os.ReadFile(filepath.Join(k.clone.folder, m.File))
 	if err != nil {
 		return err
 	}
 	if _, err := m.applyTo(source); err != nil {
-		result.find("plain tests", m.ID, "the report gives a wrong place: "+err.Error())
+		k.result.find("plain tests", m.ID, "the report gives a wrong place: "+err.Error())
 		return nil
 	}
-	if err := tester.baseline(ctx, tester.folderOf(m.File)); err != nil {
+	if err := k.tester.baseline(ctx, k.tester.folderOf(m.File)); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		result.Skips = append(result.Skips, m.ID+": "+err.Error())
+		k.result.skip(m.ID + ": " + err.Error())
 		return nil
 	}
 
 	var own, callers plainResult
 	err = k.withMutant(m, func() error {
 		var err error
-		if own, err = tester.test(ctx, m.File); err != nil || m.Status != killed || !own.passed() {
+		if own, err = k.tester.test(ctx, m.File); err != nil || m.Status != killed || !own.passed() {
 			return err
 		}
-		callers, err = tester.testCallers(ctx, m.File)
+		callers, err = k.tester.testCallers(ctx, m.File)
 		return err
 	})
 	if err != nil {
 		return err
 	}
-	result.PlainTests++
+	k.result.PlainTests++
 	switch {
 	case own.timedOut:
-		result.Skips = append(result.Skips, m.ID+": the plain tests ran past "+plainLimit.String())
+		k.result.skip(m.ID + ": the plain tests ran past " + plainLimit.String())
 	case strings.Contains(own.notBuilt, "declared and not used") || strings.Contains(own.notBuilt, "imported and not used") || strings.Contains(own.notBuilt, "defined and not used"):
-		result.Skips = append(result.Skips, m.ID+": the mutant builds only after mutants repairs the names that it leaves unused")
+		k.result.skip(m.ID + ": the mutant builds only after mutants repairs the names that it leaves unused")
 	case own.notBuilt != "" && m.Status != notCovered:
-		result.find("plain tests", m.ID, m.Status+", but the mutant does not build: "+firstLine(own.notBuilt))
+		k.result.find("plain tests", m.ID, m.Status+", but the mutant does not build: "+firstLine(own.notBuilt))
 	case m.Status == killed && own.failure == "" && callers.failure == "":
-		return k.findUnlessFlaky(ctx, tester, m, "plain tests", "KILLED, but each plain test passes", result)
+		return k.findUnlessFlaky(ctx, m, "plain tests", "KILLED, but each plain test passes")
 	case m.Status != killed && own.failure != "":
-		return k.findUnlessFlaky(ctx, tester, m, "plain tests", m.Status+", but a plain test fails: "+own.failure, result)
+		return k.findUnlessFlaky(ctx, m, "plain tests", m.Status+", but a plain test fails: "+own.failure)
 	}
 	return nil
 }
 
 // findUnlessFlaky runs the plain tests with the mutant again, because a test that depends on timing or on the
 // order of the tests can kill a mutant in one run and let it live in the next.
-func (k checker) findUnlessFlaky(ctx context.Context, tester tester, m reportedMutant, check, text string, result *commitResult) error {
+func (k *checker) findUnlessFlaky(ctx context.Context, m reportedMutant, check, text string) error {
 	source, err := os.ReadFile(filepath.Join(k.clone.folder, m.File))
 	if err != nil {
 		return err
 	}
 	if _, err := m.applyTo(source); err != nil {
-		result.find(check, m.ID, text)
+		k.result.find(check, m.ID, text)
 		return nil
 	}
-	if err := tester.baseline(ctx, tester.folderOf(m.File)); err != nil {
+	if err := k.tester.baseline(ctx, k.tester.folderOf(m.File)); err != nil {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		result.find(check, m.ID, text)
+		k.result.find(check, m.ID, text)
 		return nil
 	}
 	var passes, runs int
 	err = k.withMutant(m, func() error {
 		var err error
-		passes, runs, err = k.countPasses(0, 0, func() (plainResult, error) { return tester.test(ctx, m.File) })
+		passes, runs, err = k.countPasses(0, 0, func() (plainResult, error) { return k.tester.test(ctx, m.File) })
 		return err
 	})
 	switch {
 	case err != nil:
 		return err
 	case passes > 0 && passes < runs:
-		result.Skips = append(result.Skips, fmt.Sprintf("%s: %s, and the plain tests pass in %d of %d runs with the mutant", m.ID, text, passes, runs))
+		k.result.skip(fmt.Sprintf("%s: %s, and the plain tests pass in %d of %d runs with the mutant", m.ID, text, passes, runs))
 	default:
-		result.find(check, m.ID, text)
+		k.result.find(check, m.ID, text)
 	}
 	return nil
 }
 
-func (k checker) countPasses(passes, runs int, run func() (plainResult, error)) (int, int, error) {
+func (k *checker) countPasses(passes, runs int, run func() (plainResult, error)) (int, int, error) {
 	for runs < k.settings.plainRuns && (passes == 0 || passes == runs) {
 		tested, err := run()
 		if err != nil {
@@ -335,7 +349,7 @@ func (k checker) countPasses(passes, runs int, run func() (plainResult, error)) 
 	return passes, runs, nil
 }
 
-func (k checker) withMutant(m reportedMutant, do func() error) error {
+func (k *checker) withMutant(m reportedMutant, do func() error) error {
 	path := filepath.Join(k.clone.folder, m.File)
 	source, err := os.ReadFile(path)
 	if err != nil {

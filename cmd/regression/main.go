@@ -136,7 +136,7 @@ func checkRepository(ctx context.Context, r repository, s settings, stdout io.Wr
 	}
 	var results []commitResult
 	for _, commit := range commits {
-		result, err := checker{settings: s, clone: c}.check(ctx, commit)
+		result, err := newChecker(s, c, commit).check(ctx)
 		results = append(results, result)
 		printResult(stdout, result)
 		if err != nil {
