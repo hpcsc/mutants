@@ -38,6 +38,11 @@ end-to-end tests run the binary against small Go modules in git repositories tha
 CI runs shellcheck, the build, the unit tests, govulncheck and the end-to-end tests on each push to a
 branch other than `main`. For `main`, the Prerelease workflow runs the same checks.
 
+The Mutants workflow runs `mutants` on its own changes after each push: against `origin/main` for a branch,
+and against the commit before the push for `main`. `.mutants.yml` gives it the build tag `unit`. The job
+summary shows the rows, and the artifact `mutants-reports` holds the JSON and the Stryker report. A survivor
+does not fail the job, and the run stops after 60 minutes. The release does not wait for this workflow.
+
 ## How a build gets its version
 
 `internal/version` gives the version that `mutants version` prints:

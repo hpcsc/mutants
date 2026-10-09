@@ -1,0 +1,43 @@
+# The settings of mutants for this repository. A flag of mutants run wins over a setting here.
+
+# mutants compares the work tree with the merge base of HEAD and this base.
+# The clone does not know the default branch of origin, so the base is the default.
+# base: origin/HEAD
+
+# The number of mutants that run at the same time.
+# workers: 4
+
+# The operators: -NAME takes one out, +NAME adds one, NAME runs only the named ones, and none runs
+# no operator. mutants operators lists them.
+# operators: [-NAMED_VALUE_REMOVE]
+
+# The files that get no mutant, as globs from the root of the repository.
+# The Python support files of the adapter have no Python project with pytest tests in this repository.
+# The regression test is a test program, and each run of its tests takes minutes.
+exclude: ["internal/language/python/*.py", "cmd/regression/**"]
+
+# Also find the changed statements that no test of a changed caller runs.
+# caller_gaps: false
+
+# The settings of Go.
+go:
+  # A test file with a build tag runs only when tags names the tag. Without the tag, the mutants of
+  # its package are NOT COVERED.
+  # The test files need this tag:
+  #   unit: 23 files
+  tags: [unit]
+
+  # The functions that return the zero value of their type, as package.Function with the name of
+  # the package. NAMED_VALUE_REMOVE skips a field whose value is a call of one of them, and RETURN_EMPTY
+  # skips a struct literal whose fields are all such calls.
+  # zero_functions: [maybe.None]
+
+  # The types that get no mutant, as globs of the name of the type: the methods of each such type, and
+  # the functions that return one, for example the fakes that the tests of other packages use.
+  # exclude_types: [Fake*]
+
+# The settings of Python.
+python:
+  # The command that starts the Python of a project, in the folder of the project. The default is
+  # .venv/bin/python of the project when it exists, and python3 when it does not.
+  # command: [uv, run, python]

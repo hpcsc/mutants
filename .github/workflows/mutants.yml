@@ -1,0 +1,67 @@
+name: Mutants
+
+# mutants tests its own changes here. The release does not wait for this workflow, because a change to a
+# package with slow tests can take an hour.
+on:
+  push: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mutants-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v7
+      with:
+        go-version-file: 'go.mod'
+
+    - name: Mise install
+      uses: jdx/mise-action@v5
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build
+      run: task build
+
+    # A survivor is a gap in the tests of this repository, and the limit stops a long run with a report of the
+    # mutants that got a verdict. Any other exit code means that mutants could not test its own code.
+    - name: Run mutants on the changes of the push
+      env:
+        BEFORE: ${{ github.event.before }}
+      run: |
+        base=origin/main
+        if [ "$GITHUB_REF" = refs/heads/main ]; then
+          base=HEAD^
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            base=$BEFORE
+          fi
+        fi
+        status=0
+        ./bin/mutants run --base "$base" --limit 60m --json mutants.json --stryker mutants-stryker.json > mutants.txt || status=$?
+        cat mutants.txt
+        { echo '```text'; cat mutants.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        case "$status" in
+          0 | 10 | 124) ;;
+          *) exit "$status" ;;
+        esac
+
+    - name: Upload the reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: mutants-reports
+        path: |
+          mutants.json
+          mutants-stryker.json
+        if-no-files-found: ignore
