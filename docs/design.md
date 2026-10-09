@@ -258,7 +258,7 @@ The Go pack for v1:
 | `CONDITIONALS_BOUNDARY` | `<` to `<=`, `>` to `>=`, `a.After(b)` to `!a.Before(b)`, `a.Before(b)` to `!a.After(b)`, and back | Go compares two `time.Time` values with `After` and `Before`, and each pair differs only when the two times are equal |
 | `CONDITIONALS_NEGATION` | `==` to `!=`, `<` to `>=`, and the rest | |
 | `ARITHMETIC_BASE` | `+` to `-`, `-` to `+`, `*` to `/`, `/` to `*`, `%` to `*` | |
-| `INCREMENT_DECREMENT` | `++` to `--`, and back | |
+| `INCREMENT_DECREMENT` | `++` to `--`, `+=` to `-=`, and back | |
 | `INVERT_LOGICAL` | `&&` to `\|\|`, and back | |
 | `REMOVE_LOGICAL_NOT` | `!x` to `x` | |
 | `EXPRESSION_REMOVE` | `a && b` to `true && b` and to `a && true`, `a \|\| b` to `false \|\| b` and to `a \|\| false` | |
@@ -293,6 +293,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | a `NAMED_VALUE_REMOVE` field outside a struct literal, or whose value is zero already |
 | Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |
+| Type | an `INCREMENT_DECREMENT` of `+=` whose left side is not a number, such as a string, because a string has no `-=` |
 
 A value is zero already when `go/types` gives it the zero value of its type, or when it is a call of a function
 of `go.zero_functions`. A struct literal is zero already when each of its fields is zero already, so

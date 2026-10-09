@@ -95,6 +95,13 @@ func Kind(n int) string {
 func Close(done chan struct{}) {
 	close(done)
 }
+
+func Shout(text string, times int) string {
+	for i := 0; i < times; i += 1 {
+		text += "!"
+	}
+	return text
+}
 `
 
 const pythonShop = `import logging

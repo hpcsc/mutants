@@ -28,7 +28,7 @@ ast-grep rules of each one.
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
 | `ARITHMETIC_BASE` | `a + b` to `a - b`, `a * b` to `a / b` | no test checks the result of the calculation |
-| `INCREMENT_DECREMENT` | `i++` to `i--` | no test checks the count |
+| `INCREMENT_DECREMENT` | `i++` to `i--`, and `total += n` to `total -= n` | no test checks the count or the total |
 | `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)` | no test pins the number, for example a limit or a size |
 
 ## Branches and statements

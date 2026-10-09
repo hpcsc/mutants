@@ -60,6 +60,8 @@ shop/shop.go:Sum:BREAK_AT_END#1 48:2 NOT COVERED
   "for _, item := range items {\n\t\tsum += item * 2\n\t}" -> "for _, item := range items {\n\tsum += item * 2\n\n\tbreak\n}"
 shop/shop.go:Sum:BREAK_AT_START#1 48:2 NOT COVERED
   "for _, item := range items {\n\t\tsum += item * 2\n\t}" -> "for _, item := range items {\n\tbreak\n\tsum += item * 2\n\n}"
+shop/shop.go:Sum:INCREMENT_DECREMENT#1 49:3 NOT COVERED
+  "sum += item * 2" -> "sum -= item * 2"
 shop/shop.go:Sum:ARITHMETIC_BASE#1 49:10 NOT COVERED
   "item * 2" -> "item / 2"
 shop/shop.go:Sum:INTEGER_DECREMENT#2 49:17 NOT COVERED
@@ -158,3 +160,21 @@ shop/shop.go:Kind:RETURN_EMPTY#2 88:10 NOT COVERED
   "\"odd\"" -> "\"\""
 shop/shop.go:Close:STATEMENT_REMOVE#1 93:2 NOT COVERED
   "close(done)" -> ""
+shop/shop.go:Shout:BREAK_AT_END#1 97:2 NOT COVERED
+  "for i := 0; i < times; i += 1 {\n\t\ttext += \"!\"\n\t}" -> "for i := 0; i < times; i += 1 {\n\ttext += \"!\"\n\n\tbreak\n}"
+shop/shop.go:Shout:INTEGER_DECREMENT#1 97:11 NOT COVERED
+  "0" -> "(0-1)"
+shop/shop.go:Shout:INTEGER_INCREMENT#1 97:11 NOT COVERED
+  "0" -> "(0+1)"
+shop/shop.go:Shout:CONDITIONALS_BOUNDARY#1 97:14 NOT COVERED
+  "i < times" -> "i <= times"
+shop/shop.go:Shout:CONDITIONALS_NEGATION#1 97:14 NOT COVERED
+  "i < times" -> "i >= times"
+shop/shop.go:Shout:INCREMENT_DECREMENT#1 97:25 NOT COVERED
+  "i += 1" -> "i -= 1"
+shop/shop.go:Shout:INTEGER_DECREMENT#2 97:30 NOT COVERED
+  "1" -> "(1-1)"
+shop/shop.go:Shout:INTEGER_INCREMENT#2 97:30 NOT COVERED
+  "1" -> "(1+1)"
+shop/shop.go:Shout:RETURN_EMPTY#1 100:9 NOT COVERED
+  "text" -> "\"\""

@@ -50,6 +50,13 @@ func newModule(t *testing.T, files map[string]string) string {
 	return root
 }
 
+func ruleEditOf(t *testing.T, root, rule, original, replacement string) operator.Edit {
+	t.Helper()
+	edit := editOf(t, root, "calc/calc.go", "INCREMENT_DECREMENT", original, replacement)
+	edit.Rule = rule
+	return edit
+}
+
 func editOf(t *testing.T, root, file, operatorName, original, replacement string) operator.Edit {
 	t.Helper()
 	source, err := os.ReadFile(filepath.Join(root, file))
@@ -731,6 +738,16 @@ func Run(ctx context.Context, id, name string, cause error) []error {
 			for _, candidate := range []string{"nil", "0", `""`, "false"} {
 				require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "xs[0]", candidate)), candidate)
 			}
+		})
+
+		t.Run("keeps an INCREMENT_DECREMENT of += on a number, and drops one on a string, where -= does not compile", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nimport \"time\"\n\nfunc Grow(n int, d time.Duration, text string, xs []float64) string {\n\tn += 2\n\td += time.Second\n\txs[0] += 1.5\n\ttext += \"!\"\n\treturn text\n}\n"})
+			adapter := golang.New(root, defaultSettings)
+
+			require.True(t, adapter.Keep(ruleEditOf(t, root, "INCREMENT_DECREMENT/plus-assign", "n += 2", "n -= 2")))
+			require.True(t, adapter.Keep(ruleEditOf(t, root, "INCREMENT_DECREMENT/plus-assign", "d += time.Second", "d -= time.Second")))
+			require.True(t, adapter.Keep(ruleEditOf(t, root, "INCREMENT_DECREMENT/plus-assign", "xs[0] += 1.5", "xs[0] -= 1.5")))
+			require.False(t, adapter.Keep(ruleEditOf(t, root, "INCREMENT_DECREMENT/plus-assign", `text += "!"`, `text -= "!"`)))
 		})
 
 		t.Run("keeps the edits that need types in a file that imports C, and drops the ones of the wrong type", func(t *testing.T) {

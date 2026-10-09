@@ -358,6 +358,12 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"a++ -> a--", "b-- -> b++"}, edits)
 		})
 
+		t.Run("INCREMENT_DECREMENT swaps += and -=", func(t *testing.T) {
+			edits := editsOf(t, "INCREMENT_DECREMENT", "package a\n\nfunc f(a, b int) {\n\ta += b\n\ta -= 1\n\tfor i := 0; i < b; i += 2 {\n\t}\n}\n")
+
+			require.Equal(t, []string{"a += b -> a -= b", "a -= 1 -> a += 1", "i += 2 -> i -= 2"}, edits)
+		})
+
 		t.Run("INVERT_LOGICAL swaps && and ||", func(t *testing.T) {
 			edits := editsOf(t, "INVERT_LOGICAL", "package a\n\nfunc f(a, b bool) []bool {\n\treturn []bool{a && b, a || b}\n}\n")
 

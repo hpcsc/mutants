@@ -27,6 +27,7 @@ const (
 	argumentEmpty    = "ARGUMENT_EMPTY"
 
 	timeBoundaryRules = "CONDITIONALS_BOUNDARY/time-"
+	plusAssignRule    = "INCREMENT_DECREMENT/plus-assign"
 )
 
 type Settings struct {
@@ -111,6 +112,9 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 	}
 	if strings.HasPrefix(candidate.Rule, timeBoundaryRules) {
 		return a.types.callsTimeMethod(path, candidate.Start, candidate.End)
+	}
+	if candidate.Rule == plusAssignRule {
+		return a.types.addsNumbers(path, candidate.Start, candidate.End)
 	}
 	switch candidate.Operator {
 	case namedValueSwap:

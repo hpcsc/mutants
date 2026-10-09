@@ -237,6 +237,27 @@ func (c *typeChecker) canBecomeTrue(path string, start, end int) bool {
 	return isBasic && basic.Info()&types.IsBoolean != 0 && !isTrue
 }
 
+func (c *typeChecker) addsNumbers(path string, start, end int) bool {
+	loaded, syntax, lines := c.file(path)
+	if syntax == nil || start < 0 || end > lines.Size() {
+		return false
+	}
+	enclosing, _ := astutil.PathEnclosingInterval(syntax, lines.Pos(start), lines.Pos(end))
+	for _, node := range enclosing {
+		assignment, ok := node.(*ast.AssignStmt)
+		if !ok || assignment.Tok != token.ADD_ASSIGN || len(assignment.Lhs) != 1 {
+			continue
+		}
+		target := loaded.TypesInfo.TypeOf(assignment.Lhs[0])
+		if target == nil {
+			return false
+		}
+		basic, isBasic := target.Underlying().(*types.Basic)
+		return isBasic && basic.Info()&types.IsNumeric != 0
+	}
+	return false
+}
+
 func (c *typeChecker) callsTimeMethod(path string, start, end int) bool {
 	loaded, syntax, lines := c.file(path)
 	if syntax == nil || start < 0 || end > lines.Size() {

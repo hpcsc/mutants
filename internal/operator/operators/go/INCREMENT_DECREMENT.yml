@@ -9,3 +9,15 @@ language: go
 rule:
   pattern: $X--
 fix: $X++
+---
+id: INCREMENT_DECREMENT/plus-assign
+language: go
+rule:
+  pattern: $X += $N
+fix: $X -= $N
+---
+id: INCREMENT_DECREMENT/minus-assign
+language: go
+rule:
+  pattern: $X -= $N
+fix: $X += $N
