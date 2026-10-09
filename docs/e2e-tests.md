@@ -11,6 +11,7 @@ one test file uses, and `e2e/tests/` has the tests:
 | `run.test.ts` | the core of `mutants run` and `mutants rerun`: the diff, the settings, the reports, the proposals and the exit codes. Its fixtures are Go code, but no test depends on how the Go adapter works. |
 | `go.test.ts` | the Go adapter: its filters, its coverage, its runner, its build cache and its caller gaps |
 | `python.test.ts` | the Python adapter: its skip rules, its coverage, its test selection, its runner and its projects, and a repository with Go and Python code |
+| `snapshot.test.ts` | each mutant that the operators make in a fixed Go project and a fixed Python project, against the lists in `tests/__snapshots__/` |
 | `cli.test.ts` | the root command, `mutants config init` and `mutants version` |
 | `update.test.ts` | `mutants update` |
 
@@ -117,6 +118,19 @@ shows the link as an untracked file.
 | `exclude: ["**/*.py"]` | no mutant of a Python file |
 
 To keep each test short, a test names the operators that it needs with `--operators`.
+
+## The snapshot tests
+
+`snapshot.test.ts` runs each operator, also the ones that are off by default, on a Go project and a Python
+project that have no tests. So each mutant is NOT COVERED, and no test runs. The test compares the id, the
+place, the status and the edit of each mutant with a list in `tests/__snapshots__/`. A change to a rule, a
+skip rule or a filter then shows in review as a change of a list.
+
+After a change on purpose, write the lists again, and read their diff before the commit:
+
+```shell
+cd e2e && EXECUTABLE=../bin/mutants-e2e BUILD_TAG=v0.1.0 npx vitest run tests/snapshot.test.ts -u
+```
 
 ## The update tests
 

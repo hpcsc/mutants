@@ -1,0 +1,160 @@
+shop/shop.go:(*event).Str:RETURN_EMPTY#1 20:56 NOT COVERED
+  "e" -> "nil"
+shop/shop.go:logger:RETURN_EMPTY#1 23:31 NOT COVERED
+  "&event{}" -> "nil"
+shop/shop.go:Discount:CONDITIONALS_BOUNDARY#1 28:5 NOT COVERED
+  "total >= 100" -> "total > 100"
+shop/shop.go:Discount:CONDITIONALS_NEGATION#1 28:5 NOT COVERED
+  "total >= 100" -> "total < 100"
+shop/shop.go:Discount:INTEGER_DECREMENT#1 28:14 NOT COVERED
+  "100" -> "(100-1)"
+shop/shop.go:Discount:INTEGER_INCREMENT#1 28:14 NOT COVERED
+  "100" -> "(100+1)"
+shop/shop.go:Discount:BRANCH_IF#1 28:18 NOT COVERED
+  "{\n\t\treturn 10\n\t}" -> "{}"
+shop/shop.go:Discount:INTEGER_DECREMENT#2 29:10 NOT COVERED
+  "10" -> "(10-1)"
+shop/shop.go:Discount:INTEGER_INCREMENT#2 29:10 NOT COVERED
+  "10" -> "(10+1)"
+shop/shop.go:Discount:RETURN_EMPTY#1 29:10 NOT COVERED
+  "10" -> "0"
+shop/shop.go:Discount:INTEGER_DECREMENT#3 31:9 NOT COVERED
+  "0" -> "(0-1)"
+shop/shop.go:Discount:INTEGER_INCREMENT#3 31:9 NOT COVERED
+  "0" -> "(0+1)"
+shop/shop.go:Price:ARITHMETIC_BASE#1 35:9 NOT COVERED
+  "order.Total - Discount(order.Total)" -> "order.Total + Discount(order.Total)"
+shop/shop.go:Price:RETURN_EMPTY#1 35:9 NOT COVERED
+  "order.Total - Discount(order.Total)" -> "0"
+shop/shop.go:Price:ARGUMENT_EMPTY#1 35:32 NOT COVERED
+  "order.Total" -> "0"
+shop/shop.go:Late:CONDITIONALS_BOUNDARY#1 39:9 NOT COVERED
+  "now.After(due)" -> "!now.Before(due)"
+shop/shop.go:Late:RETURN_EMPTY#1 39:9 NOT COVERED
+  "now.After(due)" -> "false"
+shop/shop.go:Late:RETURN_TRUE#1 39:9 NOT COVERED
+  "now.After(due)" -> "true"
+shop/shop.go:Allowed:EXPRESSION_REMOVE#1 43:9 NOT COVERED
+  "paid && (owner || !admin)" -> "true && (owner || !admin)"
+shop/shop.go:Allowed:EXPRESSION_REMOVE#2 43:9 NOT COVERED
+  "paid && (owner || !admin)" -> "paid && true"
+shop/shop.go:Allowed:INVERT_LOGICAL#1 43:9 NOT COVERED
+  "paid && (owner || !admin)" -> "paid || (owner || !admin)"
+shop/shop.go:Allowed:RETURN_EMPTY#1 43:9 NOT COVERED
+  "paid && (owner || !admin)" -> "false"
+shop/shop.go:Allowed:RETURN_TRUE#1 43:9 NOT COVERED
+  "paid && (owner || !admin)" -> "true"
+shop/shop.go:Allowed:EXPRESSION_REMOVE#3 43:18 NOT COVERED
+  "owner || !admin" -> "false || !admin"
+shop/shop.go:Allowed:EXPRESSION_REMOVE#4 43:18 NOT COVERED
+  "owner || !admin" -> "owner || false"
+shop/shop.go:Allowed:INVERT_LOGICAL#2 43:18 NOT COVERED
+  "owner || !admin" -> "owner && !admin"
+shop/shop.go:Allowed:REMOVE_LOGICAL_NOT#1 43:27 NOT COVERED
+  "!admin" -> "admin"
+shop/shop.go:Sum:INTEGER_DECREMENT#1 47:9 NOT COVERED
+  "0" -> "(0-1)"
+shop/shop.go:Sum:INTEGER_INCREMENT#1 47:9 NOT COVERED
+  "0" -> "(0+1)"
+shop/shop.go:Sum:BREAK_AT_END#1 48:2 NOT COVERED
+  "for _, item := range items {\n\t\tsum += item * 2\n\t}" -> "for _, item := range items {\n\tsum += item * 2\n\n\tbreak\n}"
+shop/shop.go:Sum:BREAK_AT_START#1 48:2 NOT COVERED
+  "for _, item := range items {\n\t\tsum += item * 2\n\t}" -> "for _, item := range items {\n\tbreak\n\tsum += item * 2\n\n}"
+shop/shop.go:Sum:ARITHMETIC_BASE#1 49:10 NOT COVERED
+  "item * 2" -> "item / 2"
+shop/shop.go:Sum:INTEGER_DECREMENT#2 49:17 NOT COVERED
+  "2" -> "(2-1)"
+shop/shop.go:Sum:INTEGER_INCREMENT#2 49:17 NOT COVERED
+  "2" -> "(2+1)"
+shop/shop.go:Sum:RETURN_EMPTY#1 51:9 NOT COVERED
+  "sum" -> "0"
+shop/shop.go:Count:INTEGER_DECREMENT#1 55:11 NOT COVERED
+  "0" -> "(0-1)"
+shop/shop.go:Count:INTEGER_INCREMENT#1 55:11 NOT COVERED
+  "0" -> "(0+1)"
+shop/shop.go:Count:BREAK_AT_END#1 56:2 NOT COVERED
+  "for i := 0; i < len(items); i++ {\n\t\tcount++\n\t}" -> "for i := 0; i < len(items); i++ {\n\tcount++\n\n\tbreak\n}"
+shop/shop.go:Count:INTEGER_DECREMENT#2 56:11 NOT COVERED
+  "0" -> "(0-1)"
+shop/shop.go:Count:INTEGER_INCREMENT#2 56:11 NOT COVERED
+  "0" -> "(0+1)"
+shop/shop.go:Count:CONDITIONALS_BOUNDARY#1 56:14 NOT COVERED
+  "i < len(items)" -> "i <= len(items)"
+shop/shop.go:Count:CONDITIONALS_NEGATION#1 56:14 NOT COVERED
+  "i < len(items)" -> "i >= len(items)"
+shop/shop.go:Count:INCREMENT_DECREMENT#1 56:30 NOT COVERED
+  "i++" -> "i--"
+shop/shop.go:Count:INCREMENT_DECREMENT#2 57:3 NOT COVERED
+  "count++" -> "count--"
+shop/shop.go:Count:RETURN_EMPTY#1 59:9 NOT COVERED
+  "count" -> "0"
+shop/shop.go:Summarise:RETURN_EMPTY#1 63:9 NOT COVERED
+  "Totals{Paid: paid, Owed: owed}" -> "Totals{}"
+shop/shop.go:Summarise:NAMED_VALUE_REMOVE#1 63:16 NOT COVERED
+  "Paid: paid," -> ""
+shop/shop.go:Summarise:NAMED_VALUE_SWAP#1 63:22 NOT COVERED
+  "paid, Owed: owed" -> "owed, Owed: paid"
+shop/shop.go:Summarise:NAMED_VALUE_REMOVE#2 63:28 NOT COVERED
+  "Owed: owed" -> ""
+shop/shop.go:Load:CONDITIONALS_NEGATION#1 67:5 NOT COVERED
+  "id == \"\"" -> "id != \"\""
+shop/shop.go:Load:BRANCH_IF#1 67:14 NOT COVERED
+  "{\n\t\tlogger().Str(\"id\", id).Msg(\"load \" + id)\n\t\treturn Order{}, errEmpty\n\t}" -> "{}"
+shop/shop.go:Load:ERROR_REMOVE#1 69:19 NOT COVERED
+  "errEmpty" -> "nil"
+shop/shop.go:Load:RETURN_EMPTY#1 71:9 NOT COVERED
+  "Order{ID: id, Total: 100 - 1}" -> "Order{}"
+shop/shop.go:Load:NAMED_VALUE_REMOVE#1 71:15 NOT COVERED
+  "ID: id," -> ""
+shop/shop.go:Load:NAMED_VALUE_REMOVE#2 71:23 NOT COVERED
+  "Total: 100 - 1" -> ""
+shop/shop.go:Load:ARITHMETIC_BASE#1 71:30 NOT COVERED
+  "100 - 1" -> "100 + 1"
+shop/shop.go:Load:INTEGER_DECREMENT#1 71:30 NOT COVERED
+  "100" -> "(100-1)"
+shop/shop.go:Load:INTEGER_INCREMENT#1 71:30 NOT COVERED
+  "100" -> "(100+1)"
+shop/shop.go:Load:INTEGER_DECREMENT#2 71:36 NOT COVERED
+  "1" -> "(1-1)"
+shop/shop.go:Load:INTEGER_INCREMENT#2 71:36 NOT COVERED
+  "1" -> "(1+1)"
+shop/shop.go:Save:CONDITIONALS_BOUNDARY#1 75:5 NOT COVERED
+  "total < 0" -> "total <= 0"
+shop/shop.go:Save:CONDITIONALS_NEGATION#1 75:5 NOT COVERED
+  "total < 0" -> "total >= 0"
+shop/shop.go:Save:INTEGER_DECREMENT#1 75:13 NOT COVERED
+  "0" -> "(0-1)"
+shop/shop.go:Save:INTEGER_INCREMENT#1 75:13 NOT COVERED
+  "0" -> "(0+1)"
+shop/shop.go:Save:BRANCH_IF#1 75:15 NOT COVERED
+  "{\n\t\treturn fmt.Errorf(\"save %s: %w\", order.ID, errEmpty)\n\t}" -> "{}"
+shop/shop.go:Save:ERROR_CAUSE_REMOVE#1 76:10 NOT COVERED
+  "fmt.Errorf(\"save %s: %w\", order.ID, errEmpty)" -> "fmt.Errorf(\"save %s: %v\", order.ID, errEmpty)"
+shop/shop.go:Save:ERROR_REMOVE#1 76:10 NOT COVERED
+  "fmt.Errorf(\"save %s: %w\", order.ID, errEmpty)" -> "nil"
+shop/shop.go:Save:BRANCH_ELSE#1 77:9 NOT COVERED
+  "{\n\t\torder.Total = total\n\t}" -> "{}"
+shop/shop.go:Save:STATEMENT_REMOVE#1 78:3 NOT COVERED
+  "order.Total = total" -> "_ = total"
+shop/shop.go:Kind:ARITHMETIC_BASE#1 85:7 NOT COVERED
+  "n%2" -> "n * 2"
+shop/shop.go:Kind:CONDITIONALS_NEGATION#1 85:7 NOT COVERED
+  "n%2 == 0" -> "n%2 != 0"
+shop/shop.go:Kind:INTEGER_DECREMENT#1 85:9 NOT COVERED
+  "2" -> "(2-1)"
+shop/shop.go:Kind:INTEGER_INCREMENT#1 85:9 NOT COVERED
+  "2" -> "(2+1)"
+shop/shop.go:Kind:INTEGER_DECREMENT#2 85:14 NOT COVERED
+  "0" -> "(0-1)"
+shop/shop.go:Kind:INTEGER_INCREMENT#2 85:14 NOT COVERED
+  "0" -> "(0+1)"
+shop/shop.go:Kind:BRANCH_CASE#1 86:3 NOT COVERED
+  "return \"even\"\n" -> ""
+shop/shop.go:Kind:RETURN_EMPTY#1 86:10 NOT COVERED
+  "\"even\"" -> "\"\""
+shop/shop.go:Kind:BRANCH_CASE#2 88:3 NOT COVERED
+  "return \"odd\"\n" -> ""
+shop/shop.go:Kind:RETURN_EMPTY#2 88:10 NOT COVERED
+  "\"odd\"" -> "\"\""
+shop/shop.go:Close:STATEMENT_REMOVE#1 93:2 NOT COVERED
+  "close(done)" -> ""
