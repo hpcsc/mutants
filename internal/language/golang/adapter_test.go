@@ -1388,6 +1388,48 @@ func TestCalc(t *testing.T) {
 			}
 		})
 
+		t.Run("a mutant that removes the only break to a label, and the only use of an import, still builds", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go": `package calc
+
+import "fmt"
+
+func Find(xs []int) int {
+outer:
+	for {
+		for _, x := range xs {
+			if x > 0 {
+				fmt.Println(x)
+				break outer
+			}
+		}
+		return 0
+	}
+	return 1
+}
+
+func Count(n int) int {
+	count := 0
+loop: for i := range n {
+		if i > 2 {
+			break loop
+		}
+		count++
+	}
+	return count
+}
+`,
+				"calc/calc_test.go": "package calc\n\nimport \"testing\"\n\nfunc TestCalc(t *testing.T) {\n\tif Find([]int{-1}) != 0 || Count(2) != 2 {\n\t\tt.Fatal(\"wrong\")\n\t}\n}\n",
+			})
+			adapter := golang.New(root, defaultSettings)
+
+			for _, branch := range []string{"{\n\t\t\t\tfmt.Println(x)\n\t\t\t\tbreak outer\n\t\t\t}", "{\n\t\t\tbreak loop\n\t\t}"} {
+				result := run(t, adapter, mutantOf(t, root, "calc/calc.go", branch, "{}"))
+
+				require.Equal(t, mutant.Lived, result.Status, "%s: %s", branch, result.Detail)
+			}
+		})
+
 		t.Run("a mutant build gets three times the build of the real code when that is longer than the build limit", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
 			settings := golang.Settings{BuildLimit: time.Millisecond, Workers: 1}

@@ -288,8 +288,8 @@ func (k checker) checkPlainTest(ctx context.Context, tester tester, m reportedMu
 	switch {
 	case own.timedOut:
 		result.Skips = append(result.Skips, m.ID+": the plain tests ran past "+plainLimit.String())
-	case strings.Contains(own.notBuilt, "declared and not used") || strings.Contains(own.notBuilt, "imported and not used"):
-		result.Skips = append(result.Skips, m.ID+": the mutant builds only after mutants uses the names that it leaves unused")
+	case strings.Contains(own.notBuilt, "declared and not used") || strings.Contains(own.notBuilt, "imported and not used") || strings.Contains(own.notBuilt, "defined and not used"):
+		result.Skips = append(result.Skips, m.ID+": the mutant builds only after mutants repairs the names that it leaves unused")
 	case own.notBuilt != "" && m.Status != notCovered:
 		result.find("plain tests", m.ID, m.Status+", but the mutant does not build: "+firstLine(own.notBuilt))
 	case m.Status == killed && own.failure == "" && callers.failure == "":

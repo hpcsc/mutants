@@ -109,8 +109,8 @@ A skip is not a finding. The regression test shows each skip with its reason:
 - The plain tests of the package or the project fail with the real code, so they cannot check a verdict.
 - The plain tests ran past 15 minutes.
 - The plain tests pass in some runs and fail in others, with the mutant or with the real code.
-- A Go mutant leaves a variable or an import unused. `mutants` adds a use of the name before it builds the
-  mutant, and a plain build cannot do that.
+- A Go mutant leaves a variable, an import or a label unused. `mutants` repairs the name before it builds
+  the mutant, and a plain build cannot do that.
 
 ## The repositories
 

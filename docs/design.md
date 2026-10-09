@@ -480,12 +480,14 @@ sequenceDiagram
   `testdata`.
 - **Build tags.** `--tags` goes to `go list`, to the coverage run and to `go test -c`.
 - **No vet.** `-vet=off` keeps a vet check out of the build, because a vet check is not a build failure.
-- **Unused imports and variables.** A mutant that removes the only use of an import, such as the
-  `fmt.Errorf` of an error branch, fails with "imported and not used". A mutant that removes the only use
-  of a variable, such as `|| !slices.Contains(requested, id)`, fails with "declared and not used". The
-  runner then makes each import that the compiler names blank, and adds `_ = x` for each variable `x` that
-  it names: after the statement that declares `x`, or at the start of each body whose header declares `x`,
-  such as `if v, ok := m[k]; ok {` or `case v := <-c:`. Then it builds one more time. Without this,
+- **Unused imports, variables and labels.** A mutant that removes the only use of an import, such as the
+  `fmt.Errorf` of an error branch, fails with "imported and not used". A mutant that removes the only use of a
+  variable, such as `|| !slices.Contains(requested, id)`, fails with "declared and not used". A mutant that
+  removes the only `break` or `goto` to a label, such as `if x > 0 { break outer }`, fails with "label outer
+  defined and not used". The runner then makes each import that the compiler names blank, and adds `_ = x` for
+  each variable `x` that it names: after the statement that declares `x`, or at the start of each body whose
+  header declares `x`, such as `if v, ok := m[k]; ok {` or `case v := <-c:`. It removes each label that the
+  compiler names, which changes nothing that the code does. Then it builds one more time. Without this,
   `BRANCH_IF` on an error branch is NOT VIABLE. On 12 measured PRs, 56 of 78 NOT VIABLE mutants failed only
   with "declared and not used", and two of them live when they build.
 - **No process stays alive.** Each build and each test binary runs in its own process group. At its limit,

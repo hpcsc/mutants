@@ -26,6 +26,7 @@ const buildFactor = 3
 var (
 	unusedImport   = regexp.MustCompile(`"([^"]+)" imported (?:as \S+ )?and not used`)
 	unusedVariable = regexp.MustCompile(`(\S+\.go):(\d+):(\d+): (?:declared and not used: (\S+)|(\S+) declared and not used)`)
+	unusedLabel    = regexp.MustCompile(`(\S+\.go):(\d+):\d+: label (\S+) defined and not used`)
 )
 
 // runner runs the test binary itself, because go test can give a verdict from its cache.
@@ -83,7 +84,8 @@ func (r *runner) testIn(ctx context.Context, pkg goPackage, original, content st
 	buildLimit := max(r.settings.BuildLimit, (buildFactor * baseline.build).Round(time.Second))
 	built, err := r.build(ctx, pkg, folder, original, content, binary, buildLimit)
 	if err == nil && built.Code != 0 {
-		if used := r.blankImports(r.useVariables(content, filepath.Base(original), built.Tail), built.Tail); used != content {
+		file := filepath.Base(original)
+		if used := r.dropLabels(r.blankImports(r.useVariables(content, file, built.Tail), built.Tail), file, built.Tail); used != content {
 			built, err = r.build(ctx, pkg, folder, original, used, binary, buildLimit)
 		}
 	}
@@ -247,6 +249,37 @@ func (r *runner) useVariables(content, file, compilerOutput string) string {
 	slices.SortFunc(inserts, func(a, b insert) int { return b.offset - a.offset })
 	for _, use := range inserts {
 		content = content[:use.offset] + use.text + content[use.offset:]
+	}
+	return content
+}
+
+func (r *runner) dropLabels(content, file, compilerOutput string) string {
+	unused := map[string]bool{}
+	for _, match := range unusedLabel.FindAllStringSubmatch(compilerOutput, -1) {
+		if filepath.Base(match[1]) == file {
+			unused[match[3]+"@"+match[2]] = true
+		}
+	}
+	if len(unused) == 0 {
+		return content
+	}
+	positions := token.NewFileSet()
+	syntax, err := parser.ParseFile(positions, "", content, parser.SkipObjectResolution)
+	if err != nil {
+		return content
+	}
+	type span struct{ start, end int }
+	var spans []span
+	ast.Inspect(syntax, func(node ast.Node) bool {
+		labeled, isLabeled := node.(*ast.LabeledStmt)
+		if isLabeled && unused[labeled.Label.Name+"@"+strconv.Itoa(positions.Position(labeled.Pos()).Line)] {
+			spans = append(spans, span{start: positions.Position(labeled.Pos()).Offset, end: positions.Position(labeled.Colon).Offset + 1})
+		}
+		return true
+	})
+	slices.SortFunc(spans, func(a, b span) int { return b.start - a.start })
+	for _, label := range spans {
+		content = content[:label.start] + content[label.end:]
 	}
 	return content
 }
