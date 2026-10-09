@@ -59,7 +59,8 @@ def pytest_sessionfinish(session, exitstatus):
     files = {}
     for path in data.measured_files():
         real = os.path.realpath(path)
-        if not real.startswith(_project + os.sep):
+        # coverage.py cannot read code that a test compiles with the name of a file that does not exist
+        if not real.startswith(_project + os.sep) or not os.path.isfile(real):
             continue
         _, statements, _, missing, _ = _coverage.analysis2(path)
         tests = {}

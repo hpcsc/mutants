@@ -195,6 +195,18 @@ def limit():
 			require.Equal(t, map[mutant.ID]string{unused.ID: ""}, uncovered)
 		})
 
+		t.Run("a test that runs code compiled with the name of a file that does not exist still gives the coverage", func(t *testing.T) {
+			generated := "from shop.discount import discount\n\n\n" +
+				"def test_generated_code():\n    exec(compile(\"total = 1\", \"__init__\", \"exec\"))\n    assert discount(100) == 10\n"
+			root := newProject(t, shop(map[string]string{"tests/test_generated.py": generated}))
+			used := mutantOf(t, root, "shop/discount.py", "total >= LIMIT", "total > LIMIT")
+
+			uncovered, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{used}, diff.Lines{})
+
+			require.NoError(t, err)
+			require.Empty(t, uncovered)
+		})
+
 		t.Run("a mutant of a file that no test imports is NOT COVERED, with the file in the detail", func(t *testing.T) {
 			root := newProject(t, shop(map[string]string{"shop/report.py": "def total(xs):\n    return sum(xs) + 1\n"}))
 			m := mutantOf(t, root, "shop/report.py", "sum(xs) + 1", "sum(xs) - 1")
