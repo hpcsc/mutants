@@ -523,8 +523,9 @@ sequenceDiagram
   project, with the Python of the project: `python.command` of `.mutants.yml`, or `.venv/bin/python` of the
   project, or `python3`.
 - **No write to the work tree.** The hook reads the mutant from the temp folder, and the module keeps the
-  original file as its `__file__`. `PYTHONDONTWRITEBYTECODE=1` keeps `__pycache__` out, and
-  `-p no:cacheprovider` keeps `.pytest_cache` out.
+  original file as its `__file__`. `PYTHONDONTWRITEBYTECODE=1` keeps `__pycache__` out,
+  `-p no:cacheprovider` keeps `.pytest_cache` out, and `HYPOTHESIS_STORAGE_DIRECTORY` in the temp folder
+  keeps the `.hypothesis` folder of Hypothesis out. A `HYPOTHESIS_STORAGE_DIRECTORY` that the user sets wins.
 - **Not a worktree.** An editable install, such as `pip install -e .` or `uv sync`, points the imports at the
   folder of the repository. In a copy of the repository in a git worktree, the tests import the real code.
 - **Coverage and test selection.** pytest runs one time for each project, with coverage.py and one context

@@ -332,6 +332,20 @@ def limit():
 			require.NoError(t, err)
 			require.Equal(t, before, filesIn(t, root))
 		})
+
+		t.Run("writes no file into the project for a test that saves examples as Hypothesis does", func(t *testing.T) {
+			examples := "import os\nfrom pathlib import Path\n\nfrom shop.discount import discount\n\n\n" +
+				"def test_saves_an_example():\n    storage = Path(os.environ.get(\"HYPOTHESIS_STORAGE_DIRECTORY\", \".hypothesis\"))\n" +
+				"    storage.mkdir(parents=True, exist_ok=True)\n    (storage / \"example\").write_text(\"150\")\n    assert discount(150) == 10\n"
+			root := newProject(t, shop(map[string]string{"tests/test_examples.py": examples}))
+			m := mutantOf(t, root, "shop/discount.py", "total >= LIMIT", "total > LIMIT")
+			before := filesIn(t, root)
+
+			_, err := newAdapter(root).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, before, filesIn(t, root))
+		})
 	})
 }
 

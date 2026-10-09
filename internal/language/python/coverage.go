@@ -235,7 +235,12 @@ func testEnv(folder string) []string {
 	if existing := os.Getenv("PYTHONPATH"); existing != "" {
 		pythonPath += string(os.PathListSeparator) + existing
 	}
-	return append(os.Environ(), "PYTHONPATH="+pythonPath, "PYTHONDONTWRITEBYTECODE=1")
+	env := append(os.Environ(), "PYTHONPATH="+pythonPath, "PYTHONDONTWRITEBYTECODE=1")
+	// Hypothesis writes its examples and its caches to .hypothesis in the folder of the tests
+	if os.Getenv("HYPOTHESIS_STORAGE_DIRECTORY") == "" {
+		env = append(env, "HYPOTHESIS_STORAGE_DIRECTORY="+filepath.Join(folder, "hypothesis"))
+	}
+	return env
 }
 
 func writeSupport(folder string) error {
