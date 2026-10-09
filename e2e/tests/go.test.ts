@@ -663,13 +663,17 @@ func TestWait(t *testing.T) {
     expect(mutants[0].detail).toBe('only the tests of app/order run it')
   })
 
-  it('runs the mutants of a file with import "C"', async () => {
+  it('runs the mutants of a file with import "C", also the ones that need types', async () => {
     const dir = goRepository()
     writeFiles(dir, { 'calc/calc.go': double, 'calc/calc_test.go': doubleTest })
 
-    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION'])
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION,RETURN_EMPTY'])
 
-    expect(verdicts(mutants)).toEqual(['CONDITIONALS_BOUNDARY n < 0 LIVED', 'CONDITIONALS_NEGATION n < 0 KILLED'])
+    expect(verdicts(mutants)).toEqual([
+      'CONDITIONALS_BOUNDARY n < 0 LIVED',
+      'CONDITIONALS_NEGATION n < 0 KILLED',
+      'RETURN_EMPTY int(C.twice(C.int(n))) KILLED',
+    ])
   })
 
   it('prints one row for a package with no test files, and keeps each mutant in the JSON', async () => {

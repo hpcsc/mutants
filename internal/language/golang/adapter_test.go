@@ -733,6 +733,15 @@ func Run(ctx context.Context, id, name string, cause error) []error {
 			}
 		})
 
+		t.Run("keeps the edits that need types in a file that imports C, and drops the ones of the wrong type", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\n// static int twice(int n) { return 2 * n; }\nimport \"C\"\n\ntype Totals struct {\n\tPaid, Owed int\n}\n\nfunc Double(n int) int {\n\treturn int(C.twice(C.int(n)))\n}\n\nfunc Summarise(paid, owed int) Totals {\n\treturn Totals{Paid: paid, Owed: owed}\n}\n"})
+			adapter := golang.New(root, defaultSettings)
+
+			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "int(C.twice(C.int(n)))", "0")))
+			require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "int(C.twice(C.int(n)))", "nil")))
+			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "NAMED_VALUE_SWAP", "paid, Owed: owed", "owed, Owed: paid")))
+		})
+
 		t.Run("finds the slot of a return in a function literal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": "package calc\n\nvar Next = func(n int) (int, error) {\n\treturn n + 1, nil\n}\n"})
 

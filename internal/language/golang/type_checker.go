@@ -1,8 +1,10 @@
 package golang
 
 import (
+	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"path/filepath"
@@ -394,7 +396,7 @@ func (c *typeChecker) load(folder string) *packages.Package {
 		return loaded
 	}
 	config := &packages.Config{
-		Mode:       packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+		Mode:       packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Dir:        folder,
 		BuildFlags: c.tagArguments,
 	}
@@ -402,6 +404,57 @@ func (c *typeChecker) load(folder string) *packages.Package {
 	if found, err := packages.Load(config, "."); err == nil && len(found) == 1 && len(found[0].Errors) == 0 {
 		loaded = found[0]
 	}
+	if loaded != nil && !slices.Equal(loaded.GoFiles, loaded.CompiledGoFiles) {
+		loaded = withoutCgo(loaded)
+	}
 	c.packages[folder] = loaded
 	return loaded
+}
+
+// withoutCgo checks the files of the package again as they are on disk, because go/packages gives a package that
+// imports C the syntax of the files that cgo writes, and their names and offsets differ.
+func withoutCgo(loaded *packages.Package) *packages.Package {
+	positions := token.NewFileSet()
+	var files []*ast.File
+	for _, name := range loaded.GoFiles {
+		file, err := parser.ParseFile(positions, name, nil, parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
+			return nil
+		}
+		files = append(files, file)
+	}
+	imported := map[string]*types.Package{"unsafe": types.Unsafe}
+	for _, pkg := range loaded.Types.Imports() {
+		imported[pkg.Path()] = pkg
+	}
+	info := &types.Info{
+		Types:      map[ast.Expr]types.TypeAndValue{},
+		Instances:  map[*ast.Ident]types.Instance{},
+		Defs:       map[*ast.Ident]types.Object{},
+		Uses:       map[*ast.Ident]types.Object{},
+		Implicits:  map[ast.Node]types.Object{},
+		Selections: map[*ast.SelectorExpr]*types.Selection{},
+		Scopes:     map[ast.Node]*types.Scope{},
+	}
+	config := types.Config{
+		FakeImportC: true,
+		Importer: importer(func(path string) (*types.Package, error) {
+			if pkg, found := imported[path]; found {
+				return pkg, nil
+			}
+			return nil, fmt.Errorf("the package %s imports %s, which cgo did not import", loaded.PkgPath, path)
+		}),
+		// FakeImportC gives each name in C an invalid type, and the filters need the types of the other names
+		Error: func(error) {},
+	}
+	checked, _ := config.Check(loaded.PkgPath, positions, files, info)
+	result := *loaded
+	result.Fset, result.Syntax, result.Types, result.TypesInfo = positions, files, checked, info
+	return &result
+}
+
+type importer func(path string) (*types.Package, error)
+
+func (i importer) Import(path string) (*types.Package, error) {
+	return i(path)
 }

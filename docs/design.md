@@ -299,6 +299,11 @@ of `go.zero_functions`. A struct literal is zero already when each of its fields
 `RETURN_EMPTY` drops `Trigger{position: maybe.None[int64]()}` to `Trigger{}`. A `&T{}` is not zero, because
 a pointer to an empty struct is not `nil`.
 
+The type filters read the types of a file from `go/packages`. For a package with a file that imports `C`,
+`go/packages` gives the files that cgo writes, whose names and offsets differ from the files on disk. So the
+adapter checks the files on disk again with `FakeImportC`: each name in `C` gets no type, and each other name
+keeps its type.
+
 The Python adapter has these:
 
 | Filter | Drops |
