@@ -3,4 +3,8 @@ language: python
 rule:
   kind: integer
   pattern: $N
+  not:
+    inside:
+      kind: case_pattern
+      stopBy: end
 fix: ($N-1)

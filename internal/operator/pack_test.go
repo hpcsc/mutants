@@ -646,6 +646,13 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"0 -> (0-1)", "1_000 -> (1_000-1)"}, pythonEditsOf(t, "INTEGER_DECREMENT", source))
 		})
 
+		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT skip a number in a case pattern, where (0+1) does not compile, and keep a number in a guard", func(t *testing.T) {
+			source := "def f(a):\n    match a:\n        case 0 | [1, -2] | {\"k\": 3} | Point(x=4):\n            pass\n        case n if n > 5:\n            pass\n"
+
+			require.Equal(t, []string{"5 -> (5+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"5 -> (5-1)"}, pythonEditsOf(t, "INTEGER_DECREMENT", source))
+		})
+
 		t.Run("BRANCH_IF puts pass in place of the body of an if and of an elif", func(t *testing.T) {
 			edits := pythonEditsOf(t, "BRANCH_IF", "def f(a):\n    if a > 1:\n        g(a)\n        h(a)\n    elif a: return a\n")
 
