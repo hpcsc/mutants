@@ -37,6 +37,116 @@ func None[T any]() Maybe[T] { return Maybe[T]{} }
 func Some[T any](value T) Maybe[T] { return Maybe[T]{value: value, ok: true} }
 `
 
+const branches = `package calc
+
+func Kind(n int) string {
+	switch {
+	case n%2 == 0:
+		return "even"
+	default:
+		return "odd"
+	}
+}
+
+func Sign(n int) int {
+	if n < 0 {
+		return -1
+	} else {
+		return 1
+	}
+}
+
+func Pick(c chan int) int {
+	select {
+	case v := <-c:
+		return v
+	}
+}
+
+func Nested(n int) func() int {
+	return func() int {
+		switch {
+		case n > 1:
+			return 2
+		default:
+			if n > 0 {
+				return 3
+			} else {
+				panic("negative")
+			}
+		}
+	}
+}
+
+func Size(n int) string {
+	switch {
+	case n > 9:
+		return "big"
+	}
+	return "small"
+}
+
+func Loop(n int) int {
+	for {
+		if n > 3 {
+			return n
+		}
+		n++
+	}
+}
+
+func Print(n int) {
+	switch {
+	case n > 0:
+		println("positive")
+	default:
+		println("other")
+	}
+}
+
+func Stop(n int) string {
+	for {
+		switch {
+		case n > 0:
+			return "loop"
+		}
+		break
+	}
+	return "after"
+}
+
+func Name(v any) string {
+	switch v.(type) {
+	case int:
+		return "int"
+	default:
+		return "other"
+	}
+}
+
+func Wait(c chan int) int {
+	for {
+		select {
+		case v := <-c:
+			return v + 1
+		}
+	}
+}
+
+func Find(xs []int) int {
+outer:
+	for {
+		for _, x := range xs {
+			if x > 0 {
+				break outer
+			}
+		}
+		return 0
+	}
+	return 1
+}
+`
+
 func newModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -738,6 +848,48 @@ func Run(ctx context.Context, id, name string, cause error) []error {
 			for _, candidate := range []string{"nil", "0", `""`, "false"} {
 				require.False(t, adapter.Keep(editOf(t, root, "calc/calc.go", "RETURN_EMPTY", "xs[0]", candidate)), candidate)
 			}
+		})
+
+		t.Run("drops a branch edit that leaves its function with no terminating statement, where the build gives missing return", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": branches})
+			adapter := golang.New(root, defaultSettings)
+
+			kept := map[string]bool{}
+			for _, edit := range []struct{ operator, original, replacement string }{
+				{"BRANCH_CASE", `return "even"`, ""},
+				{"BRANCH_CASE", `return "odd"`, ""},
+				{"BRANCH_IF", "{\n\t\treturn -1\n\t}", "{}"},
+				{"BRANCH_ELSE", "{\n\t\treturn 1\n\t}", "{}"},
+				{"BRANCH_CASE", "return v", ""},
+				{"BRANCH_CASE", "return 2", ""},
+				{"BRANCH_IF", "{\n\t\t\t\treturn 3\n\t\t\t}", "{}"},
+				{"BRANCH_CASE", `return "big"`, ""},
+				{"BRANCH_IF", "{\n\t\t\treturn n\n\t\t}", "{}"},
+				{"BRANCH_CASE", `println("positive")`, ""},
+				{"BRANCH_CASE", `return "loop"`, ""},
+				{"BRANCH_CASE", `return "int"`, ""},
+				{"BRANCH_CASE", "return v + 1", ""},
+				{"BRANCH_IF", "{\n\t\t\t\tbreak outer\n\t\t\t}", "{}"},
+			} {
+				kept[edit.original] = adapter.Keep(editOf(t, root, "calc/calc.go", edit.operator, edit.original, edit.replacement))
+			}
+
+			require.Equal(t, map[string]bool{
+				`return "even"`:                   false,
+				`return "odd"`:                    false,
+				"{\n\t\treturn -1\n\t}":           false,
+				"{\n\t\treturn 1\n\t}":            false,
+				"return v":                        false,
+				"return 2":                        false,
+				"{\n\t\t\t\treturn 3\n\t\t\t}":    false,
+				`return "big"`:                    true,
+				"{\n\t\t\treturn n\n\t\t}":        true,
+				`println("positive")`:             true,
+				`return "loop"`:                   true,
+				`return "int"`:                    false,
+				"return v + 1":                    true,
+				"{\n\t\t\t\tbreak outer\n\t\t\t}": true,
+			}, kept)
 		})
 
 		t.Run("keeps an INCREMENT_DECREMENT of += on a number, and drops one on a string, where -= does not compile", func(t *testing.T) {

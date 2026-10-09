@@ -100,6 +100,135 @@ func (s *sourceFiles) isZeroIndexOrSize(file string, start, end int) bool {
 	return false
 }
 
+func (s *sourceFiles) causesMissingReturn(file string, start, end int) bool {
+	syntax, lines, err := s.parse(file)
+	if err != nil || start < 0 || end > lines.Size() {
+		return false
+	}
+	enclosing, _ := astutil.PathEnclosingInterval(syntax, lines.Pos(start), lines.Pos(end))
+	for _, node := range enclosing {
+		var signature *ast.FuncType
+		var body *ast.BlockStmt
+		switch function := node.(type) {
+		case *ast.FuncDecl:
+			signature, body = function.Type, function.Body
+		case *ast.FuncLit:
+			signature, body = function.Type, function.Body
+		default:
+			continue
+		}
+		if body == nil || signature.Results == nil || len(signature.Results.List) == 0 {
+			return false
+		}
+		emptied := func(statement ast.Stmt) bool {
+			return lines.Offset(statement.Pos()) >= start && lines.Offset(statement.End()) <= end
+		}
+		kept := func(ast.Stmt) bool { return false }
+		return terminates(body.List, kept) && !terminates(body.List, emptied)
+	}
+	return false
+}
+
+func terminates(statements []ast.Stmt, emptied func(ast.Stmt) bool) bool {
+	for i := len(statements) - 1; i >= 0; i-- {
+		if _, empty := statements[i].(*ast.EmptyStmt); empty || emptied(statements[i]) {
+			continue
+		}
+		return terminating(statements[i], "", emptied)
+	}
+	return false
+}
+
+// terminating must agree with the compiler, which follows "Terminating statements" in the Go specification
+func terminating(statement ast.Stmt, label string, emptied func(ast.Stmt) bool) bool {
+	switch statement := statement.(type) {
+	case *ast.ReturnStmt:
+		return true
+	case *ast.BranchStmt:
+		return statement.Tok == token.GOTO
+	case *ast.ExprStmt:
+		call, isCall := statement.X.(*ast.CallExpr)
+		function, isIdentifier := call.Fun.(*ast.Ident)
+		return isCall && isIdentifier && function.Name == "panic"
+	case *ast.BlockStmt:
+		return terminates(statement.List, emptied)
+	case *ast.IfStmt:
+		return statement.Else != nil && terminates(statement.Body.List, emptied) && terminating(statement.Else, "", emptied)
+	case *ast.LabeledStmt:
+		return terminating(statement.Stmt, statement.Label.Name, emptied)
+	case *ast.ForStmt:
+		return statement.Cond == nil && !breaksOut(statement.Body, label, emptied)
+	case *ast.SwitchStmt:
+		return casesTerminate(statement.Body, label, emptied)
+	case *ast.TypeSwitchStmt:
+		return casesTerminate(statement.Body, label, emptied)
+	case *ast.SelectStmt:
+		return casesTerminate(statement.Body, label, emptied)
+	}
+	return false
+}
+
+func casesTerminate(body *ast.BlockStmt, label string, emptied func(ast.Stmt) bool) bool {
+	if breaksOut(body, label, emptied) {
+		return false
+	}
+	hasDefault := false
+	for _, clause := range body.List {
+		var statements []ast.Stmt
+		switch clause := clause.(type) {
+		case *ast.CaseClause:
+			hasDefault = hasDefault || clause.List == nil
+			statements = clause.Body
+		case *ast.CommClause:
+			hasDefault = true
+			statements = clause.Body
+		}
+		if !terminates(statements, emptied) && !endsInFallthrough(statements, emptied) {
+			return false
+		}
+	}
+	return hasDefault
+}
+
+func endsInFallthrough(statements []ast.Stmt, emptied func(ast.Stmt) bool) bool {
+	if len(statements) == 0 || emptied(statements[len(statements)-1]) {
+		return false
+	}
+	branch, isBranch := statements[len(statements)-1].(*ast.BranchStmt)
+	return isBranch && branch.Tok == token.FALLTHROUGH
+}
+
+// a break with no label leaves only the innermost for, switch or select around it
+func breaksOut(body ast.Node, label string, emptied func(ast.Stmt) bool) bool {
+	found := false
+	var visit func(node ast.Node, nested bool)
+	visit = func(node ast.Node, nested bool) {
+		ast.Inspect(node, func(child ast.Node) bool {
+			if found || child == nil {
+				return false
+			}
+			if statement, isStatement := child.(ast.Stmt); isStatement && emptied(statement) {
+				return false
+			}
+			switch child := child.(type) {
+			case *ast.FuncLit:
+				return false
+			case *ast.BranchStmt:
+				found = child.Tok == token.BREAK && ((child.Label == nil && !nested) || (child.Label != nil && child.Label.Name == label))
+				return false
+			case *ast.ForStmt, *ast.RangeStmt, *ast.SwitchStmt, *ast.TypeSwitchStmt, *ast.SelectStmt:
+				if child != node {
+					visit(child, true)
+					return false
+				}
+			}
+			return true
+		})
+	}
+	visit(body, false)
+	return found
+}
+
 func (s *sourceFiles) funcName(declaration *ast.FuncDecl) string {
 	if declaration.Recv == nil || len(declaration.Recv.List) == 0 {
 		return declaration.Name.Name

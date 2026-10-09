@@ -102,6 +102,8 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 - a change in a `_test.go` file, in a Python test file, or in generated code
 - a change in a call of a Python logger, in a type annotation, in an `if TYPE_CHECKING:` block, or in a
   comparison with `sys.version_info`
+- the removal of a branch that its function needs to end, such as one case of a `switch` whose cases each
+  return
 - a value that is already the zero value of its type
 - a swap of two values with different types, or in a table of named values such as
   `NoMatch: Reason{"NoMatch"}`

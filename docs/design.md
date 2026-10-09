@@ -290,6 +290,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | a `RETURN_EMPTY` value that is not the zero value of its slot, that fills an error slot, or that is zero already |
 | Type | an `ERROR_REMOVE` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
+| Missing return | a `BRANCH_IF`, `BRANCH_ELSE` or `BRANCH_CASE` edit that empties a branch that its function needs to end in a terminating statement, such as one case of a `switch` whose cases each return. The build would give `missing return`. |
 | Type | a `NAMED_VALUE_REMOVE` field outside a struct literal, or whose value is zero already |
 | Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |

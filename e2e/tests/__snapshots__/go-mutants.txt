@@ -150,12 +150,8 @@ shop/shop.go:Kind:INTEGER_DECREMENT#2 85:14 NOT COVERED
   "0" -> "(0-1)"
 shop/shop.go:Kind:INTEGER_INCREMENT#2 85:14 NOT COVERED
   "0" -> "(0+1)"
-shop/shop.go:Kind:BRANCH_CASE#1 86:3 NOT COVERED
-  "return \"even\"\n" -> ""
 shop/shop.go:Kind:RETURN_EMPTY#1 86:10 NOT COVERED
   "\"even\"" -> "\"\""
-shop/shop.go:Kind:BRANCH_CASE#2 88:3 NOT COVERED
-  "return \"odd\"\n" -> ""
 shop/shop.go:Kind:RETURN_EMPTY#2 88:10 NOT COVERED
   "\"odd\"" -> "\"\""
 shop/shop.go:Close:STATEMENT_REMOVE#1 93:2 NOT COVERED

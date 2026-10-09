@@ -25,6 +25,9 @@ const (
 	integerDecrement = "INTEGER_DECREMENT"
 	namedValueRemove = "NAMED_VALUE_REMOVE"
 	argumentEmpty    = "ARGUMENT_EMPTY"
+	branchIf         = "BRANCH_IF"
+	branchElse       = "BRANCH_ELSE"
+	branchCase       = "BRANCH_CASE"
 
 	timeBoundaryRules = "CONDITIONALS_BOUNDARY/time-"
 	plusAssignRule    = "INCREMENT_DECREMENT/plus-assign"
@@ -133,6 +136,8 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 	case argumentEmpty:
 		zero := a.types.zeroOfParameter(path, candidate.Start, candidate.End)
 		return zero != "" && zero == candidate.Replacement
+	case branchIf, branchElse, branchCase:
+		return !a.sources.causesMissingReturn(candidate.File, candidate.Start, candidate.End)
 	}
 	return true
 }
