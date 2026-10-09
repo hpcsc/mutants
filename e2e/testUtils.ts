@@ -95,8 +95,8 @@ export function writeFiles(dir: string, files: Record<string, string>): void {
   }
 }
 
-export function goRepository(files: Record<string, string> = {}): string {
-  const dir = scratchDir()
+export function goRepository(files: Record<string, string> = {}, dir = scratchDir()): string {
+  mkdirSync(dir, { recursive: true })
   git(dir, 'init', '--quiet', '--initial-branch=main')
   git(dir, 'config', 'user.email', 'e2e@example.com')
   git(dir, 'config', 'user.name', 'e2e')

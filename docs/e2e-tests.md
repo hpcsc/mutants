@@ -85,6 +85,9 @@ Each fixture has a known answer from the design:
 | `diff.mnemonicPrefix=true` in the git config of the fixture | the same mutants as with `false` |
 | An untracked new file | its mutants run, and `git status` is the same after the run |
 | A folder name that differs from its package name | the mutants run the tests of that package |
+| A repository in a folder whose name has spaces, parentheses and an apostrophe | the same verdicts as in any other folder |
+| A `go.work` with two modules, and a function in one module that only the tests of the other module run | its mutants get their verdicts from the tests of the other module |
+| A file with `import "C"` | its mutants run, and get the same verdicts as in a file without cgo |
 | A test file with a build tag | with `--tags`, its tests run |
 | Two runs | the same verdicts, mutant by mutant |
 | A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
@@ -189,7 +192,8 @@ flowchart LR
     BIN --> RUN
 ```
 
-`python3`, `make` and `g++` let npm build node-pty when no prebuilt node-pty fits the platform. mutants needs
+`python3`, `make` and `g++` let npm build node-pty when no prebuilt node-pty fits the platform. Go also needs
+the C compiler of `g++` for the fixture with `import "C"`. mutants needs
 git, Go and ast-grep. The Python fixtures need two venvs: one with pytest and coverage.py, and one with pytest
 only. The image makes them with fixed versions, and gives their folders to the tests in `E2E_PYTHON_VENV` and
 `E2E_PYTHON_VENV_WITHOUT_COVERAGE`. The image installs the platform package of ast-grep, for example

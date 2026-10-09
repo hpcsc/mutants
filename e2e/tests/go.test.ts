@@ -53,6 +53,50 @@ func TestCount(t *testing.T) {
 }
 `
 
+const biggest = `package order
+
+import "example.com/lib/calc"
+
+func Biggest(a, b int) int {
+	return calc.Max(a, b)
+}
+`
+
+const biggestTest = `package order
+
+import "testing"
+
+func TestBiggest(t *testing.T) {
+	if Biggest(1, 2) != 2 || Biggest(2, 1) != 2 {
+		t.Fatal("Biggest gives the wrong number")
+	}
+}
+`
+
+const double = `package calc
+
+// static int twice(int n) { return 2 * n; }
+import "C"
+
+func Double(n int) int {
+	if n < 0 {
+		return 0
+	}
+	return int(C.twice(C.int(n)))
+}
+`
+
+const doubleTest = `package calc
+
+import "testing"
+
+func TestDouble(t *testing.T) {
+	if Double(3) != 6 || Double(-1) != 0 {
+		t.Fatal("Double gives the wrong number")
+	}
+}
+`
+
 const reactor = `package reactor
 
 import "example.com/fixture/store"
@@ -587,6 +631,45 @@ func TestWait(t *testing.T) {
 
     expect(verdicts(withoutTags.mutants)).toEqual(['CONDITIONALS_NEGATION a > b NOT COVERED'])
     expect(verdicts(withTags.mutants)).toEqual(['CONDITIONALS_NEGATION a > b KILLED'])
+  })
+
+  it('runs in a repository whose folder name has spaces, parentheses and an apostrophe', async () => {
+    const dir = goRepository({}, join(scratchDir(), "my repo (copy)'s"))
+    writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION'])
+
+    expect(verdicts(mutants)).toEqual(['CONDITIONALS_BOUNDARY a > b LIVED', 'CONDITIONALS_NEGATION a > b KILLED'])
+  })
+
+  it('tests a mutant of one module of a go.work with the tests of another module that calls it', async () => {
+    const dir = goRepository({
+      'go.work': 'go 1.22\n\nuse (\n\t.\n\t./app\n\t./lib\n)\n',
+      'lib/go.mod': 'module example.com/lib\n\ngo 1.22\n',
+      'app/go.mod': 'module example.com/app\n\ngo 1.22\n\nrequire example.com/lib v0.0.0\n',
+    })
+    writeFiles(dir, {
+      'lib/calc/calc.go': maxSource,
+      'app/order/order.go': biggest,
+      'app/order/order_test.go': biggestTest,
+    })
+
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION'])
+
+    expect(mutants.map((m) => `${m.file} ${m.operator} ${m.status}`)).toEqual([
+      'lib/calc/calc.go CONDITIONALS_BOUNDARY LIVED',
+      'lib/calc/calc.go CONDITIONALS_NEGATION KILLED',
+    ])
+    expect(mutants[0].detail).toBe('only the tests of app/order run it')
+  })
+
+  it('runs the mutants of a file with import "C"', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': double, 'calc/calc_test.go': doubleTest })
+
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_BOUNDARY,CONDITIONALS_NEGATION'])
+
+    expect(verdicts(mutants)).toEqual(['CONDITIONALS_BOUNDARY n < 0 LIVED', 'CONDITIONALS_NEGATION n < 0 KILLED'])
   })
 
   it('prints one row for a package with no test files, and keeps each mutant in the JSON', async () => {
