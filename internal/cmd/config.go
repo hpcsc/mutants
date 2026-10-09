@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language/golang"
+	"github.com/hpcsc/mutants/internal/language/python"
 	"github.com/urfave/cli/v3"
 	"go.yaml.in/yaml/v3"
 )
@@ -161,4 +163,18 @@ func (c config) operators(cmd *cli.Command) []string {
 		return cmd.StringSlice("operators")
 	}
 	return c.Operators
+}
+
+func (c config) goSettings(cmd *cli.Command, workers int) golang.Settings {
+	return golang.Settings{
+		Tags:          c.tags(cmd),
+		BuildLimit:    cmd.Duration("build-limit"),
+		Workers:       workers,
+		ZeroFunctions: c.Go.ZeroFunctions,
+		ExcludeTypes:  c.Go.ExcludeTypes,
+	}
+}
+
+func (c config) pythonSettings(workers int) python.Settings {
+	return python.Settings{Command: c.Python.Command, Workers: workers}
 }

@@ -11,7 +11,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/hpcsc/mutants/internal/language/golang"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v3"
 )
@@ -235,6 +237,19 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, []string{"unit"}, loaded.tags(command))
 			require.Equal(t, []string{"-ERROR_CAUSE_REMOVE"}, loaded.operators(command))
 			require.True(t, loaded.callerGaps(command))
+		})
+
+		t.Run("the settings of Go take the tags and the build limit from the flags, and the zero functions and the excluded types from the file", func(t *testing.T) {
+			loaded := config{Go: goConfig{Tags: []string{"unit"}, ZeroFunctions: []string{"maybe.None"}, ExcludeTypes: []string{"Fake*"}}}
+			command := parsed(t, newRerunCommand(), "--tags", "integration", "--build-limit", "5m")
+
+			require.Equal(t, golang.Settings{
+				Tags:          []string{"integration"},
+				BuildLimit:    5 * time.Minute,
+				Workers:       1,
+				ZeroFunctions: []string{"maybe.None"},
+				ExcludeTypes:  []string{"Fake*"},
+			}, loaded.goSettings(command, 1))
 		})
 
 		t.Run("with no flag and no file, the base is origin/HEAD, there are 4 workers, and no check for caller gaps", func(t *testing.T) {

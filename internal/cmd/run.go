@@ -92,13 +92,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		ProposalsAnywhere: cmd.Bool("proposals-anywhere"),
 		CallerGaps:        configured.callerGaps(cmd),
 	}
-	instance, err := newInstance(ctx, repository, golang.Settings{
-		Tags:          configured.tags(cmd),
-		BuildLimit:    cmd.Duration("build-limit"),
-		Workers:       runSettings.Workers,
-		ZeroFunctions: configured.Go.ZeroFunctions,
-		ExcludeTypes:  configured.Go.ExcludeTypes,
-	}, python.Settings{Command: configured.Python.Command, Workers: runSettings.Workers}, cmd.Root().ErrWriter)
+	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, runSettings.Workers), configured.pythonSettings(runSettings.Workers), cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
