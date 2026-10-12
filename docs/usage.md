@@ -173,13 +173,14 @@ mutants run --proposals proposals.jsonl
 - Each proposal whose edit touches a changed line becomes a mutant with the operator `PROPOSED`. Its row
   shows the bug in place of the code.
 - Each other proposal is rejected. The rows list it under `REJECTED PROPOSALS` with its reason, for
-  example `old found 3 times` or `not on a changed line`.
+  example `old found 3 times` or `not on a changed line (--proposals-anywhere accepts it)`.
 - The last line counts the proposals: `proposals: 7 accepted, 1 rejected`.
 - A rejected proposal makes the run exit with 10, as a survivor does, because no test checked its bug.
 - Proposals with the same edit make one mutant. Each of them counts as accepted, and the mutant carries the
   `ref` of each in `refs` in the JSON report. A rejected proposal keeps its `ref` in the JSON report too.
 - `--proposals-anywhere` accepts a proposal on any line, for example to check a review finding about a test
-  that the diff made weaker. The operators still mutate only the changed lines.
+  that the diff made weaker, or to move a new check above an old one. The operators still mutate only the
+  changed lines.
 - The number in the id of a proposed mutant comes from `old` and `new`, so the id stays the same when the
   other proposals change.
 - `mutants` keeps the accepted proposals in the git folder, so `mutants rerun ID` works without the file.

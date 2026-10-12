@@ -259,7 +259,7 @@ func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, i
 			return nil, 0, nil, err
 		}
 		if reason == "" && !inScope(m.File, m.Line, last) {
-			reason = "not on a changed line"
+			reason = "not on a changed line (--proposals-anywhere accepts it)"
 		}
 		if reason != "" {
 			rejected = append(rejected, proposal.Rejection{Proposal: p, Reason: reason})

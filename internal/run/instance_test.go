@@ -553,7 +553,7 @@ func TestInstance(t *testing.T) {
 			}
 			require.Equal(t, []string{
 				"found two times: old found 2 times",
-				"not changed: not on a changed line",
+				"not changed: not on a changed line (--proposals-anywhere accepts it)",
 				"no file: the file does not exist",
 				"no adapter: no adapter of mutants takes this file",
 				"outside: the file is not in the repository",
@@ -572,7 +572,7 @@ func TestInstance(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", spans.Number())}, idsAndStatuses(outcome.Mutants))
-			require.Equal(t, &proposal.Summary{Accepted: 1, Rejected: []proposal.Rejection{{Proposal: lineEnd, Reason: "not on a changed line"}}}, outcome.Proposals)
+			require.Equal(t, &proposal.Summary{Accepted: 1, Rejected: []proposal.Rejection{{Proposal: lineEnd, Reason: "not on a changed line (--proposals-anywhere accepts it)"}}}, outcome.Proposals)
 		})
 
 		t.Run("gives the summary of the proposals also when the run accepts none of them", func(t *testing.T) {
