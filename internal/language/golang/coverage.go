@@ -326,7 +326,7 @@ func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPacka
 	}
 	build := process.Command{
 		Program:   "go",
-		Arguments: append(append(append(arguments, "-o", binary), c.settings.tagArguments()...), "."),
+		Arguments: append(append(append(arguments, "-o", binary), c.settings.buildArguments()...), "."),
 		Folder:    pkg.Dir,
 		Env:       c.settings.buildEnv(),
 	}

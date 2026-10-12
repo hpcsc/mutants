@@ -135,7 +135,7 @@ func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, con
 	}
 	build := process.Command{
 		Program:   "go",
-		Arguments: append(append([]string{"test", "-c", "-vet=off", "-overlay", overlay, "-o", binary}, r.settings.tagArguments()...), "."),
+		Arguments: append(append([]string{"test", "-c", "-vet=off", "-overlay", overlay, "-o", binary}, r.settings.buildArguments()...), "."),
 		Folder:    pkg.Dir,
 		Env:       r.buildEnv(folder),
 		Limit:     limit,

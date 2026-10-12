@@ -231,6 +231,25 @@ func TestMax(t *testing.T) {
 }
 `
 
+func maxTestLinkedWith(ldflags string) string {
+	return fmt.Sprintf(`package calc
+
+import (
+	"runtime/debug"
+	"testing"
+)
+
+func TestMax(t *testing.T) {
+	info, _ := debug.ReadBuildInfo()
+	for _, setting := range info.Settings {
+		if setting.Key == "-ldflags" && setting.Value == %q && Max(1, 2) != 2 {
+			t.Fatal("Max(1, 2) is not 2")
+		}
+	}
+}
+`, ldflags)
+}
+
 const gateSource = `package gate
 
 type Store interface {
@@ -1267,6 +1286,23 @@ func apply(xs []int, double func(int) int, extra int) int {
 			mutantCaches := strings.Fields(string(served))
 			require.Len(t, mutantCaches, 1)
 			require.NoDirExists(t, mutantCaches[0])
+		})
+
+		t.Run("builds a mutant without the symbol table and the debug data", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTestLinkedWith("-s -w")})
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Killed, result.Status, result.Detail)
+		})
+
+		t.Run("keeps the -ldflags of GOFLAGS in place of its own", func(t *testing.T) {
+			t.Setenv("GOFLAGS", "-ldflags=-X=example.com/fixture/calc.unused=1")
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTestLinkedWith("-X=example.com/fixture/calc.unused=1")})
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Killed, result.Status, result.Detail)
 		})
 
 		t.Run("a build cache that does not start gives INFRA ERROR, not NOT VIABLE", func(t *testing.T) {

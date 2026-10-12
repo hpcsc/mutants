@@ -49,6 +49,15 @@ func (s Settings) tagArguments() []string {
 	return []string{"-tags=" + strings.Join(s.Tags, ",")}
 }
 
+func (s Settings) buildArguments() []string {
+	arguments := s.tagArguments()
+	// an -ldflags flag of go test replaces the -ldflags of GOFLAGS
+	if !strings.Contains(os.Getenv("GOFLAGS"), "-ldflags") {
+		arguments = append(arguments, "-ldflags=-s -w")
+	}
+	return arguments
+}
+
 func (s Settings) buildEnv() []string {
 	if os.Getenv("GOFLAGS") != "" {
 		return os.Environ()
