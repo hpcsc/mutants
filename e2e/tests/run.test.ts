@@ -259,6 +259,17 @@ describe('mutants run --proposals', { timeout: 240_000 }, () => {
     expect(git(dir, 'status', '--porcelain', '--untracked-files=all')).toBe(before)
   })
 
+  it('exits 10 when it rejects a proposal, also when each mutant dies', async () => {
+    const dir = goRepository()
+    writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+
+    const { result, mutants } = await runMutants(dir, ['--base', 'HEAD', '--operators=none', '--proposals', proposalsFile(dies, twice)])
+
+    expect(mutants.map((m) => `${m.operator} ${m.status}`)).toEqual(['PROPOSED KILLED'])
+    expect(JSON.parse(result.stdout).proposals.rejected.map((r: { reason: string }) => r.reason)).toEqual(['old found 2 times'])
+    expect(result.status).toBe(10)
+  })
+
   it('rerun finds a proposed mutant by its id without the file, and says when the proposal does not fit the code', async () => {
     const dir = goRepository()
     writeFiles(dir, { 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })

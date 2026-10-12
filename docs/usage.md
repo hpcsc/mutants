@@ -96,7 +96,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | Command | Code | Meaning |
 | --- | --- | --- |
 | `mutants run` | 0 | no mutant survived |
-| | 10 | at least one mutant survived, or the run found a caller gap |
+| | 10 | at least one mutant survived, the run found a caller gap, or the run rejected a proposal |
 | | 124 | the run reached `--limit` |
 | | 2 | a usage error or a tool error, for example a test that fails with the real code, or a file of proposals that `mutants` cannot read |
 | | 130 | an interrupt or SIGTERM stopped the run |
@@ -175,6 +175,7 @@ mutants run --proposals proposals.jsonl
 - Each other proposal is rejected. The rows list it under `REJECTED PROPOSALS` with its reason, for
   example `old found 3 times` or `not on a changed line`.
 - The last line counts the proposals: `proposals: 7 accepted, 1 rejected`.
+- A rejected proposal makes the run exit with 10, as a survivor does, because no test checked its bug.
 - Proposals with the same edit make one mutant. Each of them counts as accepted, and the mutant carries the
   `ref` of each in `refs` in the JSON report. A rejected proposal keeps its `ref` in the JSON report too.
 - `--proposals-anywhere` accepts a proposal on any line, for example to check a review finding about a test

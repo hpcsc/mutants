@@ -390,7 +390,8 @@ mutant is rejected with its reason:
   the proposal does not fit the code.
 - **No silent clean result.** A file that cannot be read, a line that is not a proposal, and a file with no
   proposal stop the run with exit 2. The rows list each rejected proposal with its reason, and a last line
-  counts the accepted and the rejected proposals.
+  counts the accepted and the rejected proposals. A rejected proposal makes the run exit 10, as a survivor
+  does, because no test checked its bug.
 
 On two reviewed commits of the measured monorepo, two AI agents read only the code and the diff, and each
 proposed 8 mutants. On one commit 4 of 8 lived, and on the other 8 of 8 lived. Each commit had one survivor
@@ -656,7 +657,7 @@ coverage runs of different packages run at the same time, as many as there are w
 
 | Command | Does | Exit |
 | --- | --- | --- |
-| `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors or caller gaps, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
+| `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors, caller gaps or rejected proposals, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
 | `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, an unknown id, or an error before the mutant runs |
 | `mutants operators` | lists the operators and their rules | 0 |
@@ -866,6 +867,7 @@ The end-to-end fixtures:
 | Two runs | the same verdicts, mutant by mutant |
 | A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
 | A file of proposals, with one that lives, one that dies and one whose `old` occurs two times | LIVED and KILLED, the third rejected with "old found 2 times", and `git status` the same after the run |
+| A file of proposals, with one that dies and one whose `old` occurs two times | KILLED, the second rejected, and exit 10 |
 | A committed file, with `--operators=none` and `--proposals-anywhere`, and two proposals with the same edit and different refs | one mutant with both refs, the rejected proposal with its ref, and exit 2 for `--operators=none` alone |
 | A proposed mutant after the run | `rerun` finds it by its id without the file. After its `old` changes: exit 1, "the proposal does not fit the code". |
 | A new check in one package, and a changed caller that calls it but whose tests use a fake | with `--caller-gaps`: the statements of the check in the rows and the JSON, and exit 10 |
