@@ -330,6 +330,22 @@ tests run on one version of Python. On it, a change of the version in such a com
 or it runs the code that is for another version of Python. A survivor of either kind shows no gap in the
 tests. The branches of such an `if` keep their mutants.
 
+The Elixir adapter has these:
+
+| Filter | Drops |
+| --- | --- |
+| Same text | an edit whose replacement is the same as the original |
+| Return type | a `RETURN_EMPTY` value that does not fit the `@spec` of its function: `0` for `integer()` or `float()`, `""` for `String.t()` or `binary()`, `false` for `boolean()`, `[]` for a list, `%{}` for a map, and `nil` for each other type. With no `@spec`, `false` for a function whose name ends in `?`, and `nil` for each other function. |
+| Return type | a `RETURN_TRUE` value that is not a condition, in a function whose `@spec` does not return `boolean()`, or with no `@spec`, whose name does not end in `?` |
+| No value before | a `STATEMENT_REMOVE` of `x = e` when `x` has no value before the statement in its function: no parameter, and no earlier match, generator or clause pattern. The next read of `x` then does not compile. |
+| Struct default | a `NAMED_VALUE_REMOVE` of a field of a struct literal whose value is the literal default of that field in a `defstruct` of the repository, such as `coef: 0` in `%Decimal{coef: 0, exp: e}`. The struct then has the same value without the field. |
+
+The skip rules of Elixir drop the edits in the test files, in the generated files, in the calls of `Logger`, in
+the typespecs, in `import`, `alias` and `require`, in `@compile` and `@dialyzer`, and in a capture such as
+`&f/1`. They also drop the edits in the macros, the guards, `defstruct` and `defexception`. A module that uses such code gets its expansion when
+it compiles, and the runner does not compile it again with the mutant (see
+[The Elixir runner](#the-elixir-runner)).
+
 A candidate that passes the filters and still fails to build is NOT VIABLE.
 
 ### Mutant ids
@@ -571,6 +587,79 @@ sequenceDiagram
   summary, or the conftest that failed and its error.
 - **No process stays alive.** pytest runs in its own process group, as each test binary of Go does.
 
+### The Elixir runner
+
+The Elixir runner never writes a mutant to disk. It writes the mutated file into a temp folder, together
+with `mutants_task.exs`, a Mix task that the binary holds. `elixir -r` loads the task before Mix starts, and
+the task loads the mutant into the VM of the tests.
+
+```mermaid
+sequenceDiagram
+    participant W as worker
+    participant R as Elixir runner
+    participant T as mutants_task.exs
+    participant M as mix test
+    W->>R: mutant
+    R->>R: write the mutated file and mutants_task.exs in a temp folder
+    R->>T: elixir -r mutants_task.exs -S mix mutants.test --no-compile --seed 0 --max-failures 1, in the folder of the project
+    T->>T: load the build of the project
+    alt the mutant does not compile
+        T-->>R: exit 97
+        R-->>W: NOT VIABLE
+    else the mutant compiles
+        T->>T: load the modules of the mutant in place of the modules of the original file
+        T->>M: start the application and run the tests
+        alt the limit ends first, two times
+            R->>M: SIGKILL to the process group
+            R-->>W: TIMED OUT
+        else mix test exits
+            M-->>R: exit code and output
+            R-->>W: KILLED, LIVED or INFRA ERROR
+        end
+    end
+```
+
+- **The project.** The project of a file is the nearest folder above it with `mix.exs`, for example an app in
+  `apps/` of an umbrella. A file in no project is NOT COVERED.
+- **The build.** Before the coverage run, `mix compile` builds the real code into `_build` of the project with
+  `MIX_ENV=test`, as `mix test` does. A project that does not compile stops the run with exit 2. The runs of
+  the mutants use this build with `--no-compile`.
+- **No write of a mutant.** The task compiles the mutated file in memory with `Code.compile_string`, with the
+  path of the original file, and its modules replace the modules of the build in the VM. The task does this
+  before the application starts, so a mutant of the code that starts the application also has an effect.
+- **No failures file in the build.** `mix test` keeps the failed tests for `mix test --failed` in `_build`.
+  The task puts this file in the temp folder, so a mutant does not change the next `mix test --failed` of the
+  user. `ERL_CRASH_DUMP` also points to the temp folder.
+- **The modules that use a macro.** A module that uses a macro, a guard or a struct of the mutated file keeps
+  the expansion of the real code, because the runner does not compile it again. So the skip rules drop the
+  edits in these places.
+- **Coverage.** `mix test` runs one time for each project, with `:cover` on each module of the build of the
+  project. A mutant on a line that no test runs is NOT COVERED, and so is each mutant of a file whose code no
+  test calls. `:cover` counts no line for a literal that ends a clause, such as the `10` of `if a do 10`, or
+  for a tuple of two elements. A mutant on such a line is NOT COVERED only when its function clause did not
+  run. A function clause did not run when each of its counted lines has a count of 0, or when it has no
+  counted line: each function clause that compiles has one, so such a clause is not in the build, for example
+  in the branch of an `if` outside a function that the build does not take. A project with no tests gives one
+  row for its mutants.
+- **Clause heads.** `:cover` also counts the line of a clause head, such as `n when n > 5 -> :many`, for the
+  body of the clause. So a guard or a condition that a test runs can sit on a line with a count of 0. A
+  mutant in the head of a clause of `case`, `cond`, `receive`, `with` or `fn` is NOT COVERED only when its
+  function clause did not run, or when each counted line of that construct has a count of 0. A mutant in the
+  head of a function, such as its guard, is NOT COVERED only when no clause of the function ran, or when its
+  own clause is not in the build.
+- **All the tests.** `:cover` gives no coverage for each test, so a mutant runs each test of its project, and
+  `--max-failures 1` stops the tests at the first failure.
+- **One order.** `--seed 0` turns off the random order of ExUnit, so that two runs give the same verdicts.
+- **Statuses.** `mix test` exits with 0 for LIVED, and with 2 when a test fails. Each other exit code is also
+  KILLED, because the tests passed with the real code: for example, the mutant stops the application. The
+  detail of KILLED is the first failed test and its file, or else the first `** (` line of an error.
+- **Workers.** The workers run `mix` at the same time in one project. Mix holds a lock on `_build` while it
+  loads the build, and `--no-compile` keeps that time short.
+- **No process stays alive.** The VM runs in its own process group, as each test binary of Go does. The VM
+  gives each port program, such as the program of a `System.cmd`, a session of its own, so the kill of the
+  group does not reach it. A port program stops when its input ends, as at the end of `mix test`, and a port
+  program that does not read its input stays alive.
+
 ### Statuses
 
 ```mermaid
@@ -772,6 +861,7 @@ flowchart TD
     LANG["internal/language<br/>language.Adapter"]
     GO["internal/language/golang<br/>go list, go/types, coverage, the Go runner"]
     PY["internal/language/python<br/>declarations, coverage.py, the Python runner"]
+    EX["internal/language/elixir<br/>declarations, :cover, the Elixir runner"]
     REP["internal/report<br/>rows, JSON, Stryker"]
     PROP["internal/proposal<br/>proposal.Proposal, proposal.Store"]
     PROG["internal/progress<br/>the progress lines"]
@@ -796,6 +886,10 @@ flowchart TD
     PY --> AG
     PY --> MUT
     PY --> PROC
+    EX --> LANG
+    EX --> AG
+    EX --> MUT
+    EX --> PROC
     LANG --> DIFF
     LANG --> OP
     LANG --> MUT
@@ -817,6 +911,7 @@ gives back.
 | `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage and its runner. `language.CallerGapFinder`: the caller gaps of a language that has the check. |
 | `language/golang` | the Go adapter |
 | `language/python` | the Python adapter, with its import hook and its pytest plugin |
+| `language/elixir` | the Elixir adapter, with its Mix task |
 | `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends. `RunAgainAfterTimeout` runs the program a second time with twice the limit, and `process.TestLimit` gives the limit of the tests of one mutant from its baseline. |
 | `run` | one run: changed lines, candidates, filters, ids, scope, proposals, caller gaps, coverage and workers |
 | `report` | the rows, the line for a run with no mutant, the JSON and the Stryker format |

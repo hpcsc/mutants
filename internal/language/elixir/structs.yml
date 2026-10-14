@@ -1,0 +1,57 @@
+id: module
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^(defmodule|defprotocol)$
+  all:
+    - has:
+        kind: arguments
+        has:
+          kind: alias
+          nthChild: 1
+          pattern: $NAME
+---
+id: field-default
+language: elixir
+utils:
+  defstruct:
+    kind: arguments
+    inside:
+      kind: call
+      has:
+        field: target
+        regex: ^defstruct$
+rule:
+  kind: pair
+  all:
+    - has:
+        field: key
+        pattern: $KEY
+    - has:
+        field: value
+        pattern: $VALUE
+  inside:
+    kind: keywords
+    inside:
+      any:
+        - matches: defstruct
+        - kind: list
+          inside:
+            matches: defstruct
+---
+id: field-without-default
+language: elixir
+rule:
+  kind: atom
+  pattern: $KEY
+  inside:
+    kind: list
+    inside:
+      kind: arguments
+      inside:
+        kind: call
+        has:
+          field: target
+          regex: ^defstruct$

@@ -1,0 +1,322 @@
+id: module
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^(defmodule|defprotocol)$
+  all:
+    - has:
+        kind: arguments
+        has:
+          kind: alias
+          nthChild: 1
+          pattern: $NAME
+---
+id: implementation
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^defimpl$
+  all:
+    - has:
+        kind: arguments
+        has:
+          kind: alias
+          nthChild: 1
+          pattern: $NAME
+    - any:
+        - has:
+            kind: arguments
+            has:
+              kind: keywords
+              has:
+                kind: pair
+                all:
+                  - has:
+                      field: key
+                      regex: '^for:'
+                  - has:
+                      field: value
+                      pattern: $FOR
+        - not:
+            has:
+              kind: arguments
+              has:
+                kind: keywords
+---
+id: function
+language: elixir
+utils:
+  name:
+    any:
+      - kind: call
+        pattern: $HEAD
+        has:
+          field: target
+          kind: identifier
+          pattern: $NAME
+      - kind: identifier
+        pattern: $NAME
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate)$
+  all:
+    - has:
+        kind: arguments
+        has:
+          nthChild: 1
+          pattern: $SIGNATURE
+          any:
+            - matches: name
+            - kind: binary_operator
+              has:
+                field: left
+                matches: name
+---
+id: clause-head
+language: elixir
+rule:
+  any:
+    - kind: arguments
+    - kind: binary_operator
+  inside:
+    kind: stab_clause
+    field: left
+    inside:
+      any:
+        - kind: call
+        - kind: anonymous_function
+      pattern: $CONSTRUCT
+      stopBy: end
+---
+id: spec
+language: elixir
+utils:
+  spec:
+    kind: arguments
+    inside:
+      kind: call
+      has:
+        field: target
+        regex: ^spec$
+rule:
+  kind: binary_operator
+  has:
+    field: operator
+    regex: ^::$
+  all:
+    - has:
+        field: left
+        any:
+          - kind: call
+            pattern: $HEAD
+            has:
+              field: target
+              pattern: $NAME
+          - kind: identifier
+            pattern: $NAME
+    - has:
+        field: right
+        pattern: $RETURNS
+    - any:
+        - inside:
+            matches: spec
+        - inside:
+            kind: binary_operator
+            field: left
+            inside:
+              matches: spec
+---
+id: argument
+language: elixir
+utils:
+  definition:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate)$
+  head:
+    kind: call
+    any:
+      - inside:
+          kind: arguments
+          inside:
+            matches: definition
+      - inside:
+          kind: binary_operator
+          field: left
+          inside:
+            kind: arguments
+            inside:
+              matches: definition
+      - inside:
+          kind: binary_operator
+          field: left
+          has:
+            field: operator
+            regex: ^::$
+rule:
+  any:
+    - kind: identifier
+    - kind: integer
+    - kind: atom
+    - kind: string
+    - kind: list
+    - kind: tuple
+    - kind: map
+    - kind: binary_operator
+    - kind: unary_operator
+    - kind: call
+    - kind: keywords
+    - kind: bitstring
+    - kind: charlist
+    - kind: nil
+    - kind: boolean
+    - kind: float
+    - kind: dot
+  inside:
+    kind: arguments
+    inside:
+      matches: head
+---
+id: parameter
+language: elixir
+utils:
+  definition:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp|defmacro|defmacrop)$
+  head:
+    kind: call
+    any:
+      - inside:
+          kind: arguments
+          inside:
+            matches: definition
+      - inside:
+          kind: binary_operator
+          field: left
+          inside:
+            kind: arguments
+            inside:
+              matches: definition
+rule:
+  kind: identifier
+  pattern: $NAME
+  inside:
+    kind: arguments
+    inside:
+      matches: head
+    stopBy: end
+---
+id: assigned
+language: elixir
+rule:
+  kind: identifier
+  pattern: $NAME
+  inside:
+    kind: binary_operator
+    field: left
+    has:
+      field: operator
+      regex: ^=$
+    stopBy: end
+  not:
+    inside:
+      kind: unary_operator
+      has:
+        field: operator
+        regex: ^\^$
+---
+id: bound
+language: elixir
+rule:
+  kind: identifier
+  pattern: $NAME
+  any:
+    - inside:
+        kind: binary_operator
+        field: left
+        has:
+          field: operator
+          regex: ^<-$
+        stopBy: end
+    - inside:
+        kind: stab_clause
+        field: left
+        stopBy: end
+  not:
+    any:
+      - inside:
+          kind: unary_operator
+          has:
+            field: operator
+            regex: ^\^$
+      - inside:
+          kind: binary_operator
+          field: right
+          has:
+            field: operator
+            regex: ^when$
+          stopBy: end
+---
+id: struct-field
+language: elixir
+rule:
+  kind: pair
+  all:
+    - has:
+        field: key
+        pattern: $KEY
+    - has:
+        field: value
+        pattern: $VALUE
+  inside:
+    kind: keywords
+    inside:
+      kind: map_content
+      inside:
+        kind: map
+        has:
+          kind: struct
+          pattern: $STRUCT
+---
+id: alias
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^alias$
+  all:
+    - has:
+        kind: arguments
+        has:
+          kind: alias
+          nthChild: 1
+          pattern: $NAME
+    - any:
+        - has:
+            kind: arguments
+            has:
+              kind: keywords
+              has:
+                kind: pair
+                all:
+                  - has:
+                      field: key
+                      regex: '^as:'
+                  - has:
+                      field: value
+                      pattern: $AS
+        - not:
+            has:
+              kind: arguments
+              has:
+                kind: keywords
