@@ -1,8 +1,8 @@
 # Add a Language Adapter to mutants
 
-`mutants` tests Go code. To test code in another language, you add a rule pack and a language adapter, and
-you connect the adapter in the commands. The core in `internal/run` does not change, because it knows a
-language only through the interface `language.Adapter`.
+`mutants` tests Go, Python and Elixir code. To test code in another language, you add a rule pack and a
+language adapter, and you connect the adapter in the commands. The core in `internal/run` does not change,
+because it knows a language only through the interface `language.Adapter`.
 
 This page tells what each part does, what each method of the adapter must do, and which places in the code
 name Go. [docs/design.md](design.md) tells how a run works.
@@ -219,9 +219,10 @@ The runner must:
 - Give an error only when the whole run must stop. A problem with one mutant is an INFRA ERROR verdict.
 
 The Python runner keeps the work tree clean with an import hook, as
-[The Python runner](design.md#the-python-runner) tells. The [Later](design.md#later) section of the design
-plans a TypeScript runner that keeps the work tree clean. It writes each mutant into a git worktree for each
-worker, in a temp folder.
+[The Python runner](design.md#the-python-runner) tells. The Elixir runner compiles each mutant in memory with
+a Mix task, as [The Elixir runner](design.md#the-elixir-runner) tells. The [Later](design.md#later) section of
+the design plans a TypeScript runner that keeps the work tree clean. It writes each mutant into a git
+worktree for each worker, in a temp folder.
 
 ## Step 4: Connect the adapter in the commands
 

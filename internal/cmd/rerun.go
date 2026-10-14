@@ -49,7 +49,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
-	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, 1), configured.pythonSettings(1), cmd.Root().ErrWriter)
+	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, 1), configured.pythonSettings(1), configured.elixirSettings(1), cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}

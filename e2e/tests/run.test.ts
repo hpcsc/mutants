@@ -369,6 +369,7 @@ describe('mutants operators', () => {
     expect(result.stdout).toMatch(/^go\s+NAMED_VALUE_SWAP\s+on\s+NAMED_VALUE_SWAP$/m)
     expect(result.stdout).toMatch(/^go\s+ERROR_CAUSE_REMOVE\s+off\s+ERROR_CAUSE_REMOVE$/m)
     expect(result.stdout).toMatch(/^python\s+NAMED_VALUE_SWAP\s+on\s+NAMED_VALUE_SWAP$/m)
+    expect(result.stdout).toMatch(/^elixir\s+NAMED_VALUE_SWAP\s+on\s+NAMED_VALUE_SWAP$/m)
   })
 
   it('lists a rule of the repository with the file that holds it, also from a folder below the root', async () => {

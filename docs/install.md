@@ -7,6 +7,7 @@
 | git | 2.30 or later | `mutants` reads the changed lines from git |
 | Go | the version that your module needs | for Go code: `mutants` builds your tests and runs them |
 | pytest and coverage.py | in the environment of the tests of each Python project | for Python code: `mutants` runs your tests with pytest, and coverage.py tells which tests run each line |
+| Elixir and Mix | the version that your project needs | for Elixir code: `mutants` builds your project and runs your tests with `mix test` |
 | [ast-grep](https://ast-grep.github.io/guide/quick-start.html) | 0.45.0 or later | `mutants` finds the code to change with ast-grep rules |
 
 Each tool must be on the `PATH`. `mutants` stops with an error when the `PATH` has no ast-grep, or an older one.

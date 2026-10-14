@@ -11,6 +11,7 @@ import (
 
 	"github.com/hpcsc/mutants/internal/diff"
 	"github.com/hpcsc/mutants/internal/language"
+	"github.com/hpcsc/mutants/internal/language/elixir"
 	"github.com/hpcsc/mutants/internal/language/golang"
 	"github.com/hpcsc/mutants/internal/language/python"
 	"github.com/hpcsc/mutants/internal/mutant"
@@ -92,7 +93,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		ProposalsAnywhere: cmd.Bool("proposals-anywhere"),
 		CallerGaps:        configured.callerGaps(cmd),
 	}
-	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, runSettings.Workers), configured.pythonSettings(runSettings.Workers), cmd.Root().ErrWriter)
+	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, runSettings.Workers), configured.pythonSettings(runSettings.Workers), configured.elixirSettings(runSettings.Workers), cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
@@ -119,23 +120,23 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	return nil
 }
 
-func newInstance(ctx context.Context, repository *diff.Repository, goSettings golang.Settings, pythonSettings python.Settings, status io.Writer) (*run.Instance, error) {
+func newInstance(ctx context.Context, repository *diff.Repository, goSettings golang.Settings, pythonSettings python.Settings, elixirSettings elixir.Settings, status io.Writer) (*run.Instance, error) {
 	if err := astgrep.CheckVersion(ctx); err != nil {
 		return nil, err
 	}
 	if executable, err := os.Executable(); err == nil {
 		goSettings.CacheProgram = []string{executable, "build-cache"}
 	}
-	languages, err := newLanguages(repository.Root(), goSettings, pythonSettings)
+	languages, err := newLanguages(repository.Root(), goSettings, pythonSettings, elixirSettings)
 	if err != nil {
 		return nil, err
 	}
 	return run.New(repository, languages, astgrep.New(repository.Root()), status, isTerminal(status)), nil
 }
 
-func newLanguages(root string, goSettings golang.Settings, pythonSettings python.Settings) ([]run.Language, error) {
+func newLanguages(root string, goSettings golang.Settings, pythonSettings python.Settings, elixirSettings elixir.Settings) ([]run.Language, error) {
 	var languages []run.Language
-	for _, adapter := range []language.Adapter{golang.New(root, goSettings), python.New(root, pythonSettings)} {
+	for _, adapter := range []language.Adapter{golang.New(root, goSettings), python.New(root, pythonSettings), elixir.New(root, elixirSettings)} {
 		pack, err := operator.Load(adapter.Name(), root)
 		if err != nil {
 			return nil, err

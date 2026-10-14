@@ -83,6 +83,29 @@ The operators make the same changes in Python:
 | `ARGUMENT_EMPTY` (off by default) | `resolve(client_id)` to `resolve(None)` |
 | `ERROR_CAUSE_REMOVE` (off by default) | `raise LoadError(x) from err` to `raise LoadError(x)` |
 
+## In Elixir
+
+The operators make the same changes in Elixir. Elixir has no statement without a value, so an operator that
+removes code puts `nil` in its place:
+
+| Operator | Example in Elixir |
+| --- | --- |
+| `CONDITIONALS_BOUNDARY` | `total >= 100` to `total > 100`, and `DateTime.after?(now, due)` to `not DateTime.before?(now, due)` |
+| `CONDITIONALS_NEGATION` | `a == b` to `a != b`, `a === b` to `a !== b`, and `a in xs` to `a not in xs` |
+| `INVERT_LOGICAL`, `EXPRESSION_REMOVE`, `REMOVE_LOGICAL_NOT` | `a and b` to `a or b`, `a && b` to `true && b`, and `not ok` or `!ok` to `ok` |
+| `ARITHMETIC_BASE` | `a + b` to `a - b`, and `div(a, b)` to `(a * b)`. The `/` of a capture such as `&f/1` gets no mutant. |
+| `INCREMENT_DECREMENT` | `count = count + 1` to `count = count - 1`. `ARITHMETIC_BASE` makes no mutant of this `+`. |
+| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)`. A number in a pattern, such as a function head, a `case` clause or the left side of `=`, gets no mutant, because Elixir does not compile `(3+1)` there. A number in a guard gets mutants. |
+| `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | the body of an `if`, an `unless`, an `else`, or a clause of `case`, `cond`, `receive` or the `else` of `with` to `nil`, in a function. An `if` outside a function chooses the functions of the module when it compiles, so it gets no mutant. |
+| `STATEMENT_REMOVE` | `total = total * 2` to `_ = total * 2`, and a call or a pipe that stands alone, such as `send(pid, :done)`, to `nil`. The last expression of a body gets no mutant, because it gives the value of the body. A binding gets no mutant when its variable has no value before it in the function, because the next read of the variable does not compile. |
+| `RETURN_EMPTY` | the last value of a function to `0` in a function whose `@spec` returns `integer()`, to `false` in a function whose name ends in `?`, and to `nil` in a function with no `@spec`. When an `if` or a `case` gives the value of the function, the last value of each branch gets the mutant. A value that is alone in its branch gets no `nil`, because `BRANCH_IF`, `BRANCH_ELSE` and `BRANCH_CASE` already put `nil` there. |
+| `ERROR_REMOVE` | `raise ArgumentError` to `nil` in a function, and an error tuple that a function returns, such as `{:error, :not_found}`, to `:ok` |
+| `RETURN_TRUE` | a comparison, a `not` or `false` that a function returns to `true`, and each other value in a function that returns `boolean()` or whose name ends in `?` |
+| `BREAK_AT_START`, `BREAK_AT_END` | `x <- xs` of a `for` to `x <- []` and to `x <- Enum.take(xs, 1)`, and the list of `Enum.each`, `Enum.map`, `Enum.reduce` and the other loops of `Enum` to no item and to only its first item, in a function. A loop outside a function makes the functions of the module when it compiles, so it gets no mutant. |
+| `NAMED_VALUE_SWAP`, `NAMED_VALUE_REMOVE` | `%Totals{paid: paid, owed: owed}` to `%Totals{paid: owed, owed: paid}`, and to `%Totals{owed: owed}`. A call keeps at least one of its keywords, because a call without its keywords has another arity. A field of a pattern that binds a variable, such as `coef: coef`, stays, because the next read of the variable does not compile. A field of a struct whose value is its default in `defstruct` also stays. |
+| `ARGUMENT_EMPTY` (off by default) | `resolve(client_id)` to `resolve(nil)` |
+| `ERROR_CAUSE_REMOVE` (off by default) | `reraise error, __STACKTRACE__` to `raise(error)`, which loses the stacktrace |
+
 ## Operators that are off by default
 
 These operators run only when `--operators` or `.mutants.yml` names them, for example
@@ -99,9 +122,12 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 
 - a change in a zerolog line that ends in `Msg`, `Msgf` or `Send`, and the removal of a branch that holds
   only such lines
-- a change in a `_test.go` file, in a Python test file, or in generated code
+- a change in a `_test.go` file, in a Python test file, in an Elixir file in a `test` folder, or in generated
+  code
 - a change in a call of a Python logger, in a type annotation, in an `if TYPE_CHECKING:` block, or in a
   comparison with `sys.version_info`
+- a change in a call of Elixir's `Logger`, in a typespec, in `import`, `alias` or `require`, in `@compile`
+  or `@dialyzer`, in a capture such as `&f/1`, or in a macro, a guard, `defstruct` or `defexception`
 - the removal of a branch that its function needs to end, such as one case of a `switch` whose cases each
   return
 - a value that is already the zero value of its type

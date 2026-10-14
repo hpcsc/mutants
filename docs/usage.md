@@ -234,7 +234,7 @@ caller gaps: 1
 ```
 
 A run that stops at `--limit` before the check ends lists no caller gaps. A run whose changed files are only
-in Python also lists none, because the check looks at Go code only. A run that finds a caller gap exits
+in Python or Elixir also lists none, because the check looks at Go code only. A run that finds a caller gap exits
 with 10. The check is off by default. Turn it on for each run with
 `caller_gaps: true` in `.mutants.yml`.
 
@@ -425,6 +425,9 @@ a match of a skip rule, and it does not empty a branch that holds only such matc
 of Go, `zerolog`, matches a zerolog call that ends in `Msg`, `Msgf` or `Send`. The standard skip rules of
 Python match a call of a logger, such as `logger.info(...)`, a type annotation, an `if TYPE_CHECKING:` block,
 a comparison with `sys.version_info`, a test file, and a file whose first comments say that it is generated.
+The standard skip rules of Elixir match a call of `Logger`, a typespec, `import`, `alias` and `require`,
+`@compile` and `@dialyzer`, a capture such as `&f/1`, a macro, a guard, `defstruct`, `defexception`, a file in
+a `test` folder, and a file whose first comments say that it is generated.
 
 To skip the calls of another logger, or other code whose change no test can see, put a rule in a YAML file
 in `.mutants/skip/go/`:
@@ -466,6 +469,28 @@ rule:
 - **Limits.** A comparison chain such as `0 < x < 10` gets no `CONDITIONALS_BOUNDARY` or
   `CONDITIONALS_NEGATION` mutant. A line that runs only in a process that a test starts is NOT COVERED,
   because coverage.py does not measure that process. `--caller-gaps` looks at Go code only.
+
+## Elixir
+
+`mutants` runs the tests of Elixir code with `mix test`, in `MIX_ENV=test`.
+
+- **The project.** The project of a file is the nearest folder above it with `mix.exs`, for example an app in
+  `apps/` of an umbrella. `mix test` runs in the folder of the project, so a repository can hold more than one
+  Mix project. A file in no Mix project gets NOT COVERED.
+- **The files.** `mutants` changes the `.ex` files, and no `.exs` file, such as a test, a config or `mix.exs`.
+- **The build.** `mutants` runs `mix compile` one time for each project, before the first mutant. The build
+  goes to `_build` of the project, as with `mix test`. The project must have its dependencies, for example from
+  `mix deps.get`. A project that does not compile stops the run with exit 2.
+- **The tests of a mutant.** `mutants` runs the tests of each project one time with `:cover`, to find the
+  lines that no test runs. Each other mutant runs each test of its project, and stops at the first failure.
+  An alias for `test` in `mix.exs`, such as one that creates the database, runs as it does for `mix test`.
+- **The database.** The workers run the tests of more than one mutant at the same time, against the same test
+  database. When the tests of a project cannot run two times at the same time, use `--workers 1`.
+- **One order.** `mutants` runs the tests with `--seed 0`, so the tests run in the same order in each run.
+- **Limits.** A mutant of a macro, a guard or the defaults of a struct gets no row: a module that uses them
+  keeps the code that it got when it compiled. A program that a test starts through a port, such as with
+  `System.cmd`, stays alive after the time limit of a mutant when it does not read its input, as after
+  `mix test`. `--caller-gaps` looks at Go code only.
 
 ## Time limits
 

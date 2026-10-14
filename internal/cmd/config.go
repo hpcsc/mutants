@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language/elixir"
 	"github.com/hpcsc/mutants/internal/language/golang"
 	"github.com/hpcsc/mutants/internal/language/python"
 	"github.com/urfave/cli/v3"
@@ -177,4 +178,8 @@ func (c config) goSettings(cmd *cli.Command, workers int) golang.Settings {
 
 func (c config) pythonSettings(workers int) python.Settings {
 	return python.Settings{Command: c.Python.Command, Workers: workers}
+}
+
+func (c config) elixirSettings(workers int) elixir.Settings {
+	return elixir.Settings{Workers: workers}
 }

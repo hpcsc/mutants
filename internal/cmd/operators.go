@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language/elixir"
 	"github.com/hpcsc/mutants/internal/language/golang"
 	"github.com/hpcsc/mutants/internal/language/python"
 	"github.com/urfave/cli/v3"
@@ -29,7 +30,7 @@ func listOperators(ctx context.Context, cmd *cli.Command) error {
 	if repository, err := diff.Open(ctx, root); err == nil {
 		root = repository.Root()
 	}
-	languages, err := newLanguages(root, golang.Settings{}, python.Settings{})
+	languages, err := newLanguages(root, golang.Settings{}, python.Settings{}, elixir.Settings{})
 	if err != nil {
 		return err
 	}

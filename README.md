@@ -4,7 +4,7 @@
 changed lines of your branch, and it runs your tests after each change. When the tests still pass,
 `mutants` shows the line and the change, so you know which test to add.
 
-- It works on Go and Python code in a git repository. One run tests each language that your branch changes.
+- It works on Go, Python and Elixir code in a git repository. One run tests each language that your branch changes.
 - It tests only the lines that your branch changes. A run then takes minutes, so you can run it before each
   review.
 - By default, it compares your work tree with the point where your branch left `origin/HEAD`. So it also
@@ -65,6 +65,8 @@ The test still passes, because no test uses an order of 100. This change is a mu
 - Go, for Go code
 - for Python code: pytest and coverage.py in the environment of your tests. pytest-cov installs
   coverage.py. [docs/usage.md](docs/usage.md#python) tells how `mutants` finds that environment.
+- for Elixir code: Elixir and Mix, and the dependencies of each Mix project, as `mix deps.get` gives them.
+  [docs/usage.md](docs/usage.md#elixir) tells how `mutants` runs the tests.
 
 Install the latest release of `mutants` with this script:
 
@@ -77,7 +79,7 @@ its options, and how to update `mutants`.
 
 ## Your first run
 
-1. Go to a git repository that holds Go or Python code, and check out your branch.
+1. Go to a git repository that holds Go, Python or Elixir code, and check out your branch.
 2. Run `mutants`:
 
    ```shell
