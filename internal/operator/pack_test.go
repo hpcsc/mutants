@@ -367,6 +367,21 @@ func TestPack(t *testing.T) {
 			}, edits)
 		})
 
+		t.Run("an edit leaves out the white space at the start and the end of its match", func(t *testing.T) {
+			root := t.TempDir()
+			writeFile(t, filepath.Join(root, "a.go"), "package a\n\nvar x = 1 + 2\n")
+			pack, err := loadPack(t, root).Select([]string{"ARITHMETIC_BASE"})
+			require.NoError(t, err)
+			matcher := fixedMatches{{Rule: "ARITHMETIC_BASE/plus", File: "a.go", Start: 18, End: 25, Replacement: "1 - 2"}}
+
+			edits, err := pack.Edits(context.Background(), matcher, root, []string{"a.go"})
+
+			require.NoError(t, err)
+			require.Equal(t, []operator.Edit{
+				{File: "a.go", Operator: "ARITHMETIC_BASE", Rule: "ARITHMETIC_BASE/plus", Start: 19, End: 24, Original: "1 + 2", Replacement: "1 - 2"},
+			}, edits)
+		})
+
 		t.Run("INCREMENT_DECREMENT swaps ++ and --", func(t *testing.T) {
 			edits := editsOf(t, "INCREMENT_DECREMENT", "package a\n\nfunc f(a, b int) {\n\ta++\n\tb--\n}\n")
 

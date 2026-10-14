@@ -231,6 +231,12 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 			if edited, found := match.Variables[editVariable]; found {
 				start, end = edited.Start, edited.End
 			}
+			for start < end && isSpace(source[start]) {
+				start++
+			}
+			for end > start && isSpace(source[end-1]) {
+				end--
+			}
 			fileEdits = append(fileEdits, Edit{
 				File:        file,
 				Operator:    rule.Operator,
@@ -247,6 +253,10 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 		edits = append(edits, slices.DeleteFunc(fileEdits, func(edit Edit) bool { return skipped(edit, skippedOfFile[file]) })...)
 	}
 	return edits, nil
+}
+
+func isSpace(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }
 
 func skipped(edit Edit, skippedCode []Span) bool {

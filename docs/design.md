@@ -210,7 +210,7 @@ it changes nothing. `ast-grep scan --json` returns each match with its `replacem
 one match is one mutant. `mutants` runs the scan with `--hint`, so a rule with `severity: error` does not
 change the exit code of ast-grep. A fix replaces the whole match, and a rule that binds `$$$EDIT` replaces
 only the text from the first node of `$$$EDIT` to the last, for example the statements of a body that has no
-node of its own. The rules live in three places, and a later place adds to an earlier one:
+node of its own. An edit leaves out the white space at the start and the end of that text. The rules live in three places, and a later place adds to an earlier one:
 
 | Place | Holds |
 | --- | --- |
