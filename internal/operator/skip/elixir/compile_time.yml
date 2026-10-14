@@ -1,0 +1,7 @@
+id: compile-time
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^(defmacro|defmacrop|defguard|defguardp|defstruct|defexception)$

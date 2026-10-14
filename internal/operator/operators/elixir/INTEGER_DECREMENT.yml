@@ -1,0 +1,64 @@
+id: INTEGER_DECREMENT
+language: elixir
+utils:
+  definition:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp|defmacro|defmacrop)$
+  guard:
+    kind: binary_operator
+    has:
+      field: operator
+      regex: ^when$
+  head:
+    kind: call
+    any:
+      - inside:
+          kind: arguments
+          inside:
+            matches: definition
+      - inside:
+          matches: guard
+          field: left
+          inside:
+            kind: arguments
+            inside:
+              matches: definition
+  pattern:
+    all:
+      - any:
+          - inside:
+              kind: arguments
+              inside:
+                matches: head
+              stopBy: end
+          - inside:
+              kind: stab_clause
+              field: left
+              stopBy: end
+          - inside:
+              kind: binary_operator
+              field: left
+              has:
+                field: operator
+                regex: ^(=|<-)$
+              stopBy: end
+          - inside:
+              kind: binary_operator
+              field: right
+              has:
+                field: operator
+                regex: ^::$
+              stopBy: end
+      - not:
+          inside:
+            matches: guard
+            field: right
+            stopBy: end
+rule:
+  kind: integer
+  pattern: $N
+  not:
+    matches: pattern
+fix: ($N-1)

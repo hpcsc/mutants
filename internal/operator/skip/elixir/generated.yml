@@ -1,0 +1,12 @@
+id: generated
+language: elixir
+rule:
+  kind: source
+  has:
+    kind: comment
+    regex: (@generated|DO NOT EDIT)
+    not:
+      follows:
+        not:
+          kind: comment
+        stopBy: end

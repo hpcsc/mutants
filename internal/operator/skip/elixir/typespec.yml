@@ -1,0 +1,14 @@
+id: typespec
+language: elixir
+rule:
+  kind: unary_operator
+  has:
+    field: operator
+    regex: ^@$
+  all:
+    - has:
+        field: operand
+        kind: call
+        has:
+          field: target
+          regex: ^(spec|type|typep|opaque|callback|macrocallback)$

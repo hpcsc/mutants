@@ -1,0 +1,7 @@
+id: directive
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^(import|alias|require)$

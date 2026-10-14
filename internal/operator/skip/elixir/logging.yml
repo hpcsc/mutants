@@ -1,0 +1,7 @@
+id: logging
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^(Logger|:logger)\.(debug|info|notice|warning|warn|error|critical|alert|emergency|log)$

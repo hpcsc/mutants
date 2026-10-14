@@ -1,0 +1,23 @@
+id: INVERT_LOGICAL/and
+language: elixir
+rule:
+  pattern: $A and $B
+fix: $A or $B
+---
+id: INVERT_LOGICAL/or
+language: elixir
+rule:
+  pattern: $A or $B
+fix: $A and $B
+---
+id: INVERT_LOGICAL/relaxed-and
+language: elixir
+rule:
+  pattern: $A && $B
+fix: $A || $B
+---
+id: INVERT_LOGICAL/relaxed-or
+language: elixir
+rule:
+  pattern: $A || $B
+fix: $A && $B

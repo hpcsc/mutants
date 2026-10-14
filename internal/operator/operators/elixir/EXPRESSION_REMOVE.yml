@@ -1,0 +1,47 @@
+id: EXPRESSION_REMOVE/and-left
+language: elixir
+rule:
+  pattern: $A and $B
+fix: true and $B
+---
+id: EXPRESSION_REMOVE/and-right
+language: elixir
+rule:
+  pattern: $A and $B
+fix: $A and true
+---
+id: EXPRESSION_REMOVE/or-left
+language: elixir
+rule:
+  pattern: $A or $B
+fix: false or $B
+---
+id: EXPRESSION_REMOVE/or-right
+language: elixir
+rule:
+  pattern: $A or $B
+fix: $A or false
+---
+id: EXPRESSION_REMOVE/relaxed-and-left
+language: elixir
+rule:
+  pattern: $A && $B
+fix: true && $B
+---
+id: EXPRESSION_REMOVE/relaxed-and-right
+language: elixir
+rule:
+  pattern: $A && $B
+fix: $A && true
+---
+id: EXPRESSION_REMOVE/relaxed-or-left
+language: elixir
+rule:
+  pattern: $A || $B
+fix: false || $B
+---
+id: EXPRESSION_REMOVE/relaxed-or-right
+language: elixir
+rule:
+  pattern: $A || $B
+fix: $A || false

@@ -1,0 +1,59 @@
+id: CONDITIONALS_NEGATION/eq
+language: elixir
+rule:
+  pattern: $A == $B
+fix: $A != $B
+---
+id: CONDITIONALS_NEGATION/ne
+language: elixir
+rule:
+  pattern: $A != $B
+fix: $A == $B
+---
+id: CONDITIONALS_NEGATION/strict-eq
+language: elixir
+rule:
+  pattern: $A === $B
+fix: $A !== $B
+---
+id: CONDITIONALS_NEGATION/strict-ne
+language: elixir
+rule:
+  pattern: $A !== $B
+fix: $A === $B
+---
+id: CONDITIONALS_NEGATION/lt
+language: elixir
+rule:
+  pattern: $A < $B
+fix: $A >= $B
+---
+id: CONDITIONALS_NEGATION/ge
+language: elixir
+rule:
+  pattern: $A >= $B
+fix: $A < $B
+---
+id: CONDITIONALS_NEGATION/gt
+language: elixir
+rule:
+  pattern: $A > $B
+fix: $A <= $B
+---
+id: CONDITIONALS_NEGATION/le
+language: elixir
+rule:
+  pattern: $A <= $B
+fix: $A > $B
+---
+id: CONDITIONALS_NEGATION/in
+language: elixir
+rule:
+  pattern: $A in $B
+fix: $A not in $B
+---
+id: CONDITIONALS_NEGATION/not-in
+language: elixir
+rule:
+  pattern: $A not in $B
+fix: $A in $B

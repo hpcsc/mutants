@@ -1,0 +1,15 @@
+id: NAMED_VALUE_SWAP
+language: elixir
+utils:
+  block-key:
+    kind: pair
+    has:
+      field: key
+      regex: '^(do|else|after|rescue|catch):'
+rule:
+  kind: pair
+  has:
+    field: value
+    pattern: $VALUE
+  not:
+    matches: block-key

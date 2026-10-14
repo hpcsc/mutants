@@ -1,0 +1,220 @@
+id: ARGUMENT_EMPTY/positional
+language: elixir
+utils:
+  definition:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp|defmacro|defmacrop)$
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  guard:
+    kind: binary_operator
+    has:
+      field: operator
+      regex: ^when$
+  head:
+    kind: call
+    any:
+      - inside:
+          kind: arguments
+          inside:
+            matches: definition
+      - inside:
+          matches: guard
+          field: left
+          inside:
+            kind: arguments
+            inside:
+              matches: definition
+  pattern:
+    all:
+      - any:
+          - inside:
+              kind: arguments
+              inside:
+                matches: head
+              stopBy: end
+          - inside:
+              kind: stab_clause
+              field: left
+              stopBy: end
+          - inside:
+              kind: binary_operator
+              field: left
+              has:
+                field: operator
+                regex: ^(=|<-)$
+              stopBy: end
+          - inside:
+              kind: binary_operator
+              field: right
+              has:
+                field: operator
+                regex: ^::$
+              stopBy: end
+      - not:
+          inside:
+            matches: guard
+            field: right
+            stopBy: end
+  plain-call:
+    kind: call
+    not:
+      any:
+        - has:
+            field: target
+            regex: ^(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate|defmodule|defprotocol|defimpl|defstruct|defexception|if|unless|case|cond|with|for|try|receive|quote|unquote|unquote_splicing|import|alias|require|use|raise|reraise)$
+        - inside:
+            kind: unary_operator
+rule:
+  matches: expression
+  inside:
+    kind: arguments
+    inside:
+      matches: plain-call
+  not:
+    any:
+      - matches: pattern
+      - kind: unary_operator
+        has:
+          field: operator
+          regex: ^&$
+fix: nil
+---
+id: ARGUMENT_EMPTY/keyword
+language: elixir
+utils:
+  block-key:
+    kind: pair
+    has:
+      field: key
+      regex: '^(do|else|after|rescue|catch):'
+  definition:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp|defmacro|defmacrop)$
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  guard:
+    kind: binary_operator
+    has:
+      field: operator
+      regex: ^when$
+  head:
+    kind: call
+    any:
+      - inside:
+          kind: arguments
+          inside:
+            matches: definition
+      - inside:
+          matches: guard
+          field: left
+          inside:
+            kind: arguments
+            inside:
+              matches: definition
+  pattern:
+    all:
+      - any:
+          - inside:
+              kind: arguments
+              inside:
+                matches: head
+              stopBy: end
+          - inside:
+              kind: stab_clause
+              field: left
+              stopBy: end
+          - inside:
+              kind: binary_operator
+              field: left
+              has:
+                field: operator
+                regex: ^(=|<-)$
+              stopBy: end
+          - inside:
+              kind: binary_operator
+              field: right
+              has:
+                field: operator
+                regex: ^::$
+              stopBy: end
+      - not:
+          inside:
+            matches: guard
+            field: right
+            stopBy: end
+  plain-call:
+    kind: call
+    not:
+      any:
+        - has:
+            field: target
+            regex: ^(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate|defmodule|defprotocol|defimpl|defstruct|defexception|if|unless|case|cond|with|for|try|receive|quote|unquote|unquote_splicing|import|alias|require|use|raise|reraise)$
+        - inside:
+            kind: unary_operator
+rule:
+  matches: expression
+  inside:
+    kind: pair
+    field: value
+    not:
+      matches: block-key
+    inside:
+      kind: keywords
+      inside:
+        kind: arguments
+        inside:
+          matches: plain-call
+  not:
+    matches: pattern
+fix: nil

@@ -1,0 +1,685 @@
+id: RETURN_EMPTY/nil
+language: elixir
+utils:
+  branch-value:
+    all:
+      - nthChild:
+          position: 1
+          ofRule:
+            matches: expression
+      - matches: last
+      - any:
+          - inside:
+              any:
+                - kind: do_block
+                - kind: else_block
+              inside:
+                kind: call
+                has:
+                  field: target
+                  regex: ^(if|unless)$
+                stopBy:
+                  kind: call
+          - inside:
+              kind: body
+              inside:
+                kind: stab_clause
+                inside:
+                  any:
+                    - kind: do_block
+                      inside:
+                        kind: call
+                        has:
+                          field: target
+                          regex: ^(case|cond|receive)$
+                    - kind: else_block
+                      inside:
+                        kind: do_block
+                        inside:
+                          kind: call
+                          has:
+                            field: target
+                            regex: ^with$
+          - inside:
+              kind: pair
+              field: value
+              has:
+                field: key
+                regex: '^(do|else):'
+              inside:
+                kind: keywords
+                inside:
+                  kind: arguments
+                  inside:
+                    kind: call
+                    has:
+                      field: target
+                      regex: ^(if|unless)$
+  branching:
+    kind: call
+    has:
+      field: target
+      regex: ^(if|unless|case|cond|with|try|receive)$
+  error:
+    kind: tuple
+    has:
+      kind: atom
+      regex: ^:error$
+      nthChild: 1
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  last:
+    nthChild:
+      position: 1
+      reverse: true
+      ofRule:
+        matches: expression
+  raise:
+    kind: call
+    has:
+      field: target
+      regex: ^(raise|reraise|throw|exit)$
+  returned:
+    matches: tail
+    not:
+      any:
+        - matches: branching
+        - matches: raise
+        - matches: error
+  tail:
+    matches: expression
+    any:
+      - matches: last
+        inside:
+          any:
+            - kind: do_block
+            - kind: else_block
+          inside:
+            matches: value
+            stopBy:
+              kind: call
+      - matches: last
+        inside:
+          kind: body
+          inside:
+            kind: stab_clause
+            inside:
+              matches: value
+              stopBy:
+                kind: call
+      - inside:
+          kind: pair
+          field: value
+          has:
+            field: key
+            regex: '^(do|else):'
+          inside:
+            kind: keywords
+            inside:
+              kind: arguments
+              inside:
+                matches: value
+  value:
+    any:
+      - matches: function
+      - all:
+          - matches: branching
+          - matches: tail
+rule:
+  matches: returned
+  not:
+    matches: branch-value
+fix: nil
+---
+id: RETURN_EMPTY/zero
+language: elixir
+utils:
+  branching:
+    kind: call
+    has:
+      field: target
+      regex: ^(if|unless|case|cond|with|try|receive)$
+  error:
+    kind: tuple
+    has:
+      kind: atom
+      regex: ^:error$
+      nthChild: 1
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  last:
+    nthChild:
+      position: 1
+      reverse: true
+      ofRule:
+        matches: expression
+  raise:
+    kind: call
+    has:
+      field: target
+      regex: ^(raise|reraise|throw|exit)$
+  returned:
+    matches: tail
+    not:
+      any:
+        - matches: branching
+        - matches: raise
+        - matches: error
+  tail:
+    matches: expression
+    any:
+      - matches: last
+        inside:
+          any:
+            - kind: do_block
+            - kind: else_block
+          inside:
+            matches: value
+            stopBy:
+              kind: call
+      - matches: last
+        inside:
+          kind: body
+          inside:
+            kind: stab_clause
+            inside:
+              matches: value
+              stopBy:
+                kind: call
+      - inside:
+          kind: pair
+          field: value
+          has:
+            field: key
+            regex: '^(do|else):'
+          inside:
+            kind: keywords
+            inside:
+              kind: arguments
+              inside:
+                matches: value
+  value:
+    any:
+      - matches: function
+      - all:
+          - matches: branching
+          - matches: tail
+rule:
+  matches: returned
+fix: '0'
+---
+id: RETURN_EMPTY/empty-string
+language: elixir
+utils:
+  branching:
+    kind: call
+    has:
+      field: target
+      regex: ^(if|unless|case|cond|with|try|receive)$
+  error:
+    kind: tuple
+    has:
+      kind: atom
+      regex: ^:error$
+      nthChild: 1
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  last:
+    nthChild:
+      position: 1
+      reverse: true
+      ofRule:
+        matches: expression
+  raise:
+    kind: call
+    has:
+      field: target
+      regex: ^(raise|reraise|throw|exit)$
+  returned:
+    matches: tail
+    not:
+      any:
+        - matches: branching
+        - matches: raise
+        - matches: error
+  tail:
+    matches: expression
+    any:
+      - matches: last
+        inside:
+          any:
+            - kind: do_block
+            - kind: else_block
+          inside:
+            matches: value
+            stopBy:
+              kind: call
+      - matches: last
+        inside:
+          kind: body
+          inside:
+            kind: stab_clause
+            inside:
+              matches: value
+              stopBy:
+                kind: call
+      - inside:
+          kind: pair
+          field: value
+          has:
+            field: key
+            regex: '^(do|else):'
+          inside:
+            kind: keywords
+            inside:
+              kind: arguments
+              inside:
+                matches: value
+  value:
+    any:
+      - matches: function
+      - all:
+          - matches: branching
+          - matches: tail
+rule:
+  matches: returned
+fix: '""'
+---
+id: RETURN_EMPTY/false
+language: elixir
+utils:
+  branching:
+    kind: call
+    has:
+      field: target
+      regex: ^(if|unless|case|cond|with|try|receive)$
+  error:
+    kind: tuple
+    has:
+      kind: atom
+      regex: ^:error$
+      nthChild: 1
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  last:
+    nthChild:
+      position: 1
+      reverse: true
+      ofRule:
+        matches: expression
+  raise:
+    kind: call
+    has:
+      field: target
+      regex: ^(raise|reraise|throw|exit)$
+  returned:
+    matches: tail
+    not:
+      any:
+        - matches: branching
+        - matches: raise
+        - matches: error
+  tail:
+    matches: expression
+    any:
+      - matches: last
+        inside:
+          any:
+            - kind: do_block
+            - kind: else_block
+          inside:
+            matches: value
+            stopBy:
+              kind: call
+      - matches: last
+        inside:
+          kind: body
+          inside:
+            kind: stab_clause
+            inside:
+              matches: value
+              stopBy:
+                kind: call
+      - inside:
+          kind: pair
+          field: value
+          has:
+            field: key
+            regex: '^(do|else):'
+          inside:
+            kind: keywords
+            inside:
+              kind: arguments
+              inside:
+                matches: value
+  value:
+    any:
+      - matches: function
+      - all:
+          - matches: branching
+          - matches: tail
+rule:
+  matches: returned
+fix: 'false'
+---
+id: RETURN_EMPTY/empty-list
+language: elixir
+utils:
+  branching:
+    kind: call
+    has:
+      field: target
+      regex: ^(if|unless|case|cond|with|try|receive)$
+  error:
+    kind: tuple
+    has:
+      kind: atom
+      regex: ^:error$
+      nthChild: 1
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  last:
+    nthChild:
+      position: 1
+      reverse: true
+      ofRule:
+        matches: expression
+  raise:
+    kind: call
+    has:
+      field: target
+      regex: ^(raise|reraise|throw|exit)$
+  returned:
+    matches: tail
+    not:
+      any:
+        - matches: branching
+        - matches: raise
+        - matches: error
+  tail:
+    matches: expression
+    any:
+      - matches: last
+        inside:
+          any:
+            - kind: do_block
+            - kind: else_block
+          inside:
+            matches: value
+            stopBy:
+              kind: call
+      - matches: last
+        inside:
+          kind: body
+          inside:
+            kind: stab_clause
+            inside:
+              matches: value
+              stopBy:
+                kind: call
+      - inside:
+          kind: pair
+          field: value
+          has:
+            field: key
+            regex: '^(do|else):'
+          inside:
+            kind: keywords
+            inside:
+              kind: arguments
+              inside:
+                matches: value
+  value:
+    any:
+      - matches: function
+      - all:
+          - matches: branching
+          - matches: tail
+rule:
+  matches: returned
+fix: '[]'
+---
+id: RETURN_EMPTY/empty-map
+language: elixir
+utils:
+  branching:
+    kind: call
+    has:
+      field: target
+      regex: ^(if|unless|case|cond|with|try|receive)$
+  error:
+    kind: tuple
+    has:
+      kind: atom
+      regex: ^:error$
+      nthChild: 1
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  last:
+    nthChild:
+      position: 1
+      reverse: true
+      ofRule:
+        matches: expression
+  raise:
+    kind: call
+    has:
+      field: target
+      regex: ^(raise|reraise|throw|exit)$
+  returned:
+    matches: tail
+    not:
+      any:
+        - matches: branching
+        - matches: raise
+        - matches: error
+  tail:
+    matches: expression
+    any:
+      - matches: last
+        inside:
+          any:
+            - kind: do_block
+            - kind: else_block
+          inside:
+            matches: value
+            stopBy:
+              kind: call
+      - matches: last
+        inside:
+          kind: body
+          inside:
+            kind: stab_clause
+            inside:
+              matches: value
+              stopBy:
+                kind: call
+      - inside:
+          kind: pair
+          field: value
+          has:
+            field: key
+            regex: '^(do|else):'
+          inside:
+            kind: keywords
+            inside:
+              kind: arguments
+              inside:
+                matches: value
+  value:
+    any:
+      - matches: function
+      - all:
+          - matches: branching
+          - matches: tail
+rule:
+  matches: returned
+fix: '%{}'

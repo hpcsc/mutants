@@ -1,0 +1,6 @@
+id: test-file
+language: elixir
+files:
+  - '**/test/**/*.ex'
+rule:
+  kind: source

@@ -1,0 +1,84 @@
+id: BREAK_AT_START/for
+language: elixir
+utils:
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+rule:
+  kind: binary_operator
+  pattern: $P <- $E
+  all:
+    - inside:
+        matches: function
+        stopBy: end
+  inside:
+    kind: arguments
+    inside:
+      kind: call
+      has:
+        field: target
+        regex: ^for$
+fix: $P <- []
+---
+id: BREAK_AT_START/enum
+language: elixir
+utils:
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  loop:
+    kind: call
+    has:
+      field: target
+      regex: ^Enum\.(each|map|flat_map|filter|reject|reduce|reduce_while|map_reduce)$
+  pipe:
+    kind: binary_operator
+    has:
+      field: operator
+      regex: ^\|>$
+rule:
+  pattern: Enum.$F($E, $$$REST)
+  matches: loop
+  all:
+    - inside:
+        matches: function
+        stopBy: end
+  not:
+    inside:
+      matches: pipe
+      field: right
+fix: Enum.$F([], $$$REST)
+---
+id: BREAK_AT_START/pipe
+language: elixir
+utils:
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  loop:
+    kind: call
+    has:
+      field: target
+      regex: ^Enum\.(each|map|flat_map|filter|reject|reduce|reduce_while|map_reduce)$
+  pipe:
+    kind: binary_operator
+    has:
+      field: operator
+      regex: ^\|>$
+rule:
+  pattern: $CALL
+  matches: loop
+  all:
+    - inside:
+        matches: function
+        stopBy: end
+  inside:
+    matches: pipe
+    field: right
+fix: Enum.take(0) |> $CALL

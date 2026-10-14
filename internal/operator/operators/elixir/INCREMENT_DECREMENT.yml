@@ -1,0 +1,17 @@
+id: INCREMENT_DECREMENT/increment
+language: elixir
+rule:
+  pattern: $X = $X + $N
+  has:
+    field: left
+    kind: identifier
+fix: $X = $X - $N
+---
+id: INCREMENT_DECREMENT/decrement
+language: elixir
+rule:
+  pattern: $X = $X - $N
+  has:
+    field: left
+    kind: identifier
+fix: $X = $X + $N

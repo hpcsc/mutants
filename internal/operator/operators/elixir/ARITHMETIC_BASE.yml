@@ -1,0 +1,41 @@
+id: ARITHMETIC_BASE/plus
+language: elixir
+rule:
+  pattern: $A + $B
+  not:
+    inside:
+      pattern: $A = $A + $B
+fix: $A - $B
+---
+id: ARITHMETIC_BASE/minus
+language: elixir
+rule:
+  pattern: $A - $B
+  not:
+    inside:
+      pattern: $A = $A - $B
+fix: $A + $B
+---
+id: ARITHMETIC_BASE/multiply
+language: elixir
+rule:
+  pattern: $A * $B
+fix: $A / $B
+---
+id: ARITHMETIC_BASE/divide
+language: elixir
+rule:
+  pattern: $A / $B
+fix: $A * $B
+---
+id: ARITHMETIC_BASE/div
+language: elixir
+rule:
+  pattern: div($A, $B)
+fix: ($A * $B)
+---
+id: ARITHMETIC_BASE/rem
+language: elixir
+rule:
+  pattern: rem($A, $B)
+fix: ($A * $B)

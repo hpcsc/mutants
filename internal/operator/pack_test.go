@@ -49,6 +49,11 @@ func pythonEditsOf(t *testing.T, operatorName, source string) []string {
 	return changesOf(findEditsIn(t, "a.py", operatorName, source))
 }
 
+func elixirEditsOf(t *testing.T, operatorName, source string) []string {
+	t.Helper()
+	return changesOf(findEditsIn(t, "a.ex", operatorName, source))
+}
+
 func changesOf(edits []operator.Edit) []string {
 	var changes []string
 	for _, edit := range edits {
@@ -66,7 +71,7 @@ func findEditsIn(t *testing.T, file, operatorName, source string) []operator.Edi
 	t.Helper()
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, file), source)
-	loaded, err := operator.Load(map[string]string{".go": "go", ".py": "python"}[filepath.Ext(file)], root)
+	loaded, err := operator.Load(map[string]string{".go": "go", ".py": "python", ".ex": "elixir"}[filepath.Ext(file)], root)
 	require.NoError(t, err)
 	pack, err := loaded.Select([]string{operatorName})
 	require.NoError(t, err)
@@ -819,6 +824,340 @@ func TestPack(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, []operator.Edit{
 				{File: "cart.py", Operator: "INTEGER_INCREMENT", Rule: "INTEGER_INCREMENT", Start: 8, End: 9, Original: "1", Replacement: "(1+1)"},
+			}, edits)
+		})
+	})
+	t.Run("elixir edits", func(t *testing.T) {
+		t.Run("CONDITIONALS_BOUNDARY moves each comparison to its boundary, also after? and before? of a calendar type", func(t *testing.T) {
+			edits := elixirEditsOf(t, "CONDITIONALS_BOUNDARY", "def f(a, b), do: [a < b, a <= b, a > b, a >= b, DateTime.after?(a, b), Date.before?(a, b), Cart.after?(a, b)]\n")
+
+			require.Equal(t, []string{
+				"a < b -> a <= b", "a <= b -> a < b", "a > b -> a >= b", "a >= b -> a > b",
+				"DateTime.after?(a, b) -> not DateTime.before?(a, b)", "Date.before?(a, b) -> not Date.after?(a, b)",
+			}, edits)
+		})
+
+		t.Run("CONDITIONALS_NEGATION negates each comparison, also the strict ones and in", func(t *testing.T) {
+			edits := elixirEditsOf(t, "CONDITIONALS_NEGATION", "def f(a, b), do: [a == b, a != b, a === b, a !== b, a < b, a >= b, a > b, a <= b, a in b, a not in b]\n")
+
+			require.Equal(t, []string{
+				"a == b -> a != b", "a != b -> a == b", "a === b -> a !== b", "a !== b -> a === b", "a < b -> a >= b",
+				"a >= b -> a < b", "a > b -> a <= b", "a <= b -> a > b", "a in b -> a not in b", "a not in b -> a in b",
+			}, edits)
+		})
+
+		t.Run("ARITHMETIC_BASE changes each arithmetic operator, also div and rem, and skips a function capture and the addition of a rebinding", func(t *testing.T) {
+			source := "def f(a, b, total) do\n  total = total + b\n  Enum.map([a + b, a - b, a * b, a / b, div(a, b), rem(a, b)], &round/1)\nend\n"
+
+			require.Equal(t, []string{
+				"a + b -> a - b", "a - b -> a + b", "a * b -> a / b", "a / b -> a * b", "div(a, b) -> (a * b)", "rem(a, b) -> (a * b)",
+			}, elixirEditsOf(t, "ARITHMETIC_BASE", source))
+		})
+
+		t.Run("INCREMENT_DECREMENT changes the addition of a rebinding to a subtraction, and back", func(t *testing.T) {
+			edits := elixirEditsOf(t, "INCREMENT_DECREMENT", "def f(count, n) do\n  count = count + 1\n  n = n - count\n  total = n + 1\nend\n")
+
+			require.Equal(t, []string{"count = count + 1 -> count = count - 1", "n = n - count -> n = n + count"}, edits)
+		})
+
+		t.Run("INVERT_LOGICAL swaps and and or, and && and ||", func(t *testing.T) {
+			edits := elixirEditsOf(t, "INVERT_LOGICAL", "def f(a, b), do: [a and b, a or b, a && b, a || b]\n")
+
+			require.Equal(t, []string{"a and b -> a or b", "a or b -> a and b", "a && b -> a || b", "a || b -> a && b"}, edits)
+		})
+
+		t.Run("EXPRESSION_REMOVE makes each side of and or && true, and each side of or or || false", func(t *testing.T) {
+			edits := elixirEditsOf(t, "EXPRESSION_REMOVE", "def f(a, b), do: [a and b, a or b, a && b, a || b]\n")
+
+			require.ElementsMatch(t, []string{
+				"a and b -> true and b", "a and b -> a and true", "a or b -> false or b", "a or b -> a or false",
+				"a && b -> true && b", "a && b -> a && true", "a || b -> false || b", "a || b -> a || false",
+			}, edits)
+		})
+
+		t.Run("REMOVE_LOGICAL_NOT removes a not and a !, and skips not in", func(t *testing.T) {
+			edits := elixirEditsOf(t, "REMOVE_LOGICAL_NOT", "def f(a, b), do: [not a, !b, a not in b]\n")
+
+			require.Equal(t, []string{"not a -> a", "!b -> b"}, edits)
+		})
+
+		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT move an integer by one", func(t *testing.T) {
+			source := "def f(xs), do: Enum.at(xs, 0) + 1_000\n"
+
+			require.Equal(t, []string{"0 -> (0+1)", "1_000 -> (1_000+1)"}, elixirEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"0 -> (0-1)", "1_000 -> (1_000-1)"}, elixirEditsOf(t, "INTEGER_DECREMENT", source))
+		})
+
+		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT skip a number in a pattern, where (0+1) does not compile, and keep a number in a guard", func(t *testing.T) {
+			source := `def f(0, [1 | _]), do: :zero
+def f(n, size \\ 2) when n > 3 do
+  {:ok, 4} = g(n)
+  <<_::size(5), _::6>> = h(n)
+  case n do
+    7 -> :seven
+    m when m > 8 -> m
+  end
+end
+`
+
+			require.Equal(t, []string{"3 -> (3+1)", "8 -> (8+1)"}, elixirEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"3 -> (3-1)", "8 -> (8-1)"}, elixirEditsOf(t, "INTEGER_DECREMENT", source))
+		})
+
+		t.Run("BRANCH_IF puts nil in place of the statements of an if or unless body, with the comments between them, and of a do: value", func(t *testing.T) {
+			source := `def f(a) do
+  if a > 1 do
+    g(a)
+    # then h
+    h(a)
+    k(a)
+  else
+    l(a)
+  end
+  unless a, do: g(a)
+  if a do
+    # nothing yet
+  end
+end
+`
+
+			require.Equal(t, []string{"g(a)\n    # then h\n    h(a)\n    k(a) -> nil", "g(a) -> nil"}, elixirEditsOf(t, "BRANCH_IF", source))
+		})
+
+		t.Run("BRANCH_ELSE puts nil in place of the statements of an else, and of an else: value", func(t *testing.T) {
+			source := `def f(a) do
+  unless a do
+    g(a)
+  else
+    h(a)
+    k(a)
+  end
+  if a, do: g(a), else: h(a)
+end
+`
+
+			require.Equal(t, []string{"h(a)\n    k(a) -> nil", "h(a) -> nil"}, elixirEditsOf(t, "BRANCH_ELSE", source))
+		})
+
+		t.Run("BRANCH_IF and BRANCH_ELSE skip an if outside a function, which chooses the functions of a module when it compiles", func(t *testing.T) {
+			source := "defmodule A do\n  if Code.ensure_loaded?(D) do\n    def g(x), do: x\n  else\n    def g(_), do: nil\n  end\nend\n"
+
+			require.Empty(t, elixirEditsOf(t, "BRANCH_IF", source))
+			require.Empty(t, elixirEditsOf(t, "BRANCH_ELSE", source))
+		})
+
+		t.Run("BRANCH_CASE puts nil in place of the body of each clause of case, cond and the else of with, and skips the clauses of fn", func(t *testing.T) {
+			source := `def f(a) do
+  case a do
+    1 -> g(a)
+    _ ->
+      h(a)
+      k(a)
+  end
+  cond do
+    a -> :none
+  end
+  with {:ok, b} <- g(a) do
+    b
+  else
+    {:error, e} -> h(e)
+  end
+  Enum.map(a, fn x -> x end)
+end
+`
+
+			require.Equal(t, []string{"g(a) -> nil", "h(a)\n      k(a) -> nil", ":none -> nil", "h(e) -> nil"}, elixirEditsOf(t, "BRANCH_CASE", source))
+		})
+
+		t.Run("STATEMENT_REMOVE assigns the value to _ in place of a variable, and puts nil in place of a call or a pipe that stands alone, except the last statement", func(t *testing.T) {
+			source := `def f(cart) do
+  total = sum(cart)
+  _seen = total
+  send(self(), {:total, total})
+  if total > 0, do: notify(cart)
+  cart |> Map.get(:items) |> Enum.each(&ship/1)
+  raise "stop"
+  total = total * 2
+end
+`
+
+			require.Equal(t, []string{
+				"total = sum(cart) -> _ = sum(cart)", "send(self(), {:total, total}) -> nil", "cart |> Map.get(:items) |> Enum.each(&ship/1) -> nil",
+			}, elixirEditsOf(t, "STATEMENT_REMOVE", source))
+		})
+
+		t.Run("RETURN_EMPTY gives each value of a function the empty values, for the filter of the adapter to choose", func(t *testing.T) {
+			edits := elixirEditsOf(t, "RETURN_EMPTY", "def f(a), do: a.total\n")
+
+			require.ElementsMatch(t, []string{
+				"a.total -> nil", "a.total -> 0", `a.total -> ""`, "a.total -> false", "a.total -> []", "a.total -> %{}",
+			}, edits)
+		})
+
+		t.Run("RETURN_EMPTY changes the last value of each branch that gives the value of a function, and skips a raise and an error tuple", func(t *testing.T) {
+			source := `def f(a) do
+  g(a)
+  case a do
+    {:ok, b} -> if b, do: b.total, else: 0
+    :missing -> {:error, :not_found}
+    _ -> raise ArgumentError
+  end
+end
+`
+			var originals []string
+			for _, edit := range findEditsIn(t, "a.ex", "RETURN_EMPTY", source) {
+				if edit.Rule == "RETURN_EMPTY/zero" {
+					originals = append(originals, edit.Original)
+				}
+			}
+
+			require.Equal(t, []string{"b.total", "0"}, originals)
+		})
+
+		t.Run("RETURN_EMPTY gives no nil to the only value of a branch, because BRANCH_IF, BRANCH_ELSE and BRANCH_CASE put nil there", func(t *testing.T) {
+			source := `def f(a) do
+  case a do
+    1 -> :one
+    _ ->
+      g(a)
+      :other
+  end
+end
+
+def h(a), do: if(a, do: :yes, else: :no)
+`
+			var originals []string
+			for _, edit := range findEditsIn(t, "a.ex", "RETURN_EMPTY", source) {
+				if edit.Rule == "RETURN_EMPTY/nil" {
+					originals = append(originals, edit.Original)
+				}
+			}
+
+			require.Equal(t, []string{":other"}, originals)
+		})
+
+		t.Run("RETURN_TRUE makes each value of a function true, with one rule for a condition and one for the filter of the adapter", func(t *testing.T) {
+			source := "def a(x), do: x == 1\ndef b(x), do: !x\ndef c(_), do: false\ndef d(x), do: Enum.empty?(x)\ndef e(x), do: is_nil(x)\ndef f(x), do: x.total\n"
+			rules := map[string][]string{}
+			for _, edit := range findEditsIn(t, "a.ex", "RETURN_TRUE", source) {
+				rules[edit.Rule] = append(rules[edit.Rule], edit.Original+" -> "+edit.Replacement)
+			}
+
+			require.Equal(t, map[string][]string{
+				"RETURN_TRUE/condition": {"x == 1 -> true", "!x -> true", "false -> true", "Enum.empty?(x) -> true", "is_nil(x) -> true"},
+				"RETURN_TRUE/annotated": {"x.total -> true"},
+			}, rules)
+		})
+
+		t.Run("ERROR_REMOVE puts nil in place of a raise in a function, and :ok in place of an error tuple that a function returns", func(t *testing.T) {
+			source := `def f(a) do
+  if a, do: raise(ArgumentError), else: {:error, :missing}
+end
+
+def g(a) do
+  {:error, reason} = h(a)
+  reason
+end
+`
+
+			require.Equal(t, []string{"raise(ArgumentError) -> nil", "{:error, :missing} -> :ok"}, elixirEditsOf(t, "ERROR_REMOVE", source))
+		})
+
+		t.Run("ERROR_CAUSE_REMOVE puts raise in place of reraise, which loses the stacktrace", func(t *testing.T) {
+			source := "def f(a) do\n  g(a)\nrescue\n  e in KeyError -> reraise e, __STACKTRACE__\n  e -> reraise(Error, [cause: e], __STACKTRACE__)\nend\n"
+
+			require.Equal(t, []string{"reraise e, __STACKTRACE__ -> raise(e)", "reraise(Error, [cause: e], __STACKTRACE__) -> raise(Error, [cause: e])"}, elixirEditsOf(t, "ERROR_CAUSE_REMOVE", source))
+		})
+
+		t.Run("BREAK_AT_START and BREAK_AT_END give a loop of for or of Enum no item, and only its first item", func(t *testing.T) {
+			source := "def f(xs) do\n  for x <- xs, do: g(x)\n  Enum.each(xs, &g/1)\n  xs |> Enum.map(&g/1)\nend\n"
+
+			require.Equal(t, []string{
+				"x <- xs -> x <- []", "Enum.each(xs, &g/1) -> Enum.each([], &g/1)", "Enum.map(&g/1) -> Enum.take(0) |> Enum.map(&g/1)",
+			}, elixirEditsOf(t, "BREAK_AT_START", source))
+			require.Equal(t, []string{
+				"x <- xs -> x <- Enum.take(xs, 1)", "Enum.each(xs, &g/1) -> Enum.each(Enum.take(xs, 1), &g/1)", "Enum.map(&g/1) -> Enum.take(1) |> Enum.map(&g/1)",
+			}, elixirEditsOf(t, "BREAK_AT_END", source))
+		})
+
+		t.Run("BREAK_AT_START and BREAK_AT_END skip a loop outside a function, which makes the functions of a module when it compiles", func(t *testing.T) {
+			source := "defmodule P do\n  for x <- [:a, :b], do: def(unquote(x)(), do: 1)\n  Enum.each([:c], fn name -> def unquote(name)(), do: 2 end)\nend\n"
+
+			require.Empty(t, elixirEditsOf(t, "BREAK_AT_START", source))
+			require.Empty(t, elixirEditsOf(t, "BREAK_AT_END", source))
+		})
+
+		t.Run("NAMED_VALUE_REMOVE removes each keyword with a comma, and keeps the arity of a call and the update of a struct", func(t *testing.T) {
+			source := "def f(s, a) do\n  g(a, timeout: 1)\n  g(a, timeout: 1, retries: 2)\n  %S{s | name: a}\n  %{name: a}\nend\n"
+
+			edits := findEditsIn(t, "a.ex", "NAMED_VALUE_REMOVE", source)
+
+			var mutants []string
+			for _, edit := range edits {
+				mutants = append(mutants, source[:edit.Start]+edit.Replacement+source[edit.End:])
+			}
+			require.Equal(t, []string{
+				"def f(s, a) do\n  g(a, timeout: 1)\n  g(a,  retries: 2)\n  %S{s | name: a}\n  %{name: a}\nend\n",
+				"def f(s, a) do\n  g(a, timeout: 1)\n  g(a, timeout: 1)\n  %S{s | name: a}\n  %{name: a}\nend\n",
+				"def f(s, a) do\n  g(a, timeout: 1)\n  g(a, timeout: 1, retries: 2)\n  %S{s | name: a}\n  %{}\nend\n",
+			}, mutants)
+		})
+
+		t.Run("NAMED_VALUE_REMOVE keeps a field of a pattern that binds a variable, which the body then reads, and removes a field of a pattern with a literal value", func(t *testing.T) {
+			source := "def round(%Decimal{coef: :inf}), do: :inf\ndef round(%Decimal{sign: sign, coef: coef, exp: _exp}), do: {sign, coef}\n"
+
+			require.Equal(t, []string{"coef: :inf -> ", ", exp: _exp -> "}, elixirEditsOf(t, "NAMED_VALUE_REMOVE", source))
+		})
+
+		t.Run("NAMED_VALUE_SWAP swaps the values of two keywords next to each other, also with a # comment between them, and skips do: and else:", func(t *testing.T) {
+			source := "def f(a) do\n  %Totals{\n    paid: a.paid, # the paid part\n    owed: a.owed\n  }\n  if a, do: 1, else: 2\nend\n"
+
+			require.Equal(t, []string{"a.paid, # the paid part\n    owed: a.owed -> a.owed, # the paid part\n    owed: a.paid"}, elixirEditsOf(t, "NAMED_VALUE_SWAP", source))
+		})
+
+		t.Run("ARGUMENT_EMPTY gives each argument nil, and skips a parameter, a capture and a module attribute", func(t *testing.T) {
+			source := "@limit 10\ndef f(a, opts) do\n  g(a.id, key: a.key)\n  Enum.map(a, &h(&1, 2))\nend\n"
+
+			require.Equal(t, []string{"a.id -> nil", "a.key -> nil", "a -> nil"}, elixirEditsOf(t, "ARGUMENT_EMPTY", source))
+		})
+
+		t.Run("each operator skips its edits in a call of Logger, a typespec, a directive, @compile, a function capture, a macro and a struct", func(t *testing.T) {
+			source := `defmodule A do
+  import Bitwise, only: [band: 2]
+  @compile {:inline, f: 1}
+  @spec f(integer) :: integer
+  defstruct n: 1
+  defmacro m(x), do: quote(do: unquote(x) + 1)
+
+  def f(n) do
+    Logger.info("n #{n + 1}")
+    Enum.map([n], &g/1)
+    n + 3
+  end
+end
+`
+
+			require.Equal(t, []string{"3 -> (3+1)"}, elixirEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"n + 3 -> n - 3"}, elixirEditsOf(t, "ARITHMETIC_BASE", source))
+		})
+
+		t.Run("each operator skips the test files and the generated files", func(t *testing.T) {
+			root := t.TempDir()
+			files := []string{"test/support/factory.ex", "apps/shop/test/support/case.ex", "lib/shop_pb.ex", "lib/shop.ex"}
+			for _, file := range files {
+				writeFile(t, filepath.Join(root, file), "defmodule A do\n  @limit 1\nend\n")
+			}
+			writeFile(t, filepath.Join(root, "lib/shop_pb.ex"), "# Code generated by protoc-gen-elixir. DO NOT EDIT.\ndefmodule A do\n  @limit 1\nend\n")
+			loaded, err := operator.Load("elixir", root)
+			require.NoError(t, err)
+			pack, err := loaded.Select([]string{"INTEGER_INCREMENT"})
+			require.NoError(t, err)
+
+			edits, err := pack.Edits(context.Background(), astgrep.New(root), root, files)
+
+			require.NoError(t, err)
+			require.Equal(t, []operator.Edit{
+				{File: "lib/shop.ex", Operator: "INTEGER_INCREMENT", Rule: "INTEGER_INCREMENT", Start: 24, End: 25, Original: "1", Replacement: "(1+1)"},
 			}, edits)
 		})
 	})

@@ -1,0 +1,12 @@
+id: REMOVE_LOGICAL_NOT
+language: elixir
+rule:
+  kind: unary_operator
+  has:
+    field: operator
+    regex: ^(not|!)$
+  all:
+    - has:
+        field: operand
+        pattern: $X
+fix: $X

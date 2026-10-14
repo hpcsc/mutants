@@ -1,0 +1,38 @@
+id: ERROR_CAUSE_REMOVE
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^reraise$
+  all:
+    - has:
+        kind: arguments
+        has:
+          nthChild: 1
+          pattern: $E
+        not:
+          has:
+            nthChild: 3
+fix: raise($E)
+---
+id: ERROR_CAUSE_REMOVE/attributes
+language: elixir
+rule:
+  kind: call
+  has:
+    field: target
+    regex: ^reraise$
+  all:
+    - has:
+        kind: arguments
+        all:
+          - has:
+              nthChild: 1
+              pattern: $E
+          - has:
+              nthChild: 2
+              pattern: $A
+          - has:
+              nthChild: 3
+fix: raise($E, $A)

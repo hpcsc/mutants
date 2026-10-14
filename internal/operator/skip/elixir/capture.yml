@@ -1,0 +1,18 @@
+id: capture
+language: elixir
+rule:
+  kind: unary_operator
+  has:
+    field: operator
+    regex: ^&$
+  all:
+    - has:
+        field: operand
+        kind: binary_operator
+        all:
+          - has:
+              field: operator
+              regex: ^/$
+          - has:
+              field: right
+              kind: integer

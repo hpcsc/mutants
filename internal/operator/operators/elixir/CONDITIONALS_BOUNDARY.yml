@@ -1,0 +1,41 @@
+id: CONDITIONALS_BOUNDARY/lt
+language: elixir
+rule:
+  pattern: $A < $B
+fix: $A <= $B
+---
+id: CONDITIONALS_BOUNDARY/le
+language: elixir
+rule:
+  pattern: $A <= $B
+fix: $A < $B
+---
+id: CONDITIONALS_BOUNDARY/gt
+language: elixir
+rule:
+  pattern: $A > $B
+fix: $A >= $B
+---
+id: CONDITIONALS_BOUNDARY/ge
+language: elixir
+rule:
+  pattern: $A >= $B
+fix: $A > $B
+---
+id: CONDITIONALS_BOUNDARY/after
+language: elixir
+rule:
+  pattern: $M.after?($A, $B)
+constraints:
+  M:
+    regex: ^(Date|Time|NaiveDateTime|DateTime)$
+fix: not $M.before?($A, $B)
+---
+id: CONDITIONALS_BOUNDARY/before
+language: elixir
+rule:
+  pattern: $M.before?($A, $B)
+constraints:
+  M:
+    regex: ^(Date|Time|NaiveDateTime|DateTime)$
+fix: not $M.after?($A, $B)
