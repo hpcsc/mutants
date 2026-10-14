@@ -412,6 +412,8 @@ fix: nil
 - The operator is the part of the id before the first `/`. So the rules `NIL_MAP/empty` and `NIL_MAP/make`
   make one operator, `NIL_MAP`.
 - A rule with the id of a standard rule replaces that rule.
+- A rule that binds `$$$EDIT` replaces only the text of those nodes. For example, `pattern: 'if $C { $$$EDIT }'`
+  with `fix: return` replaces the statements of the body, and keeps the `if` and the braces.
 - A rule with `metadata: {default: off}` runs only when `--operators` or `.mutants.yml` names its operator.
   A rule for an operator that is off by default, such as `ERROR_CAUSE_REMOVE`, is also off by default.
 - `mutants operators` lists each rule, and the file of each rule that the repository adds.

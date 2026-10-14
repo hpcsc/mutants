@@ -23,6 +23,9 @@ var standard embed.FS
 
 var documentSeparator = regexp.MustCompile(`(?m)^---[ \t]*(#.*)?$`)
 
+// editVariable names the nodes of a match whose text the fix replaces, as $$$EDIT in a rule.
+const editVariable = "EDIT"
+
 type Pack struct {
 	language string
 	rules    []Rule
@@ -224,13 +227,17 @@ func (p Pack) Edits(ctx context.Context, matcher Matcher, root string, files []s
 				hookMatches[rule.Operator] = append(hookMatches[rule.Operator], match)
 				continue
 			}
+			start, end := match.Start, match.End
+			if edited, found := match.Variables[editVariable]; found {
+				start, end = edited.Start, edited.End
+			}
 			fileEdits = append(fileEdits, Edit{
 				File:        file,
 				Operator:    rule.Operator,
 				Rule:        rule.ID,
-				Start:       match.Start,
-				End:         match.End,
-				Original:    string(source[match.Start:match.End]),
+				Start:       start,
+				End:         end,
+				Original:    string(source[start:end]),
 				Replacement: match.Replacement,
 			})
 		}

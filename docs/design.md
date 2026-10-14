@@ -208,7 +208,9 @@ fix: |-
 The `not` part skips a loop whose last statement is `return`, `break` or `continue`, because a `break` after
 it changes nothing. `ast-grep scan --json` returns each match with its `replacement` and its byte offsets, so
 one match is one mutant. `mutants` runs the scan with `--hint`, so a rule with `severity: error` does not
-change the exit code of ast-grep. The rules live in three places, and a later place adds to an earlier one:
+change the exit code of ast-grep. A fix replaces the whole match, and a rule that binds `$$$EDIT` replaces
+only the text from the first node of `$$$EDIT` to the last, for example the statements of a body that has no
+node of its own. The rules live in three places, and a later place adds to an earlier one:
 
 | Place | Holds |
 | --- | --- |

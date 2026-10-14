@@ -7,7 +7,7 @@ type Matcher interface {
 	Match(ctx context.Context, rules []Rule, files []string) ([]Match, error)
 }
 
-// Match holds the byte offsets of the text that the fix replaces, and keys Variables by name without the $.
+// Match holds the byte offsets of the text that the fix replaces, and keys Variables by name without the $ or the $$$.
 type Match struct {
 	Rule        string
 	File        string

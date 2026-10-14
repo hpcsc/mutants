@@ -92,6 +92,9 @@ fix: $A <= $B
   for `RETURN_EMPTY`: it has one rule for each zero value, and the type filter keeps the zero value of the
   slot.
 - Each rule needs a `fix`, unless a hook makes the edits of its operator.
+- A fix replaces the whole match. To replace only some children of the match, such as the statements of a
+  body that has no node of its own, bind them to `$$$EDIT`. The edit then replaces the text from the first
+  of these nodes to the last. ast-grep cannot do this alone: `expandEnd` adds at most one node to a fix.
 - A repository can add its own rules in `.mutants/operators/<language>/`, and its own skip rules in
   `.mutants/skip/<language>/`. This works for each language with no more code.
 

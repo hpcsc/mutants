@@ -352,6 +352,21 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"a+1 -> a - 1"}, changesOf(edits))
 		})
 
+		t.Run("a rule that binds $$$EDIT replaces only the text of the nodes of $$$EDIT", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/BODY_EMPTY.yml"), "id: BODY_EMPTY\nlanguage: go\nrule:\n  pattern: 'if $C { $$$EDIT }'\nfix: return\n")
+			writeFile(t, filepath.Join(repository, "a.go"), "package a\n\nfunc f(a bool) {\n\tif a { g(); /* h is last */ h() }\n}\n")
+			pack, err := loadPack(t, repository).Select([]string{"BODY_EMPTY"})
+			require.NoError(t, err)
+
+			edits, err := pack.Edits(context.Background(), astgrep.New(repository), repository, []string{"a.go"})
+
+			require.NoError(t, err)
+			require.Equal(t, []operator.Edit{
+				{File: "a.go", Operator: "BODY_EMPTY", Rule: "BODY_EMPTY", Start: 36, End: 60, Original: "g(); /* h is last */ h()", Replacement: "return"},
+			}, edits)
+		})
+
 		t.Run("INCREMENT_DECREMENT swaps ++ and --", func(t *testing.T) {
 			edits := editsOf(t, "INCREMENT_DECREMENT", "package a\n\nfunc f(a, b int) {\n\ta++\n\tb--\n}\n")
 

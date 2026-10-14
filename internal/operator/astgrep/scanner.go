@@ -69,6 +69,11 @@ func (s *scanner) scan(ctx context.Context, ruleFile string, files []string) ([]
 		Start int `json:"start"`
 		End   int `json:"end"`
 	}
+	type variable struct {
+		Range struct {
+			ByteOffset span `json:"byteOffset"`
+		} `json:"range"`
+	}
 	var matches []operator.Match
 	lines := bufio.NewScanner(bytes.NewReader(output))
 	lines.Buffer(make([]byte, 0, 64*1024), 64*1024*1024)
@@ -82,11 +87,8 @@ func (s *scanner) scan(ctx context.Context, ruleFile string, files []string) ([]
 			} `json:"range"`
 			ReplacementOffsets *span `json:"replacementOffsets"`
 			MetaVariables      struct {
-				Single map[string]struct {
-					Range struct {
-						ByteOffset span `json:"byteOffset"`
-					} `json:"range"`
-				} `json:"single"`
+				Single map[string]variable   `json:"single"`
+				Multi  map[string][]variable `json:"multi"`
 			} `json:"metaVariables"`
 		}
 		if err := json.Unmarshal(lines.Bytes(), &found); err != nil {
@@ -107,6 +109,11 @@ func (s *scanner) scan(ctx context.Context, ruleFile string, files []string) ([]
 		}
 		for name, variable := range found.MetaVariables.Single {
 			match.Variables[name] = operator.Span{Start: variable.Range.ByteOffset.Start, End: variable.Range.ByteOffset.End}
+		}
+		for name, nodes := range found.MetaVariables.Multi {
+			if len(nodes) > 0 {
+				match.Variables[name] = operator.Span{Start: nodes[0].Range.ByteOffset.Start, End: nodes[len(nodes)-1].Range.ByteOffset.End}
+			}
 		}
 		matches = append(matches, match)
 	}
