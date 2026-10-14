@@ -1,0 +1,168 @@
+lib/shop/order.ex:Shop.Order:INTEGER_DECREMENT#1 6:10 NOT COVERED
+  "100" -> "(100-1)"
+lib/shop/order.ex:Shop.Order:INTEGER_INCREMENT#1 6:10 NOT COVERED
+  "100" -> "(100+1)"
+lib/shop/order.ex:Shop.Order.discount/1:CONDITIONALS_BOUNDARY#1 10:8 NOT COVERED
+  "total >= @limit" -> "total > @limit"
+lib/shop/order.ex:Shop.Order.discount/1:CONDITIONALS_NEGATION#1 10:8 NOT COVERED
+  "total >= @limit" -> "total < @limit"
+lib/shop/order.ex:Shop.Order.discount/1:BRANCH_IF#1 11:7 NOT COVERED
+  "10" -> "nil"
+lib/shop/order.ex:Shop.Order.discount/1:INTEGER_DECREMENT#1 11:7 NOT COVERED
+  "10" -> "(10-1)"
+lib/shop/order.ex:Shop.Order.discount/1:INTEGER_INCREMENT#1 11:7 NOT COVERED
+  "10" -> "(10+1)"
+lib/shop/order.ex:Shop.Order.discount/1:RETURN_EMPTY#1 11:7 NOT COVERED
+  "10" -> "0"
+lib/shop/order.ex:Shop.Order.discount/1:BRANCH_ELSE#1 13:7 NOT COVERED
+  "0" -> "nil"
+lib/shop/order.ex:Shop.Order.discount/1:INTEGER_DECREMENT#2 13:7 NOT COVERED
+  "0" -> "(0-1)"
+lib/shop/order.ex:Shop.Order.discount/1:INTEGER_INCREMENT#2 13:7 NOT COVERED
+  "0" -> "(0+1)"
+lib/shop/order.ex:Shop.Order.price/1:ARITHMETIC_BASE#1 17:25 NOT COVERED
+  "order.total - discount(order.total)" -> "order.total + discount(order.total)"
+lib/shop/order.ex:Shop.Order.price/1:RETURN_EMPTY#1 17:25 NOT COVERED
+  "order.total - discount(order.total)" -> "nil"
+lib/shop/order.ex:Shop.Order.price/1:ARGUMENT_EMPTY#1 17:48 NOT COVERED
+  "order.total" -> "nil"
+lib/shop/order.ex:Shop.Order.allowed?/3:EXPRESSION_REMOVE#1 19:41 NOT COVERED
+  "paid and (owner or not admin)" -> "true and (owner or not admin)"
+lib/shop/order.ex:Shop.Order.allowed?/3:EXPRESSION_REMOVE#2 19:41 NOT COVERED
+  "paid and (owner or not admin)" -> "paid and true"
+lib/shop/order.ex:Shop.Order.allowed?/3:INVERT_LOGICAL#1 19:41 NOT COVERED
+  "paid and (owner or not admin)" -> "paid or (owner or not admin)"
+lib/shop/order.ex:Shop.Order.allowed?/3:RETURN_EMPTY#1 19:41 NOT COVERED
+  "paid and (owner or not admin)" -> "false"
+lib/shop/order.ex:Shop.Order.allowed?/3:RETURN_TRUE#1 19:41 NOT COVERED
+  "paid and (owner or not admin)" -> "true"
+lib/shop/order.ex:Shop.Order.allowed?/3:EXPRESSION_REMOVE#3 19:51 NOT COVERED
+  "owner or not admin" -> "false or not admin"
+lib/shop/order.ex:Shop.Order.allowed?/3:EXPRESSION_REMOVE#4 19:51 NOT COVERED
+  "owner or not admin" -> "owner or false"
+lib/shop/order.ex:Shop.Order.allowed?/3:INVERT_LOGICAL#2 19:51 NOT COVERED
+  "owner or not admin" -> "owner and not admin"
+lib/shop/order.ex:Shop.Order.allowed?/3:REMOVE_LOGICAL_NOT#1 19:60 NOT COVERED
+  "not admin" -> "admin"
+lib/shop/order.ex:Shop.Order.total/1:BREAK_AT_END#1 22:5 NOT COVERED
+  "Enum.reduce(items, 0, fn item, sum -> sum + item * 2 end)" -> "Enum.reduce(Enum.take(items, 1), 0, fn item, sum -> sum + item * 2 end)"
+lib/shop/order.ex:Shop.Order.total/1:BREAK_AT_START#1 22:5 NOT COVERED
+  "Enum.reduce(items, 0, fn item, sum -> sum + item * 2 end)" -> "Enum.reduce([], 0, fn item, sum -> sum + item * 2 end)"
+lib/shop/order.ex:Shop.Order.total/1:RETURN_EMPTY#1 22:5 NOT COVERED
+  "Enum.reduce(items, 0, fn item, sum -> sum + item * 2 end)" -> "nil"
+lib/shop/order.ex:Shop.Order.total/1:ARGUMENT_EMPTY#1 22:17 NOT COVERED
+  "items" -> "nil"
+lib/shop/order.ex:Shop.Order.total/1:ARGUMENT_EMPTY#2 22:24 NOT COVERED
+  "0" -> "nil"
+lib/shop/order.ex:Shop.Order.total/1:INTEGER_DECREMENT#1 22:24 NOT COVERED
+  "0" -> "(0-1)"
+lib/shop/order.ex:Shop.Order.total/1:INTEGER_INCREMENT#1 22:24 NOT COVERED
+  "0" -> "(0+1)"
+lib/shop/order.ex:Shop.Order.total/1:ARGUMENT_EMPTY#3 22:27 NOT COVERED
+  "fn item, sum -> sum + item * 2 end" -> "nil"
+lib/shop/order.ex:Shop.Order.total/1:ARITHMETIC_BASE#1 22:43 NOT COVERED
+  "sum + item * 2" -> "sum - item * 2"
+lib/shop/order.ex:Shop.Order.total/1:ARITHMETIC_BASE#2 22:49 NOT COVERED
+  "item * 2" -> "item / 2"
+lib/shop/order.ex:Shop.Order.total/1:INTEGER_DECREMENT#2 22:56 NOT COVERED
+  "2" -> "(2-1)"
+lib/shop/order.ex:Shop.Order.total/1:INTEGER_INCREMENT#2 22:56 NOT COVERED
+  "2" -> "(2+1)"
+lib/shop/order.ex:Shop.Order.summarise/2:RETURN_EMPTY#1 25:34 NOT COVERED
+  "%{paid: paid, owed: owed}" -> "nil"
+lib/shop/order.ex:Shop.Order.summarise/2:NAMED_VALUE_REMOVE#1 25:36 NOT COVERED
+  "paid: paid," -> ""
+lib/shop/order.ex:Shop.Order.summarise/2:NAMED_VALUE_SWAP#1 25:42 NOT COVERED
+  "paid, owed: owed" -> "owed, owed: paid"
+lib/shop/order.ex:Shop.Order.summarise/2:NAMED_VALUE_REMOVE#2 25:46 NOT COVERED
+  ", owed: owed" -> ""
+lib/shop/order.ex:Shop.Order.load/1:ERROR_REMOVE#1 29:5 NOT COVERED
+  "raise ArgumentError, \"no key\"" -> "nil"
+lib/shop/order.ex:Shop.Order.load/1:CONDITIONALS_NEGATION#1 32:22 NOT COVERED
+  "key in [\"a\", \"b\"]" -> "key not in [\"a\", \"b\"]"
+lib/shop/order.ex:Shop.Order.load/1:RETURN_EMPTY#1 32:45 NOT COVERED
+  "%{}" -> "nil"
+lib/shop/order.ex:Shop.Order.load/1:RETURN_EMPTY#2 33:22 NOT COVERED
+  "%{key: key}" -> "nil"
+lib/shop/order.ex:Shop.Order.load/1:NAMED_VALUE_REMOVE#1 33:24 NOT COVERED
+  "key: key" -> ""
+lib/shop/order.ex:Shop.Order.parse/1:RETURN_EMPTY#1 36:5 NOT COVERED
+  "String.to_integer(text)" -> "nil"
+lib/shop/order.ex:Shop.Order.parse/1:ARGUMENT_EMPTY#1 36:23 NOT COVERED
+  "text" -> "nil"
+lib/shop/order.ex:Shop.Order.parse/1:ERROR_CAUSE_REMOVE#1 38:15 NOT COVERED
+  "reraise KeyError, [key: text], __STACKTRACE__" -> "raise(KeyError, [key: text])"
+lib/shop/order.ex:Shop.Order.parse/1:ERROR_REMOVE#1 38:15 NOT COVERED
+  "reraise KeyError, [key: text], __STACKTRACE__" -> "nil"
+lib/shop/order.ex:Shop.Order.parse/1:NAMED_VALUE_REMOVE#1 38:34 NOT COVERED
+  "key: text" -> ""
+lib/shop/order.ex:Shop.Order.kind/1:ARITHMETIC_BASE#1 42:10 NOT COVERED
+  "rem(n, 2)" -> "(n * 2)"
+lib/shop/order.ex:Shop.Order.kind/1:ARGUMENT_EMPTY#1 42:14 NOT COVERED
+  "n" -> "nil"
+lib/shop/order.ex:Shop.Order.kind/1:ARGUMENT_EMPTY#2 42:17 NOT COVERED
+  "2" -> "nil"
+lib/shop/order.ex:Shop.Order.kind/1:INTEGER_DECREMENT#1 42:17 NOT COVERED
+  "2" -> "(2-1)"
+lib/shop/order.ex:Shop.Order.kind/1:INTEGER_INCREMENT#1 42:17 NOT COVERED
+  "2" -> "(2+1)"
+lib/shop/order.ex:Shop.Order.kind/1:BRANCH_CASE#1 43:12 NOT COVERED
+  "\"even\"" -> "nil"
+lib/shop/order.ex:Shop.Order.kind/1:CONDITIONALS_BOUNDARY#1 44:14 NOT COVERED
+  "m > 1" -> "m >= 1"
+lib/shop/order.ex:Shop.Order.kind/1:CONDITIONALS_NEGATION#1 44:14 NOT COVERED
+  "m > 1" -> "m <= 1"
+lib/shop/order.ex:Shop.Order.kind/1:INTEGER_DECREMENT#2 44:18 NOT COVERED
+  "1" -> "(1-1)"
+lib/shop/order.ex:Shop.Order.kind/1:INTEGER_INCREMENT#2 44:18 NOT COVERED
+  "1" -> "(1+1)"
+lib/shop/order.ex:Shop.Order.kind/1:BRANCH_CASE#2 44:23 NOT COVERED
+  "\"big\"" -> "nil"
+lib/shop/order.ex:Shop.Order.kind/1:BRANCH_CASE#3 45:12 NOT COVERED
+  "\"odd\"" -> "nil"
+lib/shop/order.ex:Shop.Order.close/1:STATEMENT_REMOVE#1 50:5 NOT COVERED
+  "send(client, :close)" -> "nil"
+lib/shop/order.ex:Shop.Order.close/1:ARGUMENT_EMPTY#1 50:10 NOT COVERED
+  "client" -> "nil"
+lib/shop/order.ex:Shop.Order.close/1:ARGUMENT_EMPTY#2 50:18 NOT COVERED
+  ":close" -> "nil"
+lib/shop/order.ex:Shop.Order.close/1:RETURN_EMPTY#1 51:5 NOT COVERED
+  ":ok" -> "nil"
+lib/shop/order.ex:Shop.Order.fetch/1:ARGUMENT_EMPTY#1 55:20 NOT COVERED
+  "%{1 => :a}" -> "nil"
+lib/shop/order.ex:Shop.Order.fetch/1:INTEGER_DECREMENT#1 55:22 NOT COVERED
+  "1" -> "(1-1)"
+lib/shop/order.ex:Shop.Order.fetch/1:INTEGER_INCREMENT#1 55:22 NOT COVERED
+  "1" -> "(1+1)"
+lib/shop/order.ex:Shop.Order.fetch/1:ARGUMENT_EMPTY#2 55:32 NOT COVERED
+  "id" -> "nil"
+lib/shop/order.ex:Shop.Order.fetch/1:BRANCH_CASE#1 56:23 NOT COVERED
+  "{:ok, value}" -> "nil"
+lib/shop/order.ex:Shop.Order.fetch/1:BRANCH_CASE#2 57:17 NOT COVERED
+  "{:error, :not_found}" -> "nil"
+lib/shop/order.ex:Shop.Order.fetch/1:ERROR_REMOVE#1 57:17 NOT COVERED
+  "{:error, :not_found}" -> ":ok"
+lib/shop/order.ex:Shop.Order.count/1:INTEGER_DECREMENT#1 62:13 NOT COVERED
+  "0" -> "(0-1)"
+lib/shop/order.ex:Shop.Order.count/1:INTEGER_INCREMENT#1 62:13 NOT COVERED
+  "0" -> "(0+1)"
+lib/shop/order.ex:Shop.Order.count/1:INCREMENT_DECREMENT#1 63:5 NOT COVERED
+  "count = count + length(items)" -> "count = count - length(items)"
+lib/shop/order.ex:Shop.Order.count/1:STATEMENT_REMOVE#1 63:5 NOT COVERED
+  "count = count + length(items)" -> "_ = count + length(items)"
+lib/shop/order.ex:Shop.Order.count/1:ARGUMENT_EMPTY#1 63:28 NOT COVERED
+  "items" -> "nil"
+lib/shop/order.ex:Shop.Order.count/1:BREAK_AT_END#1 64:9 NOT COVERED
+  "item <- items" -> "item <- Enum.take(items, 1)"
+lib/shop/order.ex:Shop.Order.count/1:BREAK_AT_START#1 64:9 NOT COVERED
+  "item <- items" -> "item <- []"
+lib/shop/order.ex:Shop.Order.count/1:CONDITIONALS_BOUNDARY#1 64:24 NOT COVERED
+  "item > 0" -> "item >= 0"
+lib/shop/order.ex:Shop.Order.count/1:CONDITIONALS_NEGATION#1 64:24 NOT COVERED
+  "item > 0" -> "item <= 0"
+lib/shop/order.ex:Shop.Order.count/1:INTEGER_DECREMENT#2 64:31 NOT COVERED
+  "0" -> "(0-1)"
+lib/shop/order.ex:Shop.Order.count/1:INTEGER_INCREMENT#2 64:31 NOT COVERED
+  "0" -> "(0+1)"
+lib/shop/order.ex:Shop.Order.count/1:RETURN_EMPTY#1 65:5 NOT COVERED
+  "count" -> "nil"

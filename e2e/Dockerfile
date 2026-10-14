@@ -10,10 +10,13 @@ RUN CGO_ENABLED=0 go build -ldflags "-X github.com/hpcsc/mutants/internal/versio
     -o /mutants ./cmd/mutants
 
 FROM node:24-trixie-slim
-# python3, make and g++ build node-pty when no prebuilt node-pty fits the platform
+# python3, make and g++ build node-pty when no prebuilt node-pty fits the platform. erlang-tools holds :cover,
+# which the Elixir adapter runs for the coverage.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-venv make g++ git ca-certificates \
+    && apt-get install -y --no-install-recommends python3 python3-venv make g++ git ca-certificates elixir erlang-tools \
     && rm -rf /var/lib/apt/lists/*
+# the VM of Elixir reads the names of files as latin1 without a UTF-8 locale
+ENV LANG=C.UTF-8
 # the venvs of the Python fixtures: globalSetup.ts makes them when these variables are not set
 ARG PYTEST_VERSION=9.1.1
 ARG COVERAGE_VERSION=7.16.2

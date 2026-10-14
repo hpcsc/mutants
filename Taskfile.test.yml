@@ -16,7 +16,7 @@ tasks:
       - docker container run --rm --init mutants-e2e
 
   e2e:local:
-    desc: Run the end-to-end tests on this machine without Docker (needs node, go and ast-grep)
+    desc: Run the end-to-end tests on this machine without Docker (needs node, go, ast-grep, python3 and elixir)
     dir: e2e
     cmds:
       - CGO_ENABLED=0 go build -ldflags "-X github.com/hpcsc/mutants/internal/version.releaseTag={{.E2E_TAG}}" -o ../bin/mutants-e2e ../cmd/mutants

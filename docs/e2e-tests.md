@@ -11,7 +11,8 @@ one test file uses, and `e2e/tests/` has the tests:
 | `run.test.ts` | the core of `mutants run` and `mutants rerun`: the diff, the settings, the reports, the proposals and the exit codes. Its fixtures are Go code, but no test depends on how the Go adapter works. |
 | `go.test.ts` | the Go adapter: its filters, its coverage, its runner, its build cache and its caller gaps |
 | `python.test.ts` | the Python adapter: its skip rules, its coverage, its test selection, its runner and its projects, and a repository with Go and Python code |
-| `snapshot.test.ts` | each mutant that the operators make in a fixed Go project and a fixed Python project, against the lists in `tests/__snapshots__/` |
+| `elixir.test.ts` | the Elixir adapter: its skip rules, its coverage, its runner and its projects, and a repository with Go and Elixir code |
+| `snapshot.test.ts` | each mutant that the operators make in a fixed Go project, a fixed Python project and a fixed Elixir project, against the lists in `tests/__snapshots__/` |
 | `cli.test.ts` | the root command, `mutants config init` and `mutants version` |
 | `update.test.ts` | `mutants update` |
 
@@ -23,7 +24,7 @@ one test file uses, and `e2e/tests/` has the tests:
 | tuistory | Starts a program in a pseudo-terminal, sends keys to it, and gives its screen as text. |
 | node-pty | Makes the pseudo-terminal for tuistory. |
 | ghostty-opentui | The terminal emulator in tuistory. It turns the output of the CLI into a screen of text. |
-| `testUtils.ts` | Makes throwaway folders and git repositories with Go modules or Python projects, starts the CLI, and deletes the folders after each test. |
+| `testUtils.ts` | Makes throwaway folders and git repositories with Go modules, Python projects or Mix projects, starts the CLI, and deletes the folders after each test. |
 | `globalSetup.ts` | Makes the two venvs of the Python fixtures, when the environment does not give them. |
 
 ```mermaid
@@ -121,14 +122,34 @@ shows the link as an untracked file.
 | Go and Python code in one repository | the mutants of both, and the Stryker report gives the language of each file |
 | `exclude: ["**/*.py"]` | no mutant of a Python file |
 
+An Elixir test makes its repository with `elixirRepository(files)`. The repository holds `mix.exs` of a
+project with no dependencies, `test/test_helper.exs`, and a `.gitignore` with `/_build/`, the build that
+`mutants` makes as `mix test` does.
+
+| Fixture | Expected |
+| --- | --- |
+| Two keywords of a map with a `#` comment between them, and equal values in the test | `NAMED_VALUE_SWAP` LIVED. With different values in the test: KILLED. |
+| An error branch that no test enters | `BRANCH_IF` NOT COVERED |
+| An `Enum.reduce` over a list that a test runs with one item | `BREAK_AT_END` LIVED. With two items: KILLED. |
+| A proposal that does not compile | NOT VIABLE, and `rerun` exits 1 |
+| A recursion that the mutant makes endless, in a test that starts `cat` through a port | TIMED OUT, and no `cat` is alive after the run, because each VM stops |
+| An untracked new file | its mutants run, and `git status --ignored` adds only `_build/` |
+| A module that does not compile | exit 2, and a message that names the project |
+| A test that fails with the real code | exit 2, and a message that names the project |
+| A project in a subfolder, with its own `mix.exs` | its mutants run with its tests |
+| A call of `Logger` and a typespec | no mutant in them |
+| An Elixir mutant that lives | `rerun` exits 10 |
+| Go and Elixir code in one repository | the mutants of both, and the Stryker report gives the language of each file |
+| `exclude: ["**/*.ex"]` | no mutant of an Elixir file |
+
 To keep each test short, a test names the operators that it needs with `--operators`.
 
 ## The snapshot tests
 
-`snapshot.test.ts` runs each operator, also the ones that are off by default, on a Go project and a Python
-project that have no tests. So each mutant is NOT COVERED, and no test runs. The test compares the id, the
-place, the status and the edit of each mutant with a list in `tests/__snapshots__/`. A change to a rule, a
-skip rule or a filter then shows in review as a change of a list.
+`snapshot.test.ts` runs each operator, also the ones that are off by default, on a Go project, a Python
+project and an Elixir project that have no tests. So each mutant is NOT COVERED, and no test runs. The test
+compares the id, the place, the status and the edit of each mutant with a list in `tests/__snapshots__/`. A
+change to a rule, a skip rule or a filter then shows in review as a change of a list.
 
 After a change on purpose, write the lists again, and read their diff before the commit:
 

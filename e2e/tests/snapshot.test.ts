@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { goRepository, pythonRepository, type ReportedMutant, runMutants, writeFiles } from '../testUtils'
+import { elixirRepository, goRepository, pythonRepository, type ReportedMutant, runMutants, writeFiles } from '../testUtils'
 
 const goShop = `package shop
 
@@ -182,6 +182,75 @@ def stamp() -> str:
     return "old"
 `
 
+const elixirShop = `defmodule Shop.Order do
+  require Logger
+
+  defstruct [:id, total: 0]
+
+  @limit 100
+
+  @spec discount(integer) :: integer
+  def discount(total) do
+    if total >= @limit do
+      10
+    else
+      0
+    end
+  end
+
+  def price(order), do: order.total - discount(order.total)
+
+  def allowed?(paid, owner, admin), do: paid and (owner or not admin)
+
+  def total(items) do
+    Enum.reduce(items, 0, fn item, sum -> sum + item * 2 end)
+  end
+
+  def summarise(paid, owed), do: %{paid: paid, owed: owed}
+
+  def load(nil) do
+    Logger.info("no key")
+    raise ArgumentError, "no key"
+  end
+
+  def load(key) when key in ["a", "b"], do: %{}
+  def load(key), do: %{key: key}
+
+  def parse(text) do
+    String.to_integer(text)
+  rescue
+    _error -> reraise KeyError, [key: text], __STACKTRACE__
+  end
+
+  def kind(n) do
+    case rem(n, 2) do
+      0 -> "even"
+      m when m > 1 -> "big"
+      _ -> "odd"
+    end
+  end
+
+  def close(client) do
+    send(client, :close)
+    :ok
+  end
+
+  def fetch(id) do
+    case Map.fetch(%{1 => :a}, id) do
+      {:ok, value} -> {:ok, value}
+      :error -> {:error, :not_found}
+    end
+  end
+
+  def count(items) do
+    count = 0
+    count = count + length(items)
+    for item <- items, item > 0, do: item
+    count
+  end
+end
+`
+
 const allOperators = ['--operators=+ARGUMENT_EMPTY,+ERROR_CAUSE_REMOVE']
 
 function listing(mutants: ReportedMutant[]): string {
@@ -210,5 +279,14 @@ describe('the mutants of a project with no tests, with each operator', () => {
     const { mutants } = await runMutants(dir, ['--base', 'HEAD', ...allOperators])
 
     await expect(listing(mutants)).toMatchFileSnapshot('./__snapshots__/python-mutants.txt')
+  })
+
+  it('in Elixir are the ones in the stored list', async () => {
+    const dir = elixirRepository()
+    writeFiles(dir, { 'lib/shop/order.ex': elixirShop })
+
+    const { mutants } = await runMutants(dir, ['--base', 'HEAD', ...allOperators])
+
+    await expect(listing(mutants)).toMatchFileSnapshot('./__snapshots__/elixir-mutants.txt')
   })
 })

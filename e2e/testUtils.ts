@@ -122,6 +122,20 @@ export function pythonRepository(files: Record<string, string> = {}, venv = pyth
 
 export const pyproject = '[tool.pytest.ini_options]\npythonpath = ["."]\n'
 
+export function elixirRepository(files: Record<string, string> = {}, dir = scratchDir()): string {
+  mkdirSync(dir, { recursive: true })
+  git(dir, 'init', '--quiet', '--initial-branch=main')
+  git(dir, 'config', 'user.email', 'e2e@example.com')
+  git(dir, 'config', 'user.name', 'e2e')
+  git(dir, 'config', 'commit.gpgsign', 'false')
+  writeFiles(dir, { 'mix.exs': mixProject, '.gitignore': '/_build/\n', 'test/test_helper.exs': 'ExUnit.start()\n', ...files })
+  git(dir, 'add', '--all')
+  git(dir, 'commit', '--quiet', '--message', 'start')
+  return dir
+}
+
+export const mixProject = 'defmodule Shop.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :shop, version: "0.1.0", deps: []]\nend\n'
+
 export function pythonVenv(coverage = true): string {
   const name = coverage ? 'E2E_PYTHON_VENV' : 'E2E_PYTHON_VENV_WITHOUT_COVERAGE'
   const venv = process.env[name]
