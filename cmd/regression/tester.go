@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -35,8 +36,11 @@ type tester interface {
 }
 
 func newTester(c *clone) tester {
-	if c.Language == "go" {
+	switch c.Language {
+	case "go":
 		return &goTester{root: c.folder, baselines: map[string]error{}}
+	case "elixir":
+		return &elixirTester{root: c.folder, env: append(c.env(), "MIX_ENV=test"), baselines: map[string]error{}}
 	}
 	return &pythonTester{root: c.folder, python: c.python(), baselines: map[string]error{}}
 }
@@ -235,6 +239,84 @@ func pythonFailure(code int, output string) string {
 		}
 	}
 	return fmt.Sprintf("pytest exited with code %d: %s", code, firstLine(output))
+}
+
+type elixirTester struct {
+	root      string
+	env       []string
+	baselines map[string]error
+}
+
+func (t *elixirTester) folderOf(file string) string {
+	for folder := filepath.Dir(filepath.Join(t.root, file)); strings.HasPrefix(folder, t.root) && folder != t.root; folder = filepath.Dir(folder) {
+		if _, err := os.Stat(filepath.Join(folder, "mix.exs")); err == nil {
+			return folder
+		}
+	}
+	return t.root
+}
+
+func (t *elixirTester) baseline(ctx context.Context, folder string) error {
+	if err, seen := t.baselines[folder]; seen {
+		return err
+	}
+	result, err := t.testIn(ctx, folder)
+	if err != nil {
+		return err
+	}
+	t.baselines[folder] = nil
+	if !result.passed() {
+		t.baselines[folder] = fmt.Errorf("the plain tests of the project in %s fail with the real code: %s", relative(t.root, folder), firstLine(result.notBuilt+result.failure))
+	}
+	return t.baselines[folder]
+}
+
+func (t *elixirTester) test(ctx context.Context, file string) (plainResult, error) {
+	return t.testIn(ctx, t.folderOf(file))
+}
+
+func (t *elixirTester) testIn(ctx context.Context, folder string) (plainResult, error) {
+	compiled, err := t.mix(folder, "compile").run(ctx)
+	switch {
+	case err != nil:
+		return plainResult{}, err
+	case compiled.code != 0:
+		return plainResult{notBuilt: strings.TrimSpace(compiled.output())}, nil
+	}
+	tested, err := t.mix(folder, "test", "--max-failures", "1").run(ctx)
+	switch {
+	case err != nil:
+		return plainResult{}, err
+	case tested.timedOut:
+		return plainResult{timedOut: true}, nil
+	case tested.code != 0:
+		return plainResult{failure: elixirFailure(tested.code, tested.output())}, nil
+	}
+	return plainResult{}, nil
+}
+
+func (t *elixirTester) testCallers(context.Context, string) (plainResult, error) {
+	return plainResult{}, nil
+}
+
+func (t *elixirTester) mix(folder string, arguments ...string) command {
+	return command{program: "mix", arguments: arguments, folder: folder, env: t.env, limit: plainLimit}
+}
+
+var elixirFailedTest = regexp.MustCompile(`^\s*\d+\) (.+)$`)
+
+func elixirFailure(code int, output string) string {
+	for line := range strings.Lines(output) {
+		if found := elixirFailedTest.FindStringSubmatch(strings.TrimRight(line, "\n")); found != nil {
+			return found[1]
+		}
+	}
+	for line := range strings.Lines(output) {
+		if strings.HasPrefix(line, "** (") {
+			return strings.TrimSpace(line)
+		}
+	}
+	return fmt.Sprintf("mix test exited with code %d: %s", code, firstLine(output))
 }
 
 func firstLine(text string) string {

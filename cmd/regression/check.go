@@ -14,6 +14,7 @@ import (
 var (
 	goStop     = regexp.MustCompile(`the tests of (\S+) fail with the real code`)
 	pythonStop = regexp.MustCompile(`the tests of the Python project in (\S+) fail with the real code`)
+	elixirStop = regexp.MustCompile(`the tests of the Elixir project in (\S+) fail with the real code`)
 )
 
 type finding struct {
@@ -116,6 +117,7 @@ func (k *checker) runMutants(ctx context.Context) (mutantsRun, error) {
 		program:   k.settings.mutants,
 		arguments: []string{"run", "--base", k.commit + "^", "--format", "json", "--limit", k.settings.limit.String()},
 		folder:    k.clone.folder,
+		env:       k.clone.env(),
 		limit:     k.settings.limit + 5*time.Minute,
 	}.runInSession(ctx)
 	if err != nil {
@@ -156,6 +158,9 @@ func (k *checker) checkStop(ctx context.Context) error {
 		folder = strings.TrimSpace(listed.stdout)
 	}
 	if match := pythonStop.FindStringSubmatch(k.result.Stop); match != nil {
+		folder = filepath.Join(k.clone.folder, match[1])
+	}
+	if match := elixirStop.FindStringSubmatch(k.result.Stop); match != nil {
 		folder = filepath.Join(k.clone.folder, match[1])
 	}
 	if folder == "" {
@@ -214,6 +219,7 @@ func (k *checker) checkReruns(ctx context.Context) error {
 				program:   k.settings.mutants,
 				arguments: []string{"rerun", "--base", k.commit + "^", m.ID},
 				folder:    k.clone.folder,
+				env:       k.clone.env(),
 				limit:     plainLimit,
 			}.runInSession(ctx)
 			if err != nil {

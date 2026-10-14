@@ -42,19 +42,33 @@ func (r repository) check() error {
 		return errors.New("each repository needs a name and a url")
 	case !fullCommit.MatchString(r.Commit):
 		return fmt.Errorf("%s: the commit must be a full sha, not %q", r.Name, r.Commit)
-	case r.Language == "go" && len(r.Install) > 0:
+	case r.Language != "python" && len(r.Install) > 0:
 		return fmt.Errorf("%s: install is for a python repository only", r.Name)
 	case r.Language == "python" && len(r.Install) == 0:
 		return fmt.Errorf("%s: a python repository needs install, the arguments of pip install", r.Name)
-	case r.Language != "go" && r.Language != "python":
-		return fmt.Errorf("%s: the language is go or python, not %q", r.Name, r.Language)
+	case r.Language != "go" && r.Language != "python" && r.Language != "elixir":
+		return fmt.Errorf("%s: the language is go, python or elixir, not %q", r.Name, r.Language)
 	}
 	return nil
 }
 
 func (r repository) sourcePathspecs() []string {
-	if r.Language == "go" {
+	switch r.Language {
+	case "go":
 		return []string{":(glob)**/*.go", ":(glob,exclude)**/*_test.go", ":(glob,exclude)**/testdata/**"}
+	case "elixir":
+		return []string{":(glob)**/*.ex", ":(glob,exclude)**/test/**"}
 	}
 	return []string{":(glob)**/*.py", ":(glob,exclude)**/tests/**", ":(glob,exclude)**/test_*.py", ":(glob,exclude)**/conftest.py", ":(glob,exclude)docs/**"}
+}
+
+// localFolders gives the folders that the setup of the tests makes in a clone, and that each checkout keeps.
+func (r repository) localFolders() []string {
+	switch r.Language {
+	case "python":
+		return []string{venv}
+	case "elixir":
+		return []string{"deps", "_build"}
+	}
+	return nil
 }

@@ -108,9 +108,29 @@ func TestEachSecondRun(t *testing.T) {
 }
 `
 
+const mixProject = "defmodule Calc.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :calc, version: \"0.1.0\", deps: []]\nend\n"
+
+const elixirDiscount = `defmodule Calc do
+  def discount(total) do
+    if total >= 100, do: 10, else: 0
+  end
+end
+`
+
+const elixirDiscountTest = `defmodule CalcTest do
+  use ExUnit.Case
+
+  test "discount" do
+    assert Calc.discount(150) == 10
+    assert Calc.discount(50) == 0
+  end
+end
+`
+
 var (
-	boundary        = reportedMutant{ID: "calc/calc.go:Discount:CONDITIONALS_BOUNDARY#1", File: "calc/calc.go", Line: 4, Column: 5, Operator: "CONDITIONALS_BOUNDARY", Original: "total >= 100", Replacement: "total > 100"}
-	smallerDiscount = reportedMutant{ID: "calc/calc.go:Discount:INTEGER_DECREMENT#1", File: "calc/calc.go", Line: 5, Column: 10, Operator: "INTEGER_DECREMENT", Original: "10", Replacement: "9"}
+	elixirSmallerDiscount = reportedMutant{ID: "lib/calc.ex:Calc.discount/1:INTEGER_DECREMENT#1", File: "lib/calc.ex", Line: 3, Column: 26, Operator: "INTEGER_DECREMENT", Original: "10", Replacement: "9"}
+	boundary              = reportedMutant{ID: "calc/calc.go:Discount:CONDITIONALS_BOUNDARY#1", File: "calc/calc.go", Line: 4, Column: 5, Operator: "CONDITIONALS_BOUNDARY", Original: "total >= 100", Replacement: "total > 100"}
+	smallerDiscount       = reportedMutant{ID: "calc/calc.go:Discount:INTEGER_DECREMENT#1", File: "calc/calc.go", Line: 5, Column: 10, Operator: "INTEGER_DECREMENT", Original: "10", Replacement: "9"}
 )
 
 func TestRegression(t *testing.T) {
@@ -181,6 +201,26 @@ func TestRegression(t *testing.T) {
 			fake := newFake(t)
 			fake.env["FAKE_EXIT"] = "2"
 			fake.env["FAKE_STDERR"] = "the tests of example.com/shop/calc fail with the real code, so no mutant can get a verdict:\n--- FAIL: TestDiscount"
+
+			output, code := fake.check(t)
+
+			require.Equal(t, 1, code)
+			require.Contains(t, output, "FINDING plain tests : mutants says that the tests fail with the real code, but a plain run of them passes")
+		})
+
+		t.Run("a LIVED Elixir mutant that a plain mix test kills is a finding", func(t *testing.T) {
+			fake := newElixirFake(t, withStatus(elixirSmallerDiscount, lived))
+
+			output, code := fake.check(t)
+
+			require.Equal(t, 1, code)
+			require.Contains(t, output, "FINDING plain tests "+elixirSmallerDiscount.ID+": LIVED, but a plain test fails: test discount (CalcTest)")
+		})
+
+		t.Run("a stop for Elixir tests that fail with the real code is a finding when the plain mix tests pass", func(t *testing.T) {
+			fake := newElixirFake(t)
+			fake.env["FAKE_EXIT"] = "2"
+			fake.env["FAKE_STDERR"] = "the tests of the Elixir project in . fail with the real code, so no mutant can get a verdict:\n  1) test discount (CalcTest)"
 
 			output, code := fake.check(t)
 
@@ -281,16 +321,27 @@ func newFake(t *testing.T, mutants ...reportedMutant) *fake {
 
 func newFakeWith(t *testing.T, files map[string]string, mutants ...reportedMutant) *fake {
 	t.Helper()
-	f := &fake{folder: t.TempDir(), env: map[string]string{"FAKE_EXIT": "10"}}
-	repository := filepath.Join(f.folder, "shop")
 	files = maps.Clone(files)
 	if files == nil {
 		files = map[string]string{}
 	}
 	files["calc/calc.go"], files["calc/calc_test.go"] = discount, discountTest
+	return newFakeIn(t, "go", files, mutants...)
+}
+
+func newElixirFake(t *testing.T, mutants ...reportedMutant) *fake {
+	t.Helper()
+	files := map[string]string{"mix.exs": mixProject, "lib/calc.ex": elixirDiscount, "test/test_helper.exs": "ExUnit.start()\n", "test/calc_test.exs": elixirDiscountTest}
+	return newFakeIn(t, "elixir", files, mutants...)
+}
+
+func newFakeIn(t *testing.T, language string, files map[string]string, mutants ...reportedMutant) *fake {
+	t.Helper()
+	f := &fake{folder: t.TempDir(), env: map[string]string{"FAKE_EXIT": "10"}}
+	repository := filepath.Join(f.folder, "shop")
 	commit := gitRepository(t, repository, files)
 	f.repositories = filepath.Join(f.folder, "repositories.yml")
-	list := "- name: shop\n  url: " + repository + "\n  commit: " + commit + "\n  language: go\n"
+	list := "- name: shop\n  url: " + repository + "\n  commit: " + commit + "\n  language: " + language + "\n"
 	require.NoError(t, os.WriteFile(f.repositories, []byte(list), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(f.folder, "mutants"), []byte(fakeMutants), 0o755))
 

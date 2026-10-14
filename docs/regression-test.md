@@ -20,8 +20,8 @@ task test:regression -- -only cobra,click -commits 2
 ```
 
 The task builds `bin/mutants`, and then runs `go run ./cmd/regression`. The regression test needs git, Go,
-Python 3 and ast-grep, and it downloads the repositories and the Python packages of their tests. It does not
-run in CI, because a full run takes hours.
+Python 3, Elixir and ast-grep. It downloads the repositories, the Python packages of their tests, and the Hex
+packages of the Elixir repositories. It does not run in CI, because a full run takes hours.
 
 | Flag | Default | Does |
 | --- | --- | --- |
@@ -42,13 +42,13 @@ for a usage error.
 
 ```mermaid
 flowchart TD
-    C["clone the repository, and check out the fixed commit"] --> V["Python: make .venv with pip install"]
+    C["clone the repository, and check out the fixed commit"] --> V["Python: make .venv with pip install<br/>Elixir: mix deps.get after each checkout"]
     V --> L["take the N newest commits that change the source code"]
     L --> R["mutants run --base COMMIT^ --format json"]
     R --> W["compare git status, and look for processes that are still alive"]
     W --> T["run mutants again, and compare the verdicts"]
     T --> RR["mutants rerun ID, for a sample of each status"]
-    RR --> P["plain tests: put the mutant into the file, run go test or pytest"]
+    RR --> P["plain tests: put the mutant into the file, run go test, pytest or mix test"]
     P --> L
 ```
 
@@ -62,7 +62,7 @@ then tests the lines that the commit changes, as it tests the lines of a branch.
 | processes | a process that the run started is alive 3 seconds after `mutants` stops. The regression test then stops it. |
 | second run | a mutant gets another status in the second run, or is in only one of the two runs |
 | rerun | `mutants rerun ID` gives another status or another exit code than the run |
-| plain tests | plain `go test` or `pytest`, with the mutant in the file, does not agree with the status. Also when the line and the column of the report do not hold the original text. |
+| plain tests | plain `go test`, `pytest` or `mix test`, with the mutant in the file, does not agree with the status. Also when the line and the column of the report do not hold the original text. |
 
 A finding names its check, the id of the mutant, and what the check saw:
 
@@ -83,6 +83,7 @@ in the clone, runs the tests, and then writes the real code back.
 | --- | --- | --- |
 | Go | `go test -c -vet=off` fails in the folder of the package | `go test -count=1 -vet=off -failfast` fails in the folder of the package |
 | Python | `compile()` of the file fails | `pytest -q -x` fails in the folder of the project. It runs all the tests of the project, so a test that `mutants` did not select also counts. |
+| Elixir | `mix compile` fails in the folder of the project, with `MIX_ENV=test` | `mix test --max-failures 1` fails in the folder of the project. `mix compile` also compiles again each module that uses a macro or a struct of the file, which `mutants` does not do. |
 
 | Status | Finding when |
 | --- | --- |
@@ -129,7 +130,7 @@ A skip is not a finding. The regression test shows each skip with its reason:
 | `name` | the name for `-only`, and the folder of the clone |
 | `url` | the URL that `git clone` takes |
 | `commit` | the full sha of the newest commit to check |
-| `language` | `go` or `python` |
+| `language` | `go`, `python` or `elixir` |
 | `install` | Python only: the arguments of `pip install` for the venv of the tests. It must hold the package itself, pytest, coverage.py and each package that the tests import. |
 
 To add a repository, choose one with good tests, and give it a commit. Run the regression test on it alone
@@ -143,3 +144,8 @@ with exit 2, and gives a skip. Take such a tool out of the `PATH` for the run.
 The regression test makes the venv of a Python repository in `.venv` in the clone, and adds `.venv` to
 `.git/info/exclude`. `mutants` uses `.venv/bin/python`, and it tests each line of an untracked file, so the
 venv must not be untracked.
+
+After each checkout of an Elixir repository, the regression test runs `mix deps.get --only test`, and it keeps
+`deps` and `_build` in the clone. It adds both folders to `.git/info/exclude` for the same reason. A
+repository with a `mix.lock` needs Hex and rebar3. The regression test installs them in `mix` and `hex` in the
+work folder, and not in the Mix home of the user.

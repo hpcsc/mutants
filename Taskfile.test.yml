@@ -34,7 +34,7 @@ tasks:
       - go test -tags=unit -run='^$' -fuzz='^FuzzRepositoryChanged$' -fuzztime={{.FUZZ_TIME}} ./internal/diff
 
   regression:
-    desc: Run mutants on the newest commits of open-source repositories, and check each run (needs go, git, python3 and ast-grep)
+    desc: Run mutants on the newest commits of open-source repositories, and check each run (needs go, git, python3, elixir and ast-grep)
     cmds:
       - task: :build
       - go run ./cmd/regression {{.CLI_ARGS}}
