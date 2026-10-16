@@ -1064,10 +1064,33 @@ costs time only for a mutant that really hangs, and such a mutant is rare.
 11 builds of one large package on the measured monorepo, under a load average of up to 111. The build of
 the real code runs under the same load, so 3 × its time fits the package and the host.
 
-**Why each language has the same operators.** `--operators`, `.mutants.yml` and the ids name operators. When
-each language has its own operators, one setting means two different changes in two repositories, and the
-list of operators holds changes that the language of the reader cannot make. A change that only one language
-or one library has, such as the `AddDate` of calendar days in Go, is a rule of a repository.
+**Why an operator is required or optional, in one catalog for each language.** `--operators`, `.mutants.yml`
+and the ids name operators. When each language has its own operators, one setting means two different changes
+in two repositories, and the list of operators holds changes that the language of the reader cannot make. So
+the catalog has one list of names, and an operator is the same change in each language that has it. Each
+operator of the catalog has a tier:
+
+- A **required** operator has a rule in each language. A language leaves one out only when it has no such
+  code, for example a `switch` in HCL, and the catalog gives the reason. A rule for an operator that the
+  language leaves out is an error, because the two disagree. `mutants operators` shows each left-out operator
+  with its reason, so a reader does not take the gap for an operator that found nothing.
+- An **optional** operator has a rule only in the languages where it makes sense, such as `count` to `0` in
+  Terraform. A language with no rule for it gives no reason. A new operator starts optional, and it becomes
+  required when each language has a rule for it.
+
+A required operator that two or more languages leave out becomes optional, and a test of the catalog checks
+this limit. So the gaps in the required operators stay few, and an operator that only some languages have
+makes no gap in the others.
+
+The tier tells whether a language must have an operator, and the default tells whether it runs. They are
+separate: a required operator can be off by default, as `ERROR_CAUSE_REMOVE` is. Today each operator of the
+catalog is required, and Go, Python and Elixir have a rule for each one.
+
+Separate sets of operators, for example one for programming languages and one for infrastructure such as
+Terraform, do not fit. Most operators, such as the comparisons, the logic and the numbers, are the same change
+in both kinds of language. So separate sets either copy these names, which then name two changes, or split
+them between the sets. A repository with Go and Terraform code then needs one setting for each set. A change
+of one library, such as the `AddDate` of calendar days in Go, stays a rule of a repository.
 
 **Why the settings that git does not track are in the shared git folder.** A tool or an agent can make a new
 linked work tree for each change, and copy no untracked file into it. A file in the git folder that the work
