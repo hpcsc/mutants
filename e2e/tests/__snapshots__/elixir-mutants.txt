@@ -166,3 +166,21 @@ lib/shop/order.ex:Shop.Order.count/1:INTEGER_INCREMENT#2 64:31 NOT COVERED
   "0" -> "(0+1)"
 lib/shop/order.ex:Shop.Order.count/1:RETURN_EMPTY#1 65:5 NOT COVERED
   "count" -> "nil"
+lib/shop/order.ex:Shop.Order.notify/2:CONDITION_TRUE#1 69:8 NOT COVERED
+  "ready" -> "true"
+lib/shop/order.ex:Shop.Order.notify/2:BRANCH_IF#1 70:7 NOT COVERED
+  "send(pid, :ready)" -> "nil"
+lib/shop/order.ex:Shop.Order.notify/2:ARGUMENT_EMPTY#1 70:12 NOT COVERED
+  "pid" -> "nil"
+lib/shop/order.ex:Shop.Order.notify/2:ARGUMENT_EMPTY#2 70:17 NOT COVERED
+  ":ready" -> "nil"
+lib/shop/order.ex:Shop.Order.notify/2:CONDITION_TRUE#2 72:8 NOT COVERED
+  "ready" -> "true"
+lib/shop/order.ex:Shop.Order.notify/2:BRANCH_IF#2 72:19 NOT COVERED
+  "send(pid, :done)" -> "nil"
+lib/shop/order.ex:Shop.Order.notify/2:ARGUMENT_EMPTY#3 72:24 NOT COVERED
+  "pid" -> "nil"
+lib/shop/order.ex:Shop.Order.notify/2:ARGUMENT_EMPTY#4 72:29 NOT COVERED
+  ":done" -> "nil"
+lib/shop/order.ex:Shop.Order.notify/2:RETURN_EMPTY#1 73:5 NOT COVERED
+  ":ok" -> "nil"

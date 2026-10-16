@@ -1,0 +1,26 @@
+id: CONDITION_TRUE
+language: go
+rule:
+  any:
+    - kind: binary_expression
+    - kind: unary_expression
+    - kind: call_expression
+    - kind: identifier
+    - kind: selector_expression
+    - kind: parenthesized_expression
+    - kind: index_expression
+    - kind: type_assertion_expression
+  inside:
+    kind: if_statement
+    field: condition
+    has:
+      field: consequence
+      has:
+        kind: statement_list
+    not:
+      has:
+        field: alternative
+        any:
+          - kind: block
+          - kind: if_statement
+fix: 'true'

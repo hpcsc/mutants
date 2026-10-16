@@ -1,0 +1,38 @@
+id: CONDITION_TRUE
+language: python
+utils:
+  condition:
+    any:
+      - kind: boolean_operator
+      - kind: comparison_operator
+      - kind: not_operator
+      - kind: identifier
+      - kind: call
+      - kind: attribute
+      - kind: subscript
+      - kind: parenthesized_expression
+      - kind: named_expression
+      - kind: binary_operator
+      - kind: await
+rule:
+  matches: condition
+  any:
+    - inside:
+        kind: if_statement
+        field: condition
+        not:
+          has:
+            field: alternative
+            any:
+              - kind: elif_clause
+              - kind: else_clause
+    - inside:
+        kind: elif_clause
+        field: condition
+        not:
+          precedes:
+            any:
+              - kind: elif_clause
+              - kind: else_clause
+            stopBy: end
+fix: 'True'

@@ -8,6 +8,8 @@ shop/order.py:discount:CONDITIONALS_BOUNDARY#1 18:8 NOT COVERED
   "total >= 100" -> "total > 100"
 shop/order.py:discount:CONDITIONALS_NEGATION#1 18:8 NOT COVERED
   "total >= 100" -> "total < 100"
+shop/order.py:discount:CONDITION_TRUE#1 18:8 NOT COVERED
+  "total >= 100" -> "True"
 shop/order.py:discount:INTEGER_DECREMENT#1 18:17 NOT COVERED
   "100" -> "(100-1)"
 shop/order.py:discount:INTEGER_INCREMENT#1 18:17 NOT COVERED

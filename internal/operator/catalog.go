@@ -17,6 +17,7 @@ var catalog = map[string]defaultRun{
 	"BREAK_AT_START":        onByDefault,
 	"CONDITIONALS_BOUNDARY": onByDefault,
 	"CONDITIONALS_NEGATION": onByDefault,
+	"CONDITION_TRUE":        offByDefault,
 	"ERROR_CAUSE_REMOVE":    offByDefault,
 	"ERROR_REMOVE":          onByDefault,
 	"EXPRESSION_REMOVE":     onByDefault,

@@ -253,10 +253,18 @@ const elixirShop = `defmodule Shop.Order do
     for item <- items, item > 0, do: item
     count
   end
+
+  def notify(pid, ready) do
+    if ready do
+      send(pid, :ready)
+    end
+    if ready, do: send(pid, :done)
+    :ok
+  end
 end
 `
 
-const allOperators = ['--operators=+ARGUMENT_EMPTY,+ERROR_CAUSE_REMOVE']
+const allOperators = ['--operators=+ARGUMENT_EMPTY,+ERROR_CAUSE_REMOVE,+CONDITION_TRUE']
 
 function listing(mutants: ReportedMutant[]): string {
   return mutants

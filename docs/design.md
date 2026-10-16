@@ -283,6 +283,7 @@ The Go pack for v1:
 | `NAMED_VALUE_REMOVE` | removes one keyed field from a struct literal, so the field gets the zero value of its type, and one entry from a map literal | shows a field that no test reads, or a key that no test looks up |
 | `ARGUMENT_EMPTY` | a call argument to the zero value of its parameter type | off by default: each argument of each call makes a mutant, so it is noisy until it has a filter |
 | `ERROR_CAUSE_REMOVE` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
+| `CONDITION_TRUE` | the condition of an `if` with no `else` to `true` | off by default: each `if err != nil` also gets a mutant, and the tests of the success path kill it |
 
 ### Filters
 
@@ -1049,6 +1050,13 @@ its survivors are real test gaps, and they are worth the longer run.
 
 **Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_EMPTY`.
 Without it, a guard that returns `false` gets no mutant.
+
+**Why CONDITION_TRUE changes only an if with no else.** `BRANCH_IF` already makes the body of such an `if` run
+never. With an `else`, `CONDITIONALS_NEGATION` and `BRANCH_ELSE` test both sides. A true condition is the one
+change that needs a test where the condition is false and the body must not run. For a guard such as
+`if !slices.Contains(ids, id)`, or `if m[k] == nil { m[k] = map[string]int{} }`, the first test kills each
+other operator, because their mutants drop the item or write to a nil map, so the guard looks tested. On one
+measured branch, two such guards had no test of their false side, and only hand-written proposals found them.
 
 **Why a caller gap needs the reach of the changed lines.** A caller whose tests use a fake for its callee
 never runs the callee, and that is often the intent: the tests of the callee test the callee. When the check

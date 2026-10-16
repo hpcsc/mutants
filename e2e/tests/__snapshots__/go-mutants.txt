@@ -6,6 +6,8 @@ shop/shop.go:Discount:CONDITIONALS_BOUNDARY#1 28:5 NOT COVERED
   "total >= 100" -> "total > 100"
 shop/shop.go:Discount:CONDITIONALS_NEGATION#1 28:5 NOT COVERED
   "total >= 100" -> "total < 100"
+shop/shop.go:Discount:CONDITION_TRUE#1 28:5 NOT COVERED
+  "total >= 100" -> "true"
 shop/shop.go:Discount:INTEGER_DECREMENT#1 28:14 NOT COVERED
   "100" -> "(100-1)"
 shop/shop.go:Discount:INTEGER_INCREMENT#1 28:14 NOT COVERED
@@ -100,6 +102,8 @@ shop/shop.go:Summarise:NAMED_VALUE_REMOVE#2 63:28 NOT COVERED
   "Owed: owed" -> ""
 shop/shop.go:Load:CONDITIONALS_NEGATION#1 67:5 NOT COVERED
   "id == \"\"" -> "id != \"\""
+shop/shop.go:Load:CONDITION_TRUE#1 67:5 NOT COVERED
+  "id == \"\"" -> "true"
 shop/shop.go:Load:BRANCH_IF#1 67:14 NOT COVERED
   "{\n\t\tlogger().Str(\"id\", id).Msg(\"load \" + id)\n\t\treturn Order{}, errEmpty\n\t}" -> "{}"
 shop/shop.go:Load:ERROR_REMOVE#1 69:19 NOT COVERED

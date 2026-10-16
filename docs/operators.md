@@ -82,6 +82,7 @@ The operators make the same changes in Python:
 | `NAMED_VALUE_SWAP`, `NAMED_VALUE_REMOVE` | `Totals(paid=paid, owed=owed)` to `Totals(paid=owed, owed=paid)`, and to `Totals(owed=owed)` |
 | `ARGUMENT_EMPTY` (off by default) | `resolve(client_id)` to `resolve(None)` |
 | `ERROR_CAUSE_REMOVE` (off by default) | `raise LoadError(x) from err` to `raise LoadError(x)` |
+| `CONDITION_TRUE` (off by default) | `if key not in seen:` to `if True:` in an `if` with no `elif` or `else`, and the condition of the last `elif` when no `else` follows |
 
 ## In Elixir
 
@@ -105,6 +106,7 @@ removes code puts `nil` in its place:
 | `NAMED_VALUE_SWAP`, `NAMED_VALUE_REMOVE` | `%Totals{paid: paid, owed: owed}` to `%Totals{paid: owed, owed: paid}`, and to `%Totals{owed: owed}`. A call keeps at least one of its keywords, because a call without its keywords has another arity. A field of a pattern that binds a variable, such as `coef: coef`, stays, because the next read of the variable does not compile. A field of a struct whose value is its default in `defstruct` also stays. |
 | `ARGUMENT_EMPTY` (off by default) | `resolve(client_id)` to `resolve(nil)` |
 | `ERROR_CAUSE_REMOVE` (off by default) | `reraise error, __STACKTRACE__` to `raise(error)`, which loses the stacktrace |
+| `CONDITION_TRUE` (off by default) | `if key not in seen do` to `if true do`, and `if ok, do: x` to `if true, do: x`, in an `if` with no `else`, in a function. An `unless` gets no mutant, because a true condition there gives the same result as `BRANCH_IF`. |
 
 ## Operators that are off by default
 
@@ -115,6 +117,7 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 | --- | --- | --- |
 | `ARGUMENT_EMPTY` | `resolve(input.ClientID.String())` to `resolve("")` | no test sends the value through the call |
 | `ERROR_CAUSE_REMOVE` | `fmt.Errorf("load: %w", err)` to `fmt.Errorf("load: %v", err)` | no caller checks the error with `errors.Is` or `errors.As` |
+| `CONDITION_TRUE` | `if !slices.Contains(ids, id) {` to `if true {`, in an `if` with no `else`. An `if` with an `else` gets no mutant, because `CONDITIONALS_NEGATION` and `BRANCH_ELSE` already test both sides. | no test makes the condition false and checks that the body does not run, for example a second call with the same id |
 
 ## What mutants skips
 

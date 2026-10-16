@@ -204,6 +204,7 @@ func TestPack(t *testing.T) {
 			require.Contains(t, operatorsOf(pack), "NAMED_VALUE_SWAP")
 			require.NotContains(t, operatorsOf(pack), "ERROR_CAUSE_REMOVE")
 			require.NotContains(t, operatorsOf(pack), "ARGUMENT_EMPTY")
+			require.NotContains(t, operatorsOf(pack), "CONDITION_TRUE")
 		})
 
 		t.Run("a rule in the repository for an operator that is off by default is also off by default", func(t *testing.T) {
@@ -436,6 +437,22 @@ func TestPack(t *testing.T) {
 			edits := editsOf(t, "BRANCH_ELSE", "package a\n\nfunc f(a, b bool) {\n\tif a {\n\t\tg()\n\t} else if b {\n\t\th()\n\t} else {\n\t\tk()\n\t}\n}\n")
 
 			require.Equal(t, []string{"{\n\t\tk()\n\t} -> {}"}, edits)
+		})
+
+		t.Run("CONDITION_TRUE makes the condition of an if with no else true, also of the last else if and after an init statement", func(t *testing.T) {
+			source := "package a\n\nfunc f(xs []string, m map[string]int, k string, a bool) []string {\n" +
+				"\tif !slices.Contains(xs, k) {\n\t\txs = append(xs, k)\n\t}\n" +
+				"\tif n, ok := m[k]; ok {\n\t\tg(n)\n\t}\n" +
+				"\tif a {\n\t\tg(1)\n\t} else if len(xs) > 2 {\n\t\tg(2)\n\t}\n" +
+				"\treturn xs\n}\n"
+
+			require.Equal(t, []string{"!slices.Contains(xs, k) -> true", "ok -> true", "len(xs) > 2 -> true"}, editsOf(t, "CONDITION_TRUE", source))
+		})
+
+		t.Run("CONDITION_TRUE skips an if with an else, and an if with an empty body", func(t *testing.T) {
+			source := "package a\n\nfunc f(a, b bool) {\n\tif a {\n\t\tg()\n\t} else {\n\t\th()\n\t}\n\tif a {\n\t\tg()\n\t} else if b {\n\t\th()\n\t} else {\n\t\tk()\n\t}\n\tif b {\n\t}\n}\n"
+
+			require.Empty(t, editsOf(t, "CONDITION_TRUE", source))
 		})
 
 		t.Run("BRANCH_CASE removes the statements of each case", func(t *testing.T) {
@@ -706,6 +723,18 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"h(a) -> pass"}, edits)
 		})
 
+		t.Run("CONDITION_TRUE makes the condition of an if with no elif or else True, and of the last elif when no else follows", func(t *testing.T) {
+			source := "def f(xs, k, a):\n    if k not in xs:\n        xs.append(k)\n    if a:\n        g(1)\n    elif len(xs) > 1:\n        g(2)\n    elif xs:\n        g(3)\n    return xs\n"
+
+			require.Equal(t, []string{"k not in xs -> True", "xs -> True"}, pythonEditsOf(t, "CONDITION_TRUE", source))
+		})
+
+		t.Run("CONDITION_TRUE skips an if or an elif that an else follows", func(t *testing.T) {
+			source := "def f(a, b):\n    if a:\n        g(1)\n    else:\n        g(2)\n    if a:\n        g(1)\n    elif b:\n        g(2)\n    else:\n        g(3)\n"
+
+			require.Empty(t, pythonEditsOf(t, "CONDITION_TRUE", source))
+		})
+
 		t.Run("BRANCH_CASE puts pass in place of the body of each case", func(t *testing.T) {
 			edits := pythonEditsOf(t, "BRANCH_CASE", "def f(a):\n    match a:\n        case 1:\n            g(a)\n        case _:\n            h(a)\n")
 
@@ -944,6 +973,45 @@ end
 
 			require.Empty(t, elixirEditsOf(t, "BRANCH_IF", source))
 			require.Empty(t, elixirEditsOf(t, "BRANCH_ELSE", source))
+		})
+
+		t.Run("CONDITION_TRUE makes the condition of an if with no else true, with a do block and with do:", func(t *testing.T) {
+			source := `def f(xs, k) do
+  if k not in xs do
+    send(self(), k)
+  end
+  if Map.has_key?(xs, k), do: send(self(), k)
+  xs
+end
+`
+
+			require.Equal(t, []string{"k not in xs -> true", "Map.has_key?(xs, k) -> true"}, elixirEditsOf(t, "CONDITION_TRUE", source))
+		})
+
+		t.Run("CONDITION_TRUE skips an if with an else, an unless, an if with an empty body and an if outside a function", func(t *testing.T) {
+			source := `defmodule A do
+  if Code.ensure_loaded?(D) do
+    def g(x), do: x
+  end
+
+  def f(a) do
+    if a do
+      g(1)
+    else
+      g(2)
+    end
+    if a, do: g(1), else: g(2)
+    unless a do
+      g(3)
+    end
+    if a do
+      # nothing yet
+    end
+  end
+end
+`
+
+			require.Empty(t, elixirEditsOf(t, "CONDITION_TRUE", source))
 		})
 
 		t.Run("BRANCH_CASE puts nil in place of the body of each clause of case, cond and the else of with, and skips the clauses of fn", func(t *testing.T) {
