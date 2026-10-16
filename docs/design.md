@@ -813,6 +813,12 @@ NOT COVERED:
   package cmd/report has no test files: 502 mutants
 ```
 
+When the package has test files, but each one needs a build tag that the run does not name, the row names the
+tags, for example `the test files of package store need the tag integration: name it with --tags or go.tags`.
+The adapter reads the build lines of the test files in the folder of the package. It leaves out the tags of an
+operating system, an architecture and a Go version, which `--tags` cannot change, and each tag that the run
+already names.
+
 `--format json` prints every mutant as one JSON document: `base`, and `mutants` with the fields `id`, `file`,
 `line`, `column`, `operator`, `status`, `original`, `replacement`, `bug`, `detail` and `inside`. `detail`
 tells why the mutant has its status. With `--proposals` and `--caller-gaps`, the document also holds

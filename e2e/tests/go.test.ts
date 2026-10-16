@@ -630,6 +630,9 @@ func TestWait(t *testing.T) {
     const withTags = await runMutants(dir, ['--base', 'HEAD', '--operators', 'CONDITIONALS_NEGATION', '--tags', 'unit'])
 
     expect(verdicts(withoutTags.mutants)).toEqual(['CONDITIONALS_NEGATION a > b NOT COVERED'])
+    expect(withoutTags.mutants.map((m) => m.detail)).toEqual([
+      'the test files of package calc need the tag unit: name it with --tags or go.tags',
+    ])
     expect(verdicts(withTags.mutants)).toEqual(['CONDITIONALS_NEGATION a > b KILLED'])
   })
 

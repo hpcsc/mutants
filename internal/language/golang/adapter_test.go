@@ -1272,8 +1272,24 @@ func apply(xs []int, double func(int) int, extra int) int {
 			withTags, err := golang.New(root, golang.Settings{Tags: []string{"unit"}, BuildLimit: time.Minute, Workers: 1}).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 			require.NoError(t, err)
 
-			require.Equal(t, map[mutant.ID]string{m.ID: "package calc has no test files"}, withoutTags)
+			require.Equal(t, map[mutant.ID]string{m.ID: "the test files of package calc need the tag unit: name it with --tags or go.tags"}, withoutTags)
 			require.Empty(t, withTags)
+		})
+
+		t.Run("names each tag that the test files need, and leaves out an operating system and a tag that the settings name", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"calc/calc.go":        maxSource,
+				"calc/db_test.go":     "//go:build integration\n\n" + maxTest,
+				"calc/stripe_test.go": "//go:build stripe && linux\n\npackage calc\n",
+				"calc/slow_test.go":   "//go:build unit && slow\n\npackage calc\n",
+			})
+			m := mutantOf(t, root, "calc/calc.go", "return b", "return a")
+
+			uncovered, err := golang.New(root, golang.Settings{Tags: []string{"unit"}, BuildLimit: time.Minute, Workers: 1}).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
+
+			require.NoError(t, err)
+			require.Equal(t, map[mutant.ID]string{m.ID: "the test files of package calc need the tags integration, slow, stripe: name them with --tags or go.tags"}, uncovered)
 		})
 	})
 

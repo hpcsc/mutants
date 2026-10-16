@@ -90,6 +90,7 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant, chang
 
 	uncovered := map[mutant.ID]string{}
 	callees := map[string]bool{}
+	noTestsReasons := map[string]string{}
 	for _, m := range mutants {
 		run, err := c.run(ctx, filepath.Dir(filepath.Join(c.root, m.File)))
 		if err != nil {
@@ -97,7 +98,12 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant, chang
 		}
 		switch {
 		case run.noTests:
-			uncovered[m.ID] = fmt.Sprintf("package %s has no test files", filepath.ToSlash(filepath.Dir(m.File)))
+			reason, found := noTestsReasons[run.pkg.Dir]
+			if !found {
+				reason = c.noTestsReason(ctx, run.pkg, filepath.ToSlash(filepath.Dir(m.File)))
+				noTestsReasons[run.pkg.Dir] = reason
+			}
+			uncovered[m.ID] = reason
 		case !c.covers(run.blocks[m.File], m):
 			uncovered[m.ID] = ""
 		default:
@@ -135,6 +141,17 @@ func (c *coverage) uncovered(ctx context.Context, mutants []mutant.Mutant, chang
 		}
 	}
 	return uncovered, nil
+}
+
+func (c *coverage) noTestsReason(ctx context.Context, pkg goPackage, folder string) string {
+	tags, _ := tagsOfTestFiles(ctx, pkg.Dir, c.settings.Tags)
+	switch {
+	case len(tags) == 0:
+		return fmt.Sprintf("package %s has no test files", folder)
+	case len(tags) == 1:
+		return fmt.Sprintf("the test files of package %s need the tag %s: name it with --tags or go.tags", folder, tags[0])
+	}
+	return fmt.Sprintf("the test files of package %s need the tags %s: name them with --tags or go.tags", folder, strings.Join(tags, ", "))
 }
 
 // Go's profile has no block for the code after a function literal, or, from Go 1.27, for the brace of a branch.

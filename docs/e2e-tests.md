@@ -89,7 +89,7 @@ Each fixture has a known answer from the design:
 | A repository in a folder whose name has spaces, parentheses and an apostrophe | the same verdicts as in any other folder |
 | A `go.work` with two modules, and a function in one module that only the tests of the other module run | its mutants get their verdicts from the tests of the other module |
 | A file with `import "C"` | its mutants run, also the ones that need types, and get the same verdicts as in a file without cgo |
-| A test file with a build tag | with `--tags`, its tests run |
+| A test file with a build tag | without `--tags`, the detail names the tag, and with `--tags`, its tests run |
 | Two runs | the same verdicts, mutant by mutant |
 | A package with no test files | one row with the count of its mutants, and each mutant in the JSON |
 | A file of proposals, with one that lives, one that dies and one whose `old` occurs two times | LIVED and KILLED, the third rejected with "old found 2 times", and `git status` the same after the run |

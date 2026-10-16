@@ -138,7 +138,9 @@ mutants: 81, killed: 64, lived: 1, not covered: 15, not viable: 1 (base 1a2b3c4d
 - A row cuts the code at 40 characters. When the code is long, the row starts a few words before the
   first difference, so that you see the difference.
 - An empty replacement shows as `(nothing)`.
-- A package with no test files gives one row for all its mutants.
+- A package with no test files gives one row for all its mutants. When the package has test files that need
+  a build tag that the run does not name, the row names the tag:
+  `the test files of package store need the tag integration: name it with --tags or go.tags`.
 - A NOT COVERED mutant in the code of another survivor has no row of its own. The row of that survivor
   counts it, because that row already tells that no test runs the code. In the example, the BRANCH_IF lives
   because no test makes the call fail, so no test runs the `fmt.Errorf` inside it either. One test that

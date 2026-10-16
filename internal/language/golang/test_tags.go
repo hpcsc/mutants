@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -60,6 +61,41 @@ func builtInTags(ctx context.Context) (map[string]bool, error) {
 		tags[system], tags[architecture] = true, true
 	}
 	return tags, nil
+}
+
+func tagsOfTestFiles(ctx context.Context, folder string, named []string) ([]string, error) {
+	entries, err := os.ReadDir(folder)
+	if err != nil {
+		return nil, err
+	}
+	needed := map[string]bool{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		tags, err := neededTags(filepath.Join(folder, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		for tag := range tags {
+			needed[tag] = true
+		}
+	}
+	if len(needed) == 0 {
+		return nil, nil
+	}
+	builtIn, err := builtInTags(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var missing []string
+	for tag := range needed {
+		if !builtIn[tag] && !goVersion.MatchString(tag) && !slices.Contains(named, tag) {
+			missing = append(missing, tag)
+		}
+	}
+	slices.Sort(missing)
+	return missing, nil
 }
 
 func neededTags(path string) (map[string]bool, error) {
