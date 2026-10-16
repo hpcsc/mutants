@@ -2,6 +2,7 @@ package golang
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -102,11 +103,60 @@ func (r *runner) testIn(ctx context.Context, suite goPackage, original, content 
 		return mutant.Verdict{Status: mutant.InfraError, Detail: "go test -c made no test binary: " + err.Error()}, nil
 	}
 
+	before, checked := r.changedFiles(ctx, suite.Dir)
 	tested, limit, err := r.test(ctx, suite, binary, baseline.test)
 	if err != nil {
 		return mutant.Verdict{}, err
 	}
-	return r.verdict(tested, limit), nil
+	verdict := r.verdict(tested, limit)
+	if verdict.Status == mutant.Lived && checked {
+		after, checkedAgain := r.changedFiles(ctx, suite.Dir)
+		if written := writtenFiles(before, after); checkedAgain && len(written) > 0 {
+			return mutant.Verdict{Status: mutant.InfraError, Detail: "the tests passed and changed " + strings.Join(written, ", ") + " in the work tree"}, nil
+		}
+	}
+	return verdict, nil
+}
+
+// changedFiles keys each file by its path from the root of the repository, as git status gives it, also when
+// folder is a subfolder.
+func (r *runner) changedFiles(ctx context.Context, folder string) (map[string]string, bool) {
+	status := exec.CommandContext(ctx, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames", "--", ".")
+	status.Dir = folder
+	output, err := status.Output()
+	if err != nil {
+		return nil, false
+	}
+	files := map[string]string{}
+	for _, entry := range strings.Split(string(output), "\x00") {
+		if len(entry) < 4 {
+			continue
+		}
+		path := entry[3:]
+		content, err := os.ReadFile(filepath.Join(r.root, filepath.FromSlash(path)))
+		if err != nil {
+			files[path] = ""
+			continue
+		}
+		files[path] = fmt.Sprintf("%x", sha256.Sum256(content))
+	}
+	return files, true
+}
+
+func writtenFiles(before, after map[string]string) []string {
+	var written []string
+	for path, hash := range after {
+		if previous, found := before[path]; !found || previous != hash {
+			written = append(written, path)
+		}
+	}
+	for path := range before {
+		if _, found := after[path]; !found {
+			written = append(written, path)
+		}
+	}
+	slices.Sort(written)
+	return written
 }
 
 func (r *runner) test(ctx context.Context, pkg goPackage, binary string, baseline time.Duration) (process.Exit, time.Duration, error) {

@@ -1486,6 +1486,55 @@ func age(id string) error {
 	})
 
 	t.Run("run", func(t *testing.T) {
+		t.Run("a mutant whose tests pass and write a file in the work tree is INFRA ERROR, and the detail names the file", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      maxSource,
+				"calc/calc_test.go": "package calc\n\nimport (\n\t\"os\"\n\t\"strconv\"\n\t\"testing\"\n)\n\nfunc TestMax(t *testing.T) {\n\tif err := os.WriteFile(\"result.txt\", []byte(strconv.Itoa(Max(1, 2))), 0o644); err != nil {\n\t\tt.Fatal(err)\n\t}\n}\n",
+			})
+			require.NoError(t, exec.Command("git", "-C", root, "init", "-q").Run())
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Verdict{Status: mutant.InfraError, Detail: "the tests passed and changed calc/result.txt in the work tree"}, result)
+		})
+
+		t.Run("a mutant whose tests pass and delete a file in the work tree is INFRA ERROR, and the detail names the file", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      maxSource,
+				"calc/stale.txt":    "stale\n",
+				"calc/calc_test.go": "package calc\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\nfunc TestMax(t *testing.T) {\n\tif Max(1, 2) != 2 {\n\t\t_ = os.Remove(\"stale.txt\")\n\t}\n}\n",
+			})
+			require.NoError(t, exec.Command("git", "-C", root, "init", "-q").Run())
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Verdict{Status: mutant.InfraError, Detail: "the tests passed and changed calc/stale.txt in the work tree"}, result)
+		})
+
+		t.Run("a mutant whose tests pass and change nothing in the work tree of a git repository LIVED", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      maxSource,
+				"calc/calc_test.go": "package calc\n\nimport \"testing\"\n\nfunc TestMax(t *testing.T) {\n\t_ = Max(1, 2)\n}\n",
+			})
+			require.NoError(t, exec.Command("git", "-C", root, "init", "-q").Run())
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Verdict{Status: mutant.Lived}, result)
+		})
+
+		t.Run("a mutant whose tests fail is KILLED, also when they write a file in the work tree", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      maxSource,
+				"calc/calc_test.go": "package calc\n\nimport (\n\t\"os\"\n\t\"strconv\"\n\t\"testing\"\n)\n\nfunc TestMax(t *testing.T) {\n\tif err := os.WriteFile(\"result.txt\", []byte(strconv.Itoa(Max(1, 2))), 0o644); err != nil {\n\t\tt.Fatal(err)\n\t}\n\tif Max(1, 2) != 2 {\n\t\tt.Fatal(\"Max\")\n\t}\n}\n",
+			})
+			require.NoError(t, exec.Command("git", "-C", root, "init", "-q").Run())
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Killed, result.Status)
+		})
+
 		t.Run("a mutant that a test catches is KILLED", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
 

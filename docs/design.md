@@ -534,6 +534,15 @@ sequenceDiagram
   with "declared and not used", and two of them live when they build.
 - **No process stays alive.** Each build and each test binary runs in its own process group. At its limit,
   after it exits, and when `mutants` gets SIGINT or SIGTERM, the runner sends SIGKILL to the whole group.
+- **A test that writes into the work tree.** The test binary runs in the package folder of the work tree, so
+  a test can write a file there. A snapshot library such as go-snaps adds a snapshot that is missing and
+  passes, so the mutant lives, and the file stays in the work tree. Before the test binary runs, and after
+  it when the mutant lives, the runner reads `git status --untracked-files=all` of the package folder, and a
+  hash of each file that it lists. When the two differ, the mutant is INFRA ERROR, and its detail names the
+  files. A test that fails kills the mutant whatever it wrote, so a mutant that dies keeps its verdict. Two
+  mutants of one package can run at the same time, so a write can make both INFRA ERROR. A Go test binary
+  writes nothing by itself, so each difference comes from a test. When git cannot read the folder, the
+  runner skips the check.
 
 ### The Python runner
 
@@ -694,7 +703,7 @@ flowchart TD
 | NOT COVERED | no test runs the line | yes |
 | NOT VIABLE | the mutant does not build | no |
 | TIMED OUT | the tests ran past the limit | no |
-| INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past its limit | no |
+| INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past its limit. In Go, also tests that passed and wrote a file in the work tree. | no |
 
 Go's coverage profile has no block for the part of a statement that comes after a function literal, and from
 Go 1.27 it has none for the brace that opens a branch. A tool that reads "no block" as "not covered" never

@@ -114,7 +114,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | NOT COVERED | no test runs the line | yes |
 | NOT VIABLE | the mutant does not build | no |
 | TIMED OUT | the tests ran past their time limit two times | no |
-| INFRA ERROR | the computer stopped the run, for example when it had no more memory, or the build ran past its limit | no |
+| INFRA ERROR | the computer stopped the run, for example when it had no more memory, or the build ran past its limit. In Go, also tests that passed and wrote a file in the work tree, such as a new snapshot: the detail names the file, so that you can remove it. | no |
 
 A package whose tests fail with the real code stops the run with exit code 2, because its mutants cannot get
 a verdict.
