@@ -57,7 +57,7 @@ func Load(language, root, sharedGitFolder string) (Pack, error) {
 	if found == 0 {
 		return Pack{}, fmt.Errorf("mutants has no operators for %s", language)
 	}
-	if err := p.checkCatalog(rules); err != nil {
+	if err := catalog.Check(language, slices.Collect(maps.Values(rules))); err != nil {
 		return Pack{}, err
 	}
 	if err := p.readRepository(root, sharedGitFolder, "operators", rules, p.add); err != nil {
@@ -321,23 +321,6 @@ func skipped(edit Edit, skippedCode []Span) bool {
 	return changesSkippedCode && !bytes.ContainsFunc(rest, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) })
 }
 
-func (p Pack) checkCatalog(standardRules map[string]Rule) error {
-	operators := map[string]bool{}
-	for _, id := range slices.Sorted(maps.Keys(standardRules)) {
-		operator := standardRules[id].Operator
-		if _, found := catalog[operator]; !found {
-			return fmt.Errorf("the %s rule %s is for %s, which is not in the catalog of operators", p.language, id, operator)
-		}
-		operators[operator] = true
-	}
-	for _, operator := range slices.Sorted(maps.Keys(catalog)) {
-		if !operators[operator] {
-			return fmt.Errorf("mutants has no %s rule for %s, which is in the catalog of operators", p.language, operator)
-		}
-	}
-	return nil
-}
-
 func (p Pack) unsigned(name string) bool {
 	return !strings.HasPrefix(name, "-") && !strings.HasPrefix(name, "+")
 }
@@ -357,7 +340,7 @@ func (p Pack) add(rules map[string]Rule, file, text string) error {
 			ID:           parsed.id,
 			Operator:     operator,
 			File:         file,
-			OffByDefault: parsed.metadata["default"] == "off" || catalog[operator] == offByDefault,
+			OffByDefault: parsed.metadata["default"] == "off" || catalog[operator].OffByDefault,
 			Text:         parsed.text,
 		}
 	}

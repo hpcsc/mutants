@@ -1,12 +1,15 @@
 # What Each Operator of mutants Changes
 
-An operator is one kind of change. Each row of the output names the operator of its mutant. The operators
-are the same in each language: the catalog in `internal/operator/catalog.go` names them, and the rule pack
-of each language gives the syntax of each one. This page tells what each operator changes, with an example
-in Go, and what a survivor of that operator usually shows.
+An operator is one kind of change. Each row of the output names the operator of its mutant. An operator is
+the same change in each language that has it: the catalog in `internal/operator/catalog.go` names them, and
+the rule pack of each language gives the syntax of each one. Each language has each required operator,
+unless it has no such code and the catalog gives the reason. An optional operator is only in the languages
+whose code it fits. Today each operator is required, so Go, Python and Elixir have each one. This page tells
+what each operator changes, with an example in Go, and what a survivor of that operator usually shows.
 
 `mutants operators` lists the operators of your version, whether each one runs by default, and the
-ast-grep rules of each one.
+ast-grep rules of each one. When the catalog leaves an operator out of a language, the list shows `none` and
+the reason.
 
 ## Comparisons
 

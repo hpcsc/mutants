@@ -80,11 +80,16 @@ fix: $A <= $B
 ```
 
 - The operator is the part of the id before the first `/`.
-- Give rules for each operator of the catalog in `internal/operator/catalog.go`, and for no other operator.
-  `operator.Load` refuses a pack that does not. Then `--operators`, `.mutants.yml` and
-  [docs/operators.md](operators.md) mean the same thing in each language.
-- Do not add an operator to the catalog when only one language can make its change. Such a change is a
-  rule of a repository, as [docs/operators.md](operators.md#operators-of-your-own) shows for `CALENDAR_DAY`.
+- Give rules for each required operator of the catalog in `internal/operator/catalog.go`, and for no
+  operator outside the catalog. `operator.Load` refuses a pack that does not. Then `--operators`,
+  `.mutants.yml` and [docs/operators.md](operators.md) mean the same thing in each language.
+- When the language has no such code for a required operator, for example no `switch`, add the language and
+  the reason to `LeftOut` of the operator in the catalog. `mutants operators` shows the reason. A required
+  operator that two languages leave out must become optional.
+- Give rules for an optional operator only when the language has its code. An optional operator needs no
+  reason.
+- Do not add an operator to the catalog for a change of one library. Such a change is a rule of a
+  repository, as [docs/operators.md](operators.md#operators-of-your-own) shows for `CALENDAR_DAY`.
 - The catalog says whether each operator runs by default, so a pack does not set it.
 - Put the code that no operator must change, for example the log calls of the language, in a skip rule in
   `internal/operator/skip/<language>/`, not in the rule of each operator. A skip rule has no `fix`.

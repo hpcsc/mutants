@@ -165,10 +165,13 @@ mutant.
 An operator is one kind of change, for example "replace `<` with `<=`". A rule is one ast-grep rule with a
 `fix`. An operator has one or more rules, or a hook in Go when a rule cannot express it.
 
-The catalog in `internal/operator/catalog.go` names each operator, and whether it runs by default. The pack of
-each language must give rules for each operator of the catalog, and for no other operator, so an operator is
-the same change in each language. A change that only one language can make, such as the `AddDate` of
-calendar days in Go, is a rule of a repository.
+The catalog in `internal/operator/catalog.go` names each operator, its tier, and whether it runs by default.
+The pack of each language must give rules for each required operator, unless the catalog leaves the operator
+out of that language and gives the reason. The pack can give rules for an optional operator, and it gives
+rules for no operator outside the catalog. So an operator is the same change in each language that has it.
+`operator.Load` checks these rules for each language, and a test checks that no required operator is left out
+of two or more languages. A change of one library, such as the `AddDate` of calendar days in Go, is a rule of a
+repository. [Why an operator is required or optional](#decisions) tells why.
 
 ```yaml
 # internal/operator/operators/go/CONDITIONALS_BOUNDARY.yml, two of its eight rules
