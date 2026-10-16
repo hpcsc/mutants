@@ -5,3 +5,119 @@ rule:
   has:
     field: function
     regex: \.\s*(Msgf?|Send)$
+---
+id: zerolog/fields
+language: go
+rule:
+  kind: assignment_statement
+  all:
+    - has:
+        field: left
+        has:
+          kind: identifier
+          pattern: $EVENT
+    - has:
+        field: right
+        has:
+          kind: call_expression
+          has:
+            field: function
+            kind: selector_expression
+            has:
+              field: field
+              regex: ^(Str|Strs|Stringer|Stringers|Int|Int8|Int16|Int32|Int64|Ints|Uint|Uint8|Uint16|Uint32|Uint64|Float32|Float64|Bool|Bools|Err|AnErr|Errs|Interface|Any|Dict|Time|Times|Dur|Durs|TimeDiff|Bytes|Hex|RawJSON|IPAddr|MACAddr|Fields|Timestamp|Caller|Stack|Ctx|Object|EmbedObject|Array|Type)$
+          not:
+            inside:
+              kind: call_expression
+              stopBy: end
+    - has:
+        field: right
+        has:
+          kind: identifier
+          pattern: $EVENT
+          stopBy: end
+          inside:
+            kind: selector_expression
+            field: operand
+          not:
+            inside:
+              kind: argument_list
+              stopBy: end
+---
+id: zerolog/branch
+language: go
+utils:
+  log-call:
+    kind: call_expression
+    has:
+      field: function
+      regex: \.\s*(Msgf?|Send)$
+  log-fields:
+    kind: assignment_statement
+    all:
+      - has:
+          field: left
+          has:
+            kind: identifier
+            pattern: $EVENT
+      - has:
+          field: right
+          has:
+            kind: call_expression
+            has:
+              field: function
+              kind: selector_expression
+              has:
+                field: field
+                regex: ^(Str|Strs|Stringer|Stringers|Int|Int8|Int16|Int32|Int64|Ints|Uint|Uint8|Uint16|Uint32|Uint64|Float32|Float64|Bool|Bools|Err|AnErr|Errs|Interface|Any|Dict|Time|Times|Dur|Durs|TimeDiff|Bytes|Hex|RawJSON|IPAddr|MACAddr|Fields|Timestamp|Caller|Stack|Ctx|Object|EmbedObject|Array|Type)$
+            not:
+              inside:
+                kind: call_expression
+                stopBy: end
+      - has:
+          field: right
+          has:
+            kind: identifier
+            pattern: $EVENT
+            stopBy: end
+            inside:
+              kind: selector_expression
+              field: operand
+            not:
+              inside:
+                kind: argument_list
+                stopBy: end
+  log-body:
+    kind: block
+    has:
+      kind: statement_list
+      not:
+        has:
+          not:
+            any:
+              - kind: comment
+              - matches: log-fields
+              - kind: expression_statement
+                has:
+                  matches: log-call
+rule:
+  kind: if_statement
+  has:
+    field: consequence
+    matches: log-body
+  not:
+    any:
+      - has:
+          field: initializer
+          kind: short_var_declaration
+      - has:
+          field: condition
+          any:
+            - kind: call_expression
+            - has:
+                kind: call_expression
+                stopBy: end
+      - has:
+          field: alternative
+          not:
+            matches: log-body

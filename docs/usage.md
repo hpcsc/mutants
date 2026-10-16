@@ -421,8 +421,10 @@ fix: nil
 ## Code that mutants skips
 
 A skip rule is an [ast-grep](https://ast-grep.github.io) rule with no `fix`. `mutants` makes no mutant inside
-a match of a skip rule, and it does not empty a branch that holds only such matches. The standard skip rule
-of Go, `zerolog`, matches a zerolog call that ends in `Msg`, `Msgf` or `Send`. The standard skip rules of
+a match of a skip rule, and it does not empty a branch that holds only such matches. The standard skip rules
+of Go match a zerolog call that ends in `Msg`, `Msgf` or `Send`, an assignment such as
+`logEvent = logEvent.Str("id", id)` that adds fields to the event that it assigns, and an `if` whose branches
+hold only such code, when its condition calls no function. The standard skip rules of
 Python match a call of a logger, such as `logger.info(...)`, a type annotation, an `if TYPE_CHECKING:` block,
 a comparison with `sys.version_info`, a test file, and a file whose first comments say that it is generated.
 The standard skip rules of Elixir match a call of `Logger`, a typespec, `import`, `alias` and `require`,

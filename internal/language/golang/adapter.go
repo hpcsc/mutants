@@ -133,11 +133,11 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.canSwap(path, candidate.Start, candidate.End)
 	case returnEmpty:
 		zero := a.types.zeroOfSlot(path, candidate.Start, candidate.End)
-		return zero != "" && zero == candidate.Replacement
+		return zero != "" && zero == candidate.Replacement && !a.types.returnedWithAnError(path, candidate.Start, candidate.End)
 	case errorRemove:
 		return a.types.isErrorSlot(path, candidate.Start, candidate.End)
 	case returnTrue:
-		return a.types.canBecomeTrue(path, candidate.Start, candidate.End)
+		return a.types.canBecomeTrue(path, candidate.Start, candidate.End) && !a.types.returnedWithAnError(path, candidate.Start, candidate.End)
 	case integerDecrement:
 		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
 	case namedValueRemove:

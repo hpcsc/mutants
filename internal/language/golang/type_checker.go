@@ -321,10 +321,18 @@ func (c *typeChecker) isZero(value types.TypeAndValue) bool {
 	return constant.Sign(value.Value) == 0
 }
 
-func (c *typeChecker) returnSlot(path string, start, end int) (types.Type, ast.Expr, *types.Info) {
+type returnValue struct {
+	statement *ast.ReturnStmt
+	index     int
+	slots     *types.Tuple
+	enclosing []ast.Node
+	info      *types.Info
+}
+
+func (c *typeChecker) returnValue(path string, start, end int) (returnValue, bool) {
 	loaded, syntax, lines := c.file(path)
 	if syntax == nil || start < 0 || end > lines.Size() {
-		return nil, nil, nil
+		return returnValue{}, false
 	}
 	enclosing, _ := astutil.PathEnclosingInterval(syntax, lines.Pos(start), lines.Pos(end))
 	var statement *ast.ReturnStmt
@@ -335,7 +343,7 @@ func (c *typeChecker) returnSlot(path string, start, end int) (types.Type, ast.E
 		}
 	}
 	if statement == nil {
-		return nil, nil, nil
+		return returnValue{}, false
 	}
 	index := -1
 	for i, value := range statement.Results {
@@ -344,7 +352,7 @@ func (c *typeChecker) returnSlot(path string, start, end int) (types.Type, ast.E
 		}
 	}
 	if index < 0 {
-		return nil, nil, nil
+		return returnValue{}, false
 	}
 	var signature *types.Signature
 	for _, node := range enclosing {
@@ -361,9 +369,82 @@ func (c *typeChecker) returnSlot(path string, start, end int) (types.Type, ast.E
 		break
 	}
 	if signature == nil || signature.Results().Len() != len(statement.Results) {
+		return returnValue{}, false
+	}
+	return returnValue{statement: statement, index: index, slots: signature.Results(), enclosing: enclosing, info: loaded.TypesInfo}, true
+}
+
+func (c *typeChecker) returnSlot(path string, start, end int) (types.Type, ast.Expr, *types.Info) {
+	value, found := c.returnValue(path, start, end)
+	if !found {
 		return nil, nil, nil
 	}
-	return signature.Results().At(index).Type(), statement.Results[index], loaded.TypesInfo
+	return value.slots.At(value.index).Type(), value.statement.Results[value.index], value.info
+}
+
+// returnedWithAnError needs start and end at one value of a return statement.
+func (c *typeChecker) returnedWithAnError(path string, start, end int) bool {
+	value, found := c.returnValue(path, start, end)
+	if !found {
+		return false
+	}
+	for i, other := range value.statement.Results {
+		if c.isError(value.slots.At(i).Type()) && c.isNotNil(other, value) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *typeChecker) isNotNil(errorValue ast.Expr, value returnValue) bool {
+	switch expression := ast.Unparen(errorValue).(type) {
+	case *ast.CompositeLit:
+		return true
+	case *ast.UnaryExpr:
+		return expression.Op == token.AND
+	case *ast.CallExpr:
+		return c.makesAnError(expression, value.info)
+	case *ast.Ident:
+		return c.isCheckedNotNil(expression, value)
+	}
+	return false
+}
+
+func (c *typeChecker) makesAnError(call *ast.CallExpr, info *types.Info) bool {
+	selector, isSelector := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+	if !isSelector {
+		return false
+	}
+	called, isFunction := info.Uses[selector.Sel].(*types.Func)
+	if !isFunction || called.Pkg() == nil {
+		return false
+	}
+	name := called.Pkg().Path() + "." + called.Name()
+	return name == "errors.New" || name == "fmt.Errorf"
+}
+
+func (c *typeChecker) isCheckedNotNil(variable *ast.Ident, value returnValue) bool {
+	object := value.info.Uses[variable]
+	if object == nil {
+		return false
+	}
+	for _, node := range value.enclosing {
+		check, isIf := node.(*ast.IfStmt)
+		if !isIf || !slices.Contains(value.enclosing, ast.Node(check.Body)) {
+			continue
+		}
+		comparison, isBinary := ast.Unparen(check.Cond).(*ast.BinaryExpr)
+		if !isBinary || comparison.Op != token.NEQ {
+			continue
+		}
+		for _, sides := range [][2]ast.Expr{{comparison.X, comparison.Y}, {comparison.Y, comparison.X}} {
+			compared, isIdent := ast.Unparen(sides[0]).(*ast.Ident)
+			if isIdent && value.info.Uses[compared] == object && value.info.Types[sides[1]].IsNil() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (c *typeChecker) parameterSlot(path string, start, end int) (types.Type, ast.Expr, *types.Info) {

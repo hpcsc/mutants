@@ -123,8 +123,12 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
 
 `mutants` does not make a mutant that cannot build, or that changes nothing a test can see. For example:
 
-- a change in a zerolog line that ends in `Msg`, `Msgf` or `Send`, and the removal of a branch that holds
-  only such lines
+- a change in a zerolog line that ends in `Msg`, `Msgf` or `Send`, or in an assignment such as
+  `logEvent = logEvent.Str("id", id)` that adds fields to the event that it assigns, and the removal of a
+  branch that holds only such lines. An `if` whose branches hold only such lines gets no mutant, when its
+  condition calls no function.
+- a change by `RETURN_EMPTY` or `RETURN_TRUE` of a value that a return gives with an error that is not nil,
+  such as the `false` of `return false, err` in `if err != nil`, because a caller reads the error first
 - a change in a `_test.go` file, in a Python test file, in an Elixir file in a `test` folder, or in generated
   code
 - a change in a call of a Python logger, in a type annotation, in an `if TYPE_CHECKING:` block, or in a

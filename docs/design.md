@@ -226,13 +226,18 @@ operator must change, such as a log call, has a skip rule: an ast-grep rule with
 `internal/operator/skip/<language>/`. The scan runs the skip rules together with the rules of the operators.
 `mutants` then drops each edit inside a match of a skip rule. It also drops each edit that changes only the
 code of such matches: the text of the edit has no letter and no digit outside them, for example a block that
-holds only log calls. This skip rule matches a zerolog call chain that ends in `Msg`, `Msgf` or `Send`. `\s*`
-finds a chain over more than one line, where white space comes between the dot and `Msg`. A repository adds
+holds only log calls. The first skip rule of zerolog, below, matches a zerolog call chain that ends in `Msg`,
+`Msgf` or `Send`. `\s*` finds a chain over more than one line, where white space comes between the dot and
+`Msg`. The second matches an assignment that adds fields to the event that it assigns, such as
+`logEvent = logEvent.Str("id", id)`: the outer call is a field method of zerolog, and the variable on the left
+starts the chain on the right. The third matches an `if` whose branches hold only such code, so that its
+condition gets no mutant either. It leaves out an `if` whose condition calls a function, or whose header
+declares a variable, because a mutant there can change more than a log line. A repository adds
 its own skip rules in `.mutants/skip/<language>/`, and a skip rule with the id of a standard skip rule
 replaces that rule.
 
 ```yaml
-# internal/operator/skip/go/zerolog.yml
+# internal/operator/skip/go/zerolog.yml, the first of its three rules
 id: zerolog
 language: go
 rule:
@@ -299,6 +304,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Table | a `NAMED_VALUE_SWAP` pair in a table of named values, where each value is a literal of one named type with constant fields, such as `NoMatch: Reason{"NoMatch"}`. A swap there lives unless a test reads the text. |
 | Type | a `RETURN_EMPTY` value that is not the zero value of its slot, that fills an error slot, or that is zero already |
 | Type | an `ERROR_REMOVE` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
+| Error beside | a `RETURN_EMPTY` or `RETURN_TRUE` value of a return that also gives an error that is not nil: a call of `errors.New` or `fmt.Errorf`, a struct literal or a pointer to one, or a variable that an enclosing `if err != nil` checks. A caller reads the error first, so it does not read the other values. |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
 | Missing return | a `BRANCH_IF`, `BRANCH_ELSE` or `BRANCH_CASE` edit that empties a branch that its function needs to end in a terminating statement, such as one case of a `switch` whose cases each return. The build would give `missing return`. |
 | Type | a `NAMED_VALUE_REMOVE` element outside a struct literal or a map literal, or whose value is zero already. The entry of a set, whose value is an empty struct, stays, because its removal changes `_, ok := m[k]` and `len(m)`. |

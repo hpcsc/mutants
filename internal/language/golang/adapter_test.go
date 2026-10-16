@@ -735,6 +735,109 @@ func At(position int64) Trigger {
 			}, kept)
 		})
 
+		t.Run("drops a RETURN_TRUE and a RETURN_EMPTY edit of a value that a return gives with an error that is not nil", func(t *testing.T) {
+			root := newModule(t, map[string]string{"lookup/lookup.go": `package lookup
+
+import (
+	"errors"
+	"fmt"
+)
+
+type Reference struct{ ID string }
+
+type MissingError struct{}
+
+func (MissingError) Error() string { return "missing" }
+
+var lastMissing MissingError
+
+func newError() error { return errors.New("new") }
+
+func Resolve(id string, find func(string) (int, error), failures chan error, failed bool) (Reference, int, bool, error) {
+	count, err := find(id)
+	other := err
+	if err != nil {
+		if count > 1 {
+			return Reference{}, count + 1, false, err
+		}
+		return Reference{}, count, false, err
+	} else if failed {
+		return Reference{ID: id}, count + 2, false, err
+	}
+	if nil != other {
+		return Reference{ID: id}, count + 3, false, other
+	}
+	if other != nil {
+		return Reference{ID: id}, count + 4, false, err
+	}
+	if err == nil && failed {
+		return Reference{ID: id}, count + 5, false, err
+	}
+	switch {
+	case id == "":
+		return Reference{ID: id}, count + 6, false, errors.New("no id")
+	case count < 0:
+		return Reference{ID: id}, count + 7, false, fmt.Errorf("negative %d", count)
+	case count > 9:
+		return Reference{ID: id}, count + 8, false, &MissingError{}
+	case count > 8:
+		return Reference{ID: id}, count + 9, false, MissingError{}
+	case count > 7:
+		return Reference{ID: id}, count + 10, false, &lastMissing
+	case count > 6:
+		return Reference{ID: id}, count + 11, false, errors.Join(err)
+	case count > 5:
+		return Reference{ID: id}, count + 12, false, newError()
+	case count > 4:
+		return Reference{ID: id}, count + 13, false, <-failures
+	}
+	return Reference{ID: id}, count + 14, false, err
+}
+`})
+			adapter := golang.New(root, defaultSettings)
+			kept := map[string][2]bool{}
+			for _, statement := range []struct{ context, count string }{
+				{"count + 1, false", "count + 1"},
+				{"return Reference{}, count, false, err", "count"},
+				{"count + 2, false", "count + 2"},
+				{"count + 3, false", "count + 3"},
+				{"count + 4, false", "count + 4"},
+				{"count + 5, false", "count + 5"},
+				{"count + 6, false", "count + 6"},
+				{"count + 7, false", "count + 7"},
+				{"count + 8, false", "count + 8"},
+				{"count + 9, false", "count + 9"},
+				{"count + 10, false", "count + 10"},
+				{"count + 11, false", "count + 11"},
+				{"count + 12, false", "count + 12"},
+				{"count + 13, false", "count + 13"},
+				{"count + 14, false", "count + 14"},
+			} {
+				kept[statement.context] = [2]bool{
+					adapter.Keep(editIn(t, root, "lookup/lookup.go", "RETURN_TRUE", statement.context, "false", "true")),
+					adapter.Keep(editIn(t, root, "lookup/lookup.go", "RETURN_EMPTY", statement.context, statement.count, "0")),
+				}
+			}
+
+			require.Equal(t, map[string][2]bool{
+				"count + 1, false":                      {false, false},
+				"return Reference{}, count, false, err": {false, false},
+				"count + 2, false":                      {true, true},
+				"count + 3, false":                      {false, false},
+				"count + 4, false":                      {true, true},
+				"count + 5, false":                      {true, true},
+				"count + 6, false":                      {false, false},
+				"count + 7, false":                      {false, false},
+				"count + 8, false":                      {false, false},
+				"count + 9, false":                      {false, false},
+				"count + 10, false":                     {false, false},
+				"count + 11, false":                     {true, true},
+				"count + 12, false":                     {true, true},
+				"count + 13, false":                     {true, true},
+				"count + 14, false":                     {true, true},
+			}, kept)
+		})
+
 		t.Run("keeps a NAMED_VALUE_REMOVE edit of a slice whose one item points to an empty struct", func(t *testing.T) {
 			root := newModule(t, map[string]string{"plan/plan.go": `package plan
 

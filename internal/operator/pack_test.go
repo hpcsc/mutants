@@ -332,6 +332,29 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"a < b -> a <= b"}, edits)
 		})
 
+		t.Run("each operator skips an assignment that adds zerolog fields to the event that it assigns, and keeps another chain", func(t *testing.T) {
+			source := "package a\n\nfunc f(log L, q Q, other E, n int) {\n\tlogEvent := log.Info()\n" +
+				"\tlogEvent = logEvent.\n\t\tStr(\"id\", \"x\").\n\t\tInt(\"n\", n+1)\n" +
+				"\tq = q.Where(n + 2).Limit(10)\n\tother = logEvent.Int(\"n\", n + 3)\n\tlogEvent.Msg(\"x\")\n}\n"
+
+			edits := editsOf(t, "ARITHMETIC_BASE", source)
+
+			require.Equal(t, []string{"n + 2 -> n - 2", "n + 3 -> n - 3"}, edits)
+		})
+
+		t.Run("each operator skips an if whose branches only add zerolog fields or write a log line, when its condition calls no function", func(t *testing.T) {
+			source := "package a\n\nfunc f(log L, m map[string]int, escalated bool, n int) {\n\tlogEvent := log.Info()\n" +
+				"\tif escalated {\n\t\tlogEvent = logEvent.Str(\"outcome\", \"escalated\")\n\t} else {\n\t\t// classified\n\t\tlogEvent = logEvent.Str(\"outcome\", \"classified\")\n\t}\n" +
+				"\tlogEvent.Msg(\"x\")\n" +
+				"\tif n > 1 {\n\t\tlog.Info().Msg(\"many\")\n\t}\n" +
+				"\tif n > 2 {\n\t\tlog.Info().Msg(\"more\")\n\t\tg()\n\t}\n" +
+				"\tif ready(n) {\n\t\tlog.Info().Msg(\"ready\")\n\t}\n" +
+				"\tif v, ok := m[\"a\"]; ok {\n\t\tlog.Info().Int(\"v\", v).Msg(\"found\")\n\t}\n}\n"
+
+			require.Equal(t, []string{"n > 2 -> true", "ready(n) -> true", "ok -> true"}, editsOf(t, "CONDITION_TRUE", source))
+			require.Equal(t, []string{"n > 2 -> n <= 2"}, editsOf(t, "CONDITIONALS_NEGATION", source))
+		})
+
 		t.Run("a skip rule in the repository skips the edits inside its matches", func(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/skip/go/slog.yml"), "id: slog\nlanguage: go\nrule:\n  kind: call_expression\n  has:\n    field: function\n    regex: ^slog\\.Info$\n")
