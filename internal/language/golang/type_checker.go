@@ -61,13 +61,13 @@ func (c *typeChecker) canSwap(path string, start, end int) bool {
 	return same
 }
 
-// canZeroField needs start at the key of a keyed field.
-func (c *typeChecker) canZeroField(path string, start int) bool {
+// canRemoveNamedValue needs start at the key of a keyed element.
+func (c *typeChecker) canRemoveNamedValue(path string, start int) bool {
 	loaded, syntax, lines := c.file(path)
 	if syntax == nil {
 		return false
 	}
-	found, canZero := false, false
+	found, canRemove := false, false
 	ast.Inspect(syntax, func(node ast.Node) bool {
 		literal, ok := node.(*ast.CompositeLit)
 		if !ok || found {
@@ -82,12 +82,16 @@ func (c *typeChecker) canZeroField(path string, start int) bool {
 			value, isLiteral := keyed.Value.(*ast.CompositeLit)
 			isZero := c.isZero(loaded.TypesInfo.Types[keyed.Value]) || isLiteral && c.isEmpty(value, loaded.TypesInfo) ||
 				c.callsZeroFunction(keyed.Value, loaded.TypesInfo)
-			canZero = c.isStructLiteral(literal, loaded.TypesInfo) && !isZero
+			if c.isStructLiteral(literal, loaded.TypesInfo) {
+				canRemove = !isZero
+			} else if entries, isMap := c.mapOf(literal, loaded.TypesInfo); isMap {
+				canRemove = !isZero || c.isSet(entries)
+			}
 			return false
 		}
 		return true
 	})
-	return canZero
+	return canRemove
 }
 
 func (c *typeChecker) callsZeroFunction(value ast.Expr, info *types.Info) bool {
@@ -128,6 +132,20 @@ func (c *typeChecker) isStructLiteral(literal *ast.CompositeLit, info *types.Inf
 	}
 	_, isStruct := literalType.Underlying().(*types.Struct)
 	return isStruct
+}
+
+func (c *typeChecker) mapOf(literal *ast.CompositeLit, info *types.Info) (*types.Map, bool) {
+	literalType := info.TypeOf(literal)
+	if literalType == nil {
+		return nil, false
+	}
+	entries, isMap := literalType.Underlying().(*types.Map)
+	return entries, isMap
+}
+
+func (c *typeChecker) isSet(entries *types.Map) bool {
+	value, isStruct := entries.Elem().Underlying().(*types.Struct)
+	return isStruct && value.NumFields() == 0
 }
 
 func (c *typeChecker) isTable(literal *ast.CompositeLit, info *types.Info) bool {

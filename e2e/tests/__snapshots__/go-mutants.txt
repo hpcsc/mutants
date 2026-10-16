@@ -174,3 +174,5 @@ shop/shop.go:Shout:INTEGER_INCREMENT#2 97:30 NOT COVERED
   "1" -> "(1+1)"
 shop/shop.go:Shout:RETURN_EMPTY#1 100:9 NOT COVERED
   "text" -> "\"\""
+shop/shop.go:labels:NAMED_VALUE_REMOVE#1 104:2 NOT COVERED
+  "\"even\": \"Even\"," -> ""

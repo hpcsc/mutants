@@ -59,7 +59,7 @@ ast-grep rules of each one.
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
 | `NAMED_VALUE_SWAP` | `Totals{Paid: paid, Owed: owed}` to `Totals{Paid: owed, Owed: paid}` | the tests use two equal values, so a swap gives the same result |
-| `NAMED_VALUE_REMOVE` | `Info{Arrived: arrived, ID: id}` to `Info{ID: id}`, so `Arrived` gets its zero value | no test reads the field |
+| `NAMED_VALUE_REMOVE` | `Info{Arrived: arrived, ID: id}` to `Info{ID: id}`, so `Arrived` gets its zero value, and `map[string]string{"general": "dispute", "fraud": "fraud"}` to `map[string]string{"fraud": "fraud"}` | no test reads the field, or no test looks up the key |
 
 ## In Python
 
@@ -130,7 +130,8 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
   or `@dialyzer`, in a capture such as `&f/1`, or in a macro, a guard, `defstruct` or `defexception`
 - the removal of a branch that its function needs to end, such as one case of a `switch` whose cases each
   return
-- a value that is already the zero value of its type
+- a value that is already the zero value of its type, except the value of an entry of a set such as
+  `map[string]struct{}`
 - a swap of two values with different types, or in a table of named values such as
   `NoMatch: Reason{"NoMatch"}`
 

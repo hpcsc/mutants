@@ -141,7 +141,7 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 	case integerDecrement:
 		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
 	case namedValueRemove:
-		return a.types.canZeroField(path, candidate.Start)
+		return a.types.canRemoveNamedValue(path, candidate.Start)
 	case argumentEmpty:
 		zero := a.types.zeroOfParameter(path, candidate.Start, candidate.End)
 		return zero != "" && zero == candidate.Replacement

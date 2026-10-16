@@ -102,6 +102,11 @@ func Shout(text string, times int) string {
 	}
 	return text
 }
+
+var labels = map[string]string{
+	"even": "Even",
+	"odd":  "",
+}
 `
 
 const pythonShop = `import logging

@@ -280,7 +280,7 @@ The Go pack for v1:
 | `BREAK_AT_START` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
 | `NAMED_VALUE_SWAP` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |
-| `NAMED_VALUE_REMOVE` | removes one keyed field from a struct literal, so the field gets the zero value of its type | shows a field that no test reads |
+| `NAMED_VALUE_REMOVE` | removes one keyed field from a struct literal, so the field gets the zero value of its type, and one entry from a map literal | shows a field that no test reads, or a key that no test looks up |
 | `ARGUMENT_EMPTY` | a call argument to the zero value of its parameter type | off by default: each argument of each call makes a mutant, so it is noisy until it has a filter |
 | `ERROR_CAUSE_REMOVE` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
 
@@ -300,7 +300,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | an `ERROR_REMOVE` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
 | Missing return | a `BRANCH_IF`, `BRANCH_ELSE` or `BRANCH_CASE` edit that empties a branch that its function needs to end in a terminating statement, such as one case of a `switch` whose cases each return. The build would give `missing return`. |
-| Type | a `NAMED_VALUE_REMOVE` field outside a struct literal, or whose value is zero already |
+| Type | a `NAMED_VALUE_REMOVE` element outside a struct literal or a map literal, or whose value is zero already. The entry of a set, whose value is an empty struct, stays, because its removal changes `_, ok := m[k]` and `len(m)`. |
 | Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |
 | Type | an `INCREMENT_DECREMENT` of `+=` whose left side is not a number, such as a string, because a string has no `-=` |
@@ -832,9 +832,9 @@ go:
 ```
 
 `go.zero_functions` names the functions that return the zero value of their type, as `package.Function` with
-the name of the package, not its path. `NAMED_VALUE_REMOVE` skips a field whose value is a call of one of
-them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change gives the
-same value.
+the name of the package, not its path. `NAMED_VALUE_REMOVE` skips a field or a map entry whose value is a call
+of one of them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change
+gives the same value.
 
 `go.exclude_types` names the types that get no mutant, as globs of the name of the type, such as `Fake*`. A
 method of such a type, and a function that returns one, get no mutant. A fake that the tests of other

@@ -750,7 +750,7 @@ func Default() Plan {
 			require.True(t, golang.New(root, defaultSettings).Keep(editOf(t, root, "plan/plan.go", "NAMED_VALUE_REMOVE", "windows: []*Window{{}}", "")))
 		})
 
-		t.Run("keeps a NAMED_VALUE_REMOVE edit in a struct literal only, and drops it when the value is zero already", func(t *testing.T) {
+		t.Run("keeps a NAMED_VALUE_REMOVE edit in a struct literal, and drops it when the value is zero already", func(t *testing.T) {
 			root := newModule(t, map[string]string{"info/info.go": `package info
 
 type Point struct{ X int }
@@ -761,17 +761,66 @@ type Info struct {
 	Inner   Point
 }
 
-func Build(arrived bool, id string) (*Info, map[string]int, Info) {
-	return &Info{Arrived: arrived, ID: id}, map[string]int{"a": 1}, Info{Arrived: false, Inner: Point{}}
+func Build(arrived bool, id string) (*Info, Info) {
+	return &Info{Arrived: arrived, ID: id}, Info{Arrived: false, Inner: Point{}}
 }
 `})
 			adapter := golang.New(root, defaultSettings)
 
 			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Arrived: arrived,", "")))
 			require.True(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "ID: id", "")))
-			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", `"a": 1`, "")))
 			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Arrived: false,", "")))
 			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Inner: Point{}", "")))
+		})
+
+		t.Run("keeps a NAMED_VALUE_REMOVE edit of a map entry, also in an inner map with no type, and drops it when the value is zero already", func(t *testing.T) {
+			root := newModule(t, map[string]string{"rules/rules.go": `package rules
+
+type Point struct{ X int }
+
+var templates = map[string]string{
+	"general": "dispute",
+	"fraud":   "",
+}
+
+var waits = map[string]map[string]int{
+	"paidClaim": {"globex": 3, "trustly": 0},
+}
+
+var starts = map[string]Point{"origin": {}}
+`})
+			adapter := golang.New(root, defaultSettings)
+			kept := map[string]bool{}
+			for _, entry := range []string{`"general": "dispute",`, `"fraud":   "",`, `"paidClaim": {"globex": 3, "trustly": 0},`, `"globex": 3,`, `"trustly": 0`, `"origin": {}`} {
+				kept[entry] = adapter.Keep(editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", entry, ""))
+			}
+
+			require.Equal(t, map[string]bool{
+				`"general": "dispute",`:                     true,
+				`"fraud":   "",`:                            false,
+				`"paidClaim": {"globex": 3, "trustly": 0},`: true,
+				`"globex": 3,`:                              true,
+				`"trustly": 0`:                              false,
+				`"origin": {}`:                              false,
+			}, kept)
+		})
+
+		t.Run("keeps a NAMED_VALUE_REMOVE edit of an entry of a set, whose value is an empty struct", func(t *testing.T) {
+			root := newModule(t, map[string]string{"rules/rules.go": `package rules
+
+var accountLevel = map[string]struct{}{"paidClaim": {}, "duplicative": {}}
+`})
+
+			require.True(t, golang.New(root, defaultSettings).Keep(editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", `"paidClaim": {},`, "")))
+		})
+
+		t.Run("drops a NAMED_VALUE_REMOVE edit of an index in a slice literal", func(t *testing.T) {
+			root := newModule(t, map[string]string{"rules/rules.go": `package rules
+
+var days = []int{2: 7}
+`})
+
+			require.False(t, golang.New(root, defaultSettings).Keep(editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", "2: 7", "")))
 		})
 
 		t.Run("keeps only the zero value that fits the parameter of an argument", func(t *testing.T) {
