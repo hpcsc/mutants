@@ -31,9 +31,19 @@ type Pack struct {
 	rules    []Rule
 	skips    []Rule
 	hooks    map[string]Hook
+	ignored  []IgnoredFolder
 }
 
-func Load(language, repository string) (Pack, error) {
+// IgnoredFolder is a folder of rules in the shared git folder that a pack does not read, because the folder of
+// the same kind and language in the repository has rules.
+type IgnoredFolder struct {
+	Folder  string
+	Because string
+}
+
+// Load reads the rules of a repository from .mutants in root. For each folder there with no rule, it reads the
+// folder of the same kind and language in mutants of the shared git folder, which git does not track.
+func Load(language, root, sharedGitFolder string) (Pack, error) {
 	p := Pack{language: language, hooks: map[string]Hook{}}
 	for _, hook := range []Hook{namedValueSwap{}} {
 		p.hooks[hook.Operator()] = hook
@@ -50,7 +60,7 @@ func Load(language, repository string) (Pack, error) {
 	if err := p.checkCatalog(rules); err != nil {
 		return Pack{}, err
 	}
-	if err := readRepository(repository, filepath.Join(".mutants", "operators", language), rules, p.add); err != nil {
+	if err := p.readRepository(root, sharedGitFolder, "operators", rules, p.add); err != nil {
 		return Pack{}, err
 	}
 	for _, id := range slices.Sorted(maps.Keys(rules)) {
@@ -61,7 +71,7 @@ func Load(language, repository string) (Pack, error) {
 	if _, err := readStandard(path.Join("skip", language), skips, p.addSkip); err != nil {
 		return Pack{}, err
 	}
-	if err := readRepository(repository, filepath.Join(".mutants", "skip", language), skips, p.addSkip); err != nil {
+	if err := p.readRepository(root, sharedGitFolder, "skip", skips, p.addSkip); err != nil {
 		return Pack{}, err
 	}
 	for _, id := range slices.Sorted(maps.Keys(skips)) {
@@ -92,25 +102,60 @@ func readStandard(folder string, rules map[string]Rule, add addRules) (int, erro
 	return len(files), nil
 }
 
-func readRepository(repository, folder string, rules map[string]Rule, add addRules) error {
-	files, err := filepath.Glob(filepath.Join(repository, folder, "*.y*ml"))
-	if err != nil {
+func (p *Pack) readRepository(root, sharedGitFolder, kind string, rules map[string]Rule, add addRules) error {
+	own := filepath.Join(root, ".mutants", kind, p.language)
+	found, err := readFolder(root, own, rules, add)
+	if err != nil || sharedGitFolder == "" {
 		return err
 	}
-	for _, file := range files {
-		text, err := os.ReadFile(file)
-		if err != nil {
-			return err
-		}
-		if err := add(rules, filepath.Join(folder, filepath.Base(file)), string(text)); err != nil {
-			return err
-		}
+	shared := filepath.Join(sharedGitFolder, "mutants", kind, p.language)
+	if found == 0 {
+		_, err := readFolder(root, shared, rules, add)
+		return err
+	}
+	if files, err := ruleFiles(shared); err == nil && len(files) > 0 {
+		p.ignored = append(p.ignored, IgnoredFolder{Folder: fromRoot(root, shared), Because: fromRoot(root, own)})
 	}
 	return nil
 }
 
+func readFolder(root, folder string, rules map[string]Rule, add addRules) (int, error) {
+	files, err := ruleFiles(folder)
+	if err != nil {
+		return 0, err
+	}
+	for _, file := range files {
+		text, err := os.ReadFile(file)
+		if err != nil {
+			return 0, err
+		}
+		if err := add(rules, fromRoot(root, file), string(text)); err != nil {
+			return 0, err
+		}
+	}
+	return len(files), nil
+}
+
+func ruleFiles(folder string) ([]string, error) {
+	return filepath.Glob(filepath.Join(folder, "*.y*ml"))
+}
+
+// fromRoot names a path inside root from root, and a path outside root, such as the shared git folder of a
+// linked work tree, in full.
+func fromRoot(root, path string) string {
+	relative, err := filepath.Rel(root, path)
+	if err != nil || !filepath.IsLocal(relative) {
+		return path
+	}
+	return filepath.ToSlash(relative)
+}
+
 func (p Pack) Rules() []Rule {
 	return slices.Clone(p.rules)
+}
+
+func (p Pack) Ignored() []IgnoredFolder {
+	return slices.Clone(p.ignored)
 }
 
 const None = "none"

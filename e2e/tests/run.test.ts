@@ -383,4 +383,23 @@ describe('mutants operators', () => {
     expect(result.status).toBe(0)
     expect(result.stdout).toMatch(/^go\s+NIL_MAP\s+off\s+NIL_MAP \(from \.mutants\/operators\/go\/nil_map\.yml\)$/m)
   })
+
+  it('lists a rule of mutants in the git folder with its file, and ignores that folder when .mutants has rules of the same kind', async () => {
+    const dir = goRepository({ 'calc/calc.go': 'package calc\n' })
+    writeFiles(dir, {
+      '.git/mutants/operators/go/nil_map.yml': 'id: NIL_MAP\nlanguage: go\nmetadata: {default: off}\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n',
+    })
+
+    const fromGitFolder = await runCli(dir, ['operators'])
+    writeFiles(dir, {
+      '.mutants/operators/go/empty_slice.yml': "id: EMPTY_SLICE\nlanguage: go\nmetadata: {default: off}\nrule:\n  pattern: '[]$T{}'\nfix: nil\n",
+    })
+    const withBoth = await runCli(dir, ['operators'])
+
+    expect(fromGitFolder.stdout).toMatch(/^go\s+NIL_MAP\s+off\s+NIL_MAP \(from \.git\/mutants\/operators\/go\/nil_map\.yml\)$/m)
+    expect(fromGitFolder.stderr).toBe('')
+    expect(withBoth.stdout).not.toMatch(/NIL_MAP/)
+    expect(withBoth.stdout).toMatch(/^go\s+EMPTY_SLICE\s+off\s+EMPTY_SLICE \(from \.mutants\/operators\/go\/empty_slice\.yml\)$/m)
+    expect(withBoth.stderr).toBe('mutants ignores .git/mutants/operators/go, because .mutants/operators/go has rules\n')
+  })
 })

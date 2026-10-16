@@ -18,7 +18,7 @@ import (
 
 func loadPack(t *testing.T, repository string) operator.Pack {
 	t.Helper()
-	pack, err := operator.Load("go", repository)
+	pack, err := operator.Load("go", repository, "")
 	require.NoError(t, err)
 	return pack
 }
@@ -71,7 +71,7 @@ func findEditsIn(t *testing.T, file, operatorName, source string) []operator.Edi
 	t.Helper()
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, file), source)
-	loaded, err := operator.Load(map[string]string{".go": "go", ".py": "python", ".ex": "elixir"}[filepath.Ext(file)], root)
+	loaded, err := operator.Load(map[string]string{".go": "go", ".py": "python", ".ex": "elixir"}[filepath.Ext(file)], root, "")
 	require.NoError(t, err)
 	pack, err := loaded.Select([]string{operatorName})
 	require.NoError(t, err)
@@ -119,6 +119,60 @@ func TestPack(t *testing.T) {
 			require.Contains(t, operatorsOf(pack), "CONDITIONALS_BOUNDARY")
 		})
 
+		t.Run("a rule in mutants of the shared git folder adds an operator that is not standard, and names its file in full when the folder is outside the root", func(t *testing.T) {
+			repository, sharedGitFolder := t.TempDir(), t.TempDir()
+			writeFile(t, filepath.Join(sharedGitFolder, "mutants/operators/go/NIL_MAP.yml"), "id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n")
+
+			pack, err := operator.Load("go", repository, sharedGitFolder)
+
+			require.NoError(t, err)
+			nilMap := pack.Rules()[slices.IndexFunc(pack.Rules(), func(rule operator.Rule) bool { return rule.Operator == "NIL_MAP" })]
+			boundary := pack.Rules()[slices.IndexFunc(pack.Rules(), func(rule operator.Rule) bool { return rule.Operator == "CONDITIONALS_BOUNDARY" })]
+			require.Equal(t, filepath.Join(sharedGitFolder, "mutants/operators/go/NIL_MAP.yml"), nilMap.File)
+			require.Equal(t, []bool{false, true}, []bool{nilMap.IsStandard(), boundary.IsStandard()})
+			require.Empty(t, pack.Ignored())
+		})
+
+		t.Run("a skip rule in mutants of the shared git folder skips the edits inside its matches", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".git/mutants/skip/go/slog.yml"), "id: slog\nlanguage: go\nrule:\n  kind: call_expression\n  has:\n    field: function\n    regex: ^slog\\.Info$\n")
+			writeFile(t, filepath.Join(repository, "a.go"), "package a\n\nfunc f(a int) int {\n\tslog.Info(\"total\", \"n\", a+1)\n\treturn a + 1\n}\n")
+			loaded, err := operator.Load("go", repository, filepath.Join(repository, ".git"))
+			require.NoError(t, err)
+			pack, err := loaded.Select([]string{"ARITHMETIC_BASE"})
+			require.NoError(t, err)
+
+			edits, err := pack.Edits(context.Background(), astgrep.New(repository), repository, []string{"a.go"})
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"a + 1 -> a - 1"}, changesOf(edits))
+		})
+
+		t.Run("with rules in .mutants and in the shared git folder, reads only .mutants, and names the folder that it ignores", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/operators/go/NIL_MAP.yml"), "id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n")
+			writeFile(t, filepath.Join(repository, ".git/mutants/operators/go/EMPTY_SLICE.yml"), "id: EMPTY_SLICE\nlanguage: go\nrule:\n  pattern: '[]$T{}'\nfix: nil\n")
+
+			pack, err := operator.Load("go", repository, filepath.Join(repository, ".git"))
+
+			require.NoError(t, err)
+			require.Contains(t, operatorsOf(pack), "NIL_MAP")
+			require.NotContains(t, operatorsOf(pack), "EMPTY_SLICE")
+			require.Equal(t, []operator.IgnoredFolder{{Folder: ".git/mutants/operators/go", Because: ".mutants/operators/go"}}, pack.Ignored())
+		})
+
+		t.Run("a folder of skip rules in .mutants does not stop the rules of operators in the shared git folder", func(t *testing.T) {
+			repository := t.TempDir()
+			writeFile(t, filepath.Join(repository, ".mutants/skip/go/slog.yml"), "id: slog\nlanguage: go\nrule:\n  kind: call_expression\n  has:\n    field: function\n    regex: ^slog\\.Info$\n")
+			writeFile(t, filepath.Join(repository, ".git/mutants/operators/go/NIL_MAP.yml"), "id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n")
+
+			pack, err := operator.Load("go", repository, filepath.Join(repository, ".git"))
+
+			require.NoError(t, err)
+			require.Contains(t, operatorsOf(pack), "NIL_MAP")
+			require.Empty(t, pack.Ignored())
+		})
+
 		t.Run("a rule in the repository replaces the standard rule with the same id", func(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/operators/go/plus.yml"), "id: ARITHMETIC_BASE/plus\nlanguage: go\nrule:\n  pattern: $A + $B\nfix: $A * $B\n")
@@ -137,7 +191,7 @@ func TestPack(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/operators/go/bad.yml"), "id: NO_FIX\nlanguage: go\nrule:\n  pattern: $A + $B\n")
 
-			_, err := operator.Load("go", repository)
+			_, err := operator.Load("go", repository, "")
 
 			require.ErrorContains(t, err, "NO_FIX has no fix")
 		})
@@ -146,7 +200,7 @@ func TestPack(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/operators/go/ts.yml"), "id: TS\nlanguage: typescript\nrule:\n  pattern: $A + $B\nfix: $A - $B\n")
 
-			_, err := operator.Load("go", repository)
+			_, err := operator.Load("go", repository, "")
 
 			require.ErrorContains(t, err, "TS is for \"typescript\"")
 		})
@@ -165,7 +219,7 @@ func TestPack(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/operators/go/bad.yml"), "language: go\nrule:\n  pattern: $A + $B\nfix: $A - $B\n")
 
-			_, err := operator.Load("go", repository)
+			_, err := operator.Load("go", repository, "")
 
 			require.ErrorContains(t, err, "read .mutants/operators/go/bad.yml: a rule has no id")
 		})
@@ -174,7 +228,7 @@ func TestPack(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/operators/go/log.yml"), "id: zerolog\nlanguage: go\nrule:\n  pattern: log.Print($A)\nfix: log.Print()\n")
 
-			_, err := operator.Load("go", repository)
+			_, err := operator.Load("go", repository, "")
 
 			require.EqualError(t, err, "the skip rule zerolog has the id of a rule of an operator")
 		})
@@ -183,13 +237,13 @@ func TestPack(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/skip/go/print.yml"), "id: print\nlanguage: go\nrule:\n  pattern: fmt.Println($$$A)\nfix: ''\n")
 
-			_, err := operator.Load("go", repository)
+			_, err := operator.Load("go", repository, "")
 
 			require.EqualError(t, err, "read .mutants/skip/go/print.yml: the skip rule print has a fix, but a skip rule changes no code")
 		})
 
 		t.Run("a language with no operators returns an error", func(t *testing.T) {
-			_, err := operator.Load("cobol", t.TempDir())
+			_, err := operator.Load("cobol", t.TempDir(), "")
 
 			require.ErrorContains(t, err, "no operators for cobol")
 		})
@@ -255,7 +309,7 @@ func TestPack(t *testing.T) {
 		t.Run("a name without a sign runs its operator in each pack that has it, and no default operator in the other packs", func(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/operators/go/NIL_MAP.yml"), "id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n")
-			inPython, err := operator.Load("python", repository)
+			inPython, err := operator.Load("python", repository, "")
 			require.NoError(t, err)
 
 			packs, err := operator.Select([]operator.Pack{loadPack(t, repository), inPython}, []string{"NIL_MAP"})
@@ -267,7 +321,7 @@ func TestPack(t *testing.T) {
 		t.Run("a name with a sign changes only the packs that have its operator", func(t *testing.T) {
 			repository := t.TempDir()
 			writeFile(t, filepath.Join(repository, ".mutants/operators/go/NIL_MAP.yml"), "id: NIL_MAP\nlanguage: go\nrule:\n  pattern: map[$K]$V{}\nfix: nil\n")
-			inPython, err := operator.Load("python", repository)
+			inPython, err := operator.Load("python", repository, "")
 			require.NoError(t, err)
 
 			packs, err := operator.Select([]operator.Pack{loadPack(t, repository), inPython}, []string{"-NIL_MAP"})
@@ -278,7 +332,7 @@ func TestPack(t *testing.T) {
 		})
 
 		t.Run("a name that no pack has returns an error that names it", func(t *testing.T) {
-			inPython, err := operator.Load("python", t.TempDir())
+			inPython, err := operator.Load("python", t.TempDir(), "")
 			require.NoError(t, err)
 
 			_, err = operator.Select([]operator.Pack{loadPack(t, t.TempDir()), inPython}, []string{"+NIL_MAP"})
@@ -866,7 +920,7 @@ func TestPack(t *testing.T) {
 				writeFile(t, filepath.Join(root, file), "LIMIT = 1\n")
 			}
 			writeFile(t, filepath.Join(root, "cart_pb2.py"), "# -*- coding: utf-8 -*-\n# Generated by the protocol buffer compiler.  DO NOT EDIT!\nLIMIT = 1\n")
-			loaded, err := operator.Load("python", root)
+			loaded, err := operator.Load("python", root, "")
 			require.NoError(t, err)
 			pack, err := loaded.Select([]string{"INTEGER_INCREMENT"})
 			require.NoError(t, err)
@@ -1239,7 +1293,7 @@ end
 				writeFile(t, filepath.Join(root, file), "defmodule A do\n  @limit 1\nend\n")
 			}
 			writeFile(t, filepath.Join(root, "lib/shop_pb.ex"), "# Code generated by protoc-gen-elixir. DO NOT EDIT.\ndefmodule A do\n  @limit 1\nend\n")
-			loaded, err := operator.Load("elixir", root)
+			loaded, err := operator.Load("elixir", root, "")
 			require.NoError(t, err)
 			pack, err := loaded.Select([]string{"INTEGER_INCREMENT"})
 			require.NoError(t, err)

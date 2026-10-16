@@ -27,10 +27,12 @@ func listOperators(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return err
 	}
+	sharedGitFolder := ""
 	if repository, err := diff.Open(ctx, root); err == nil {
 		root = repository.Root()
+		sharedGitFolder, _ = repository.SharedGitFolder(ctx)
 	}
-	languages, err := newLanguages(root, golang.Settings{}, python.Settings{}, elixir.Settings{})
+	languages, err := newLanguages(root, sharedGitFolder, golang.Settings{}, python.Settings{}, elixir.Settings{}, cmd.Root().ErrWriter)
 	if err != nil {
 		return err
 	}
@@ -56,7 +58,7 @@ func listOperators(ctx context.Context, cmd *cli.Command) error {
 				entry.runs = "on"
 			}
 			entry.rules = append(entry.rules, rule.ID)
-			if strings.HasPrefix(rule.File, ".mutants") {
+			if !rule.IsStandard() {
 				entry.sources = append(entry.sources, rule.File)
 			}
 		}

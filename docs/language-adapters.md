@@ -96,7 +96,8 @@ fix: $A <= $B
   body that has no node of its own, bind them to `$$$EDIT`. The edit then replaces the text from the first
   of these nodes to the last. ast-grep cannot do this alone: `expandEnd` adds at most one node to a fix.
 - A repository can add its own rules in `.mutants/operators/<language>/`, and its own skip rules in
-  `.mutants/skip/<language>/`. This works for each language with no more code.
+  `.mutants/skip/<language>/`, or in the same folders under `mutants/` of the shared git folder. This works
+  for each language with no more code.
 
 ### Hooks
 

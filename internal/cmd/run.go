@@ -127,19 +127,26 @@ func newInstance(ctx context.Context, repository *diff.Repository, goSettings go
 	if executable, err := os.Executable(); err == nil {
 		goSettings.CacheProgram = []string{executable, "build-cache"}
 	}
-	languages, err := newLanguages(repository.Root(), goSettings, pythonSettings, elixirSettings)
+	sharedGitFolder, err := repository.SharedGitFolder(ctx)
+	if err != nil {
+		return nil, err
+	}
+	languages, err := newLanguages(repository.Root(), sharedGitFolder, goSettings, pythonSettings, elixirSettings, status)
 	if err != nil {
 		return nil, err
 	}
 	return run.New(repository, languages, astgrep.New(repository.Root()), status, isTerminal(status)), nil
 }
 
-func newLanguages(root string, goSettings golang.Settings, pythonSettings python.Settings, elixirSettings elixir.Settings) ([]run.Language, error) {
+func newLanguages(root, sharedGitFolder string, goSettings golang.Settings, pythonSettings python.Settings, elixirSettings elixir.Settings, stderr io.Writer) ([]run.Language, error) {
 	var languages []run.Language
 	for _, adapter := range []language.Adapter{golang.New(root, goSettings), python.New(root, pythonSettings), elixir.New(root, elixirSettings)} {
-		pack, err := operator.Load(adapter.Name(), root)
+		pack, err := operator.Load(adapter.Name(), root, sharedGitFolder)
 		if err != nil {
 			return nil, err
+		}
+		for _, ignored := range pack.Ignored() {
+			fmt.Fprintf(stderr, "mutants ignores %s, because %s has rules\n", ignored.Folder, ignored.Because)
 		}
 		languages = append(languages, run.Language{Adapter: adapter, Pack: pack})
 	}

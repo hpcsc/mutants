@@ -420,6 +420,9 @@ fix: nil
 - A rule that binds `$$$EDIT` replaces only the text of those nodes. For example, `pattern: 'if $C { $$$EDIT }'`
   with `fix: return` replaces the statements of the body, and keeps the `if` and the braces.
 - A rule with `metadata: {default: off}` runs only when `--operators` or `.mutants.yml` names its operator.
+- To keep your rules out of git, put them in `mutants/operators/go/` in the git folder that all work trees
+  share, for example `.git/mutants/operators/go/`. `mutants` reads that folder only when
+  `.mutants/operators/go/` has no rule, and it says on stderr when it ignores the folder.
   A rule for an operator that is off by default, such as `ERROR_CAUSE_REMOVE`, is also off by default.
 - `mutants operators` lists each rule, and the file of each rule that the repository adds.
 
@@ -450,6 +453,9 @@ rule:
 ```
 
 - A skip rule with the id of a standard skip rule replaces that rule.
+- To keep your skip rules out of git, put them in `mutants/skip/go/` in the git folder that all work trees
+  share, for example `.git/mutants/skip/go/`. `mutants` reads that folder only when `.mutants/skip/go/` has
+  no rule.
 - A skip rule with a `fix` stops the run with an error, because a skip rule changes no code.
 
 ## Python

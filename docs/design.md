@@ -215,7 +215,7 @@ node of its own. An edit leaves out the white space at the start and the end of 
 | Place | Holds |
 | --- | --- |
 | `internal/operator/operators/<language>/` in the binary (`go:embed`) | the standard pack |
-| `.mutants/operators/<language>/` in the target repository | rules for that repository, for example a shape that its code often gets wrong. A rule with the id of a standard rule replaces that rule. |
+| `.mutants/operators/<language>/` in the target repository, or, when it has no rule, `mutants/operators/<language>/` in the shared git folder | rules for that repository, for example a shape that its code often gets wrong. A rule with the id of a standard rule replaces that rule. |
 | `--operators` | the operators to run in this call: `-NAME` takes an operator out, `+NAME` adds one, and `NAME` with no sign runs only the named operators. `none` runs no operator, so a run can hold only proposals or only the check for caller gaps. |
 
 A rule with `metadata: {default: off}` runs only when `--operators` names its operator. `mutants operators`
@@ -233,7 +233,8 @@ holds only log calls. The first skip rule of zerolog, below, matches a zerolog c
 starts the chain on the right. The third matches an `if` whose branches hold only such code, so that its
 condition gets no mutant either. It leaves out an `if` whose condition calls a function, or whose header
 declares a variable, because a mutant there can change more than a log line. A repository adds
-its own skip rules in `.mutants/skip/<language>/`, and a skip rule with the id of a standard skip rule
+its own skip rules in `.mutants/skip/<language>/`, or in `mutants/skip/<language>/` of the shared git folder,
+and a skip rule with the id of a standard skip rule
 replaces that rule.
 
 ```yaml
@@ -1066,7 +1067,10 @@ or one library has, such as the `AddDate` of calendar days in Go, is a rule of a
 linked work tree for each change, and copy no untracked file into it. A file in the git folder that the work
 trees share serves each work tree with no copy, and git never tracks it. `.mutants.yml` wins and the two files
 do not merge, so a reader of `.mutants.yml` sees each setting of the run. The line on stderr tells why a
-setting in `mutants.yml` has no effect.
+setting in `mutants.yml` has no effect. The rules follow the same order for each kind and language: a folder
+such as `.mutants/skip/go/` with rules wins over `mutants/skip/go/` in the shared git folder. So a person can
+add rules to a repository whose team has none, with no commit, and a folder of the repository still holds
+each rule of its kind when it has one.
 
 **Why NAMED_VALUE_REMOVE runs by default.** On 12 measured PRs, it made 329 mutants, about a third more than
 the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example

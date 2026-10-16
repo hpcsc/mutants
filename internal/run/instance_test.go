@@ -178,7 +178,7 @@ func (r *gitRepository) instanceWritingTo(stderr io.Writer, adapters ...*fakeAda
 	var languages []run.Language
 	for _, adapter := range adapters {
 		adapter.root = r.root
-		pack, err := operator.Load(adapter.Name(), r.root)
+		pack, err := operator.Load(adapter.Name(), r.root, "")
 		require.NoError(r.t, err)
 		var asAdapter language.Adapter = adapter
 		if adapter.noCallerGapCheck {
