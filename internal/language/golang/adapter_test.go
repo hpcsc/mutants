@@ -399,6 +399,15 @@ func changedFiles(t *testing.T, root string, files ...string) diff.Lines {
 
 func TestAdapter(t *testing.T) {
 	t.Run("keep", func(t *testing.T) {
+		t.Run("drops an edit in a _test.go file, which is a test file", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
+			adapter := golang.New(root, defaultSettings)
+
+			require.False(t, adapter.Keep(editOf(t, root, "calc/calc_test.go", "CONDITIONALS_NEGATION", "Max(1, 2) != 2", "Max(1, 2) == 2")))
+			require.True(t, adapter.Keep(editOf(t, root, "calc/calc.go", "CONDITIONALS_NEGATION", "a < b", "a >= b")))
+			require.Equal(t, []bool{true, false}, []bool{adapter.TestFile("calc/calc_test.go"), adapter.TestFile("calc/calc.go")})
+		})
+
 		t.Run("drops an edit that changes nothing", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource})
 
@@ -1189,6 +1198,9 @@ func apply(xs []int, double func(int) int, extra int) int {
 			_, err := golang.New(root, defaultSettings).Uncovered(context.Background(), []mutant.Mutant{mutantOf(t, root, "calc/calc.go", "a < b", "a <= b")}, diff.Lines{})
 
 			require.ErrorContains(t, err, "the tests of example.com/fixture/calc fail with the real code")
+			var failing *language.TestsFailWithRealCode
+			require.ErrorAs(t, err, &failing)
+			require.Contains(t, failing.Output, "red")
 		})
 
 		t.Run("reads the coverage of a folder whose name differs from its package name", func(t *testing.T) {

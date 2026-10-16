@@ -171,7 +171,7 @@ mutants: 6, lived: 2, not covered: 4
 
 			require.NoError(t, report.Rows(&output, run.Outcome{CallerGaps: &gaps}))
 
-			require.Equal(t, "no mutant: 0 changed lines in 0 files\nCALLER GAPS:\n  gate/gate.go:12-13,16-18,21 (*Checker).Allow, not run by the tests of handler, wired\nmutants: 0\ncaller gaps: 1\n", output.String())
+			require.Equal(t, "no mutant: no changed line in a file that mutants tests\nCALLER GAPS:\n  gate/gate.go:12-13,16-18,21 (*Checker).Allow, not run by the tests of handler, wired\nmutants: 0\ncaller gaps: 1\n", output.String())
 		})
 
 		t.Run("a run that looked for caller gaps and found none says so", func(t *testing.T) {
@@ -179,7 +179,7 @@ mutants: 6, lived: 2, not covered: 4
 
 			require.NoError(t, report.Rows(&output, run.Outcome{CallerGaps: &[]language.CallerGap{}}))
 
-			require.Equal(t, "no mutant: 0 changed lines in 0 files\nmutants: 0\ncaller gaps: 0\n", output.String())
+			require.Equal(t, "no mutant: no changed line in a file that mutants tests\nmutants: 0\ncaller gaps: 0\n", output.String())
 		})
 
 		t.Run("lists the mutants of one status in the order of their lines", func(t *testing.T) {
@@ -200,7 +200,7 @@ mutants: 6, lived: 2, not covered: 4
 
 			require.NoError(t, report.Rows(&output, run.Outcome{Proposals: &proposal.Summary{Accepted: 2}}))
 
-			require.Equal(t, "no mutant: 0 changed lines in 0 files\nmutants: 0\nproposals: 2 accepted, 0 rejected\n", output.String())
+			require.Equal(t, "no mutant: no changed line in a file that mutants tests\nmutants: 0\nproposals: 2 accepted, 0 rejected\n", output.String())
 		})
 
 		t.Run("a run with no mutant gives only the line with its changed lines, its files and its base", func(t *testing.T) {
@@ -208,7 +208,7 @@ mutants: 6, lived: 2, not covered: 4
 
 			require.NoError(t, report.Rows(&output, run.Outcome{Base: "1a2b3c4d5e6f7a8b", Files: 1, Lines: 2}))
 
-			require.Equal(t, "no mutant: 2 changed lines in 1 files (base 1a2b3c4d5e)\n", output.String())
+			require.Equal(t, "no mutant: no operator changes the 2 changed lines in 1 file (base 1a2b3c4d5e)\n", output.String())
 		})
 
 		t.Run("a run that stopped at its limit with no mutant gives the count and no line about its changed lines", func(t *testing.T) {
@@ -223,12 +223,45 @@ mutants: 6, lived: 2, not covered: 4
 
 func TestNoMutantLine(t *testing.T) {
 	t.Run("no mutant line", func(t *testing.T) {
-		t.Run("a run with no mutant gives its changed lines, its files and its base", func(t *testing.T) {
+		t.Run("a run with no mutant says that no operator changes its changed lines, with its files and its base", func(t *testing.T) {
 			var output strings.Builder
 
 			require.NoError(t, report.NoMutantLine(&output, run.Outcome{Base: "1a2b3c4d5e6f7a8b", Files: 3, Lines: 12}))
 
-			require.Equal(t, "no mutant: 12 changed lines in 3 files (base 1a2b3c4d5e)\n", output.String())
+			require.Equal(t, "no mutant: no operator changes the 12 changed lines in 3 files (base 1a2b3c4d5e)\n", output.String())
+		})
+
+		t.Run("a run whose changed lines are all in test files says so", func(t *testing.T) {
+			lines := map[string]string{}
+			for name, outcome := range map[string]run.Outcome{
+				"one":  {TestFiles: 1, TestLines: 1},
+				"many": {TestFiles: 2, TestLines: 9},
+			} {
+				var output strings.Builder
+				require.NoError(t, report.NoMutantLine(&output, outcome))
+				lines[name] = output.String()
+			}
+
+			require.Equal(t, map[string]string{
+				"one":  "no mutant: the 1 changed line is in 1 test file\n",
+				"many": "no mutant: the 9 changed lines are in 2 test files\n",
+			}, lines)
+		})
+
+		t.Run("a run with changed lines in code and in test files counts them apart", func(t *testing.T) {
+			var output strings.Builder
+
+			require.NoError(t, report.NoMutantLine(&output, run.Outcome{Files: 2, Lines: 3, TestFiles: 1, TestLines: 1}))
+
+			require.Equal(t, "no mutant: no operator changes the 3 changed lines in 2 files, and 1 changed line is in 1 test file\n", output.String())
+		})
+
+		t.Run("a run with no changed line in a file of a language says so", func(t *testing.T) {
+			var output strings.Builder
+
+			require.NoError(t, report.NoMutantLine(&output, run.Outcome{Base: "1a2b3c4d5e6f7a8b"}))
+
+			require.Equal(t, "no mutant: no changed line in a file that mutants tests (base 1a2b3c4d5e)\n", output.String())
 		})
 
 		t.Run("a run with a mutant gives no line", func(t *testing.T) {

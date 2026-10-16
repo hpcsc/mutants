@@ -35,7 +35,26 @@ func noMutantLine(outcome run.Outcome) string {
 	if len(outcome.Mutants) > 0 || outcome.Stopped {
 		return ""
 	}
-	return withBase(fmt.Sprintf("no mutant: %d changed lines in %d files", outcome.Lines, outcome.Files), outcome.Base) + "\n"
+	var text string
+	switch {
+	case outcome.Lines == 0 && outcome.TestLines == 0:
+		text = "no mutant: no changed line in a file that mutants tests"
+	case outcome.Lines == 0:
+		text = fmt.Sprintf("no mutant: the %s %s in %s", plural(outcome.TestLines, "changed line"), isOrAre(outcome.TestLines), plural(outcome.TestFiles, "test file"))
+	default:
+		text = fmt.Sprintf("no mutant: no operator changes the %s in %s", plural(outcome.Lines, "changed line"), plural(outcome.Files, "file"))
+		if outcome.TestLines > 0 {
+			text += fmt.Sprintf(", and %s %s in %s", plural(outcome.TestLines, "changed line"), isOrAre(outcome.TestLines), plural(outcome.TestFiles, "test file"))
+		}
+	}
+	return withBase(text, outcome.Base) + "\n"
+}
+
+func isOrAre(n int) string {
+	if n == 1 {
+		return "is"
+	}
+	return "are"
 }
 
 func rows(outcome run.Outcome) string {

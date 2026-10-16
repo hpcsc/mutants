@@ -169,6 +169,21 @@ def limit():
 		})
 	})
 
+	t.Run("test file", func(t *testing.T) {
+		t.Run("takes the files that the skip rule test-file skips", func(t *testing.T) {
+			adapter := python.New(t.TempDir(), python.Settings{})
+			taken := map[string]bool{}
+			for _, file := range []string{"shop/test_order.py", "shop/order_test.py", "conftest.py", "tests/shop/helpers.py", "shop/order.py", "shop/testing.py"} {
+				taken[file] = adapter.TestFile(file)
+			}
+
+			require.Equal(t, map[string]bool{
+				"shop/test_order.py": true, "shop/order_test.py": true, "conftest.py": true, "tests/shop/helpers.py": true,
+				"shop/order.py": false, "shop/testing.py": false,
+			}, taken)
+		})
+	})
+
 	t.Run("function", func(t *testing.T) {
 		t.Run("names the classes and the functions that hold the offset, from the outside in", func(t *testing.T) {
 			source := "LIMIT = 1\n\n\nclass Cart:\n    async def total(self):\n        def add(a, b):\n            return a + b\n        return add(1, 2)\n"
@@ -238,6 +253,9 @@ def limit():
 			_, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 
 			require.ErrorContains(t, err, "the tests of the Python project in services/api fail with the real code")
+			var failing *language.TestsFailWithRealCode
+			require.ErrorAs(t, err, &failing)
+			require.Contains(t, failing.Output, "test_one")
 		})
 
 		t.Run("a project without coverage.py returns an error that tells how to add it", func(t *testing.T) {

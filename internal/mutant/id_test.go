@@ -26,6 +26,16 @@ func TestID(t *testing.T) {
 			require.Equal(t, mutant.ID{File: "internal/order/handler.go", Function: "(*Handler).accounts", Operator: "BRANCH_IF", Number: 12}, id)
 		})
 
+		t.Run("reads an id in [ ], as a row prints it, and keeps a bracket that is part of the file name", func(t *testing.T) {
+			inBrackets, err := mutant.ParseID(" [internal/order/handler.go:(*Handler).accounts:BRANCH_IF#12] ")
+			require.NoError(t, err)
+			bracketFile, err := mutant.ParseID("[draft].go:f:BRANCH_IF#1")
+			require.NoError(t, err)
+
+			require.Equal(t, mutant.ID{File: "internal/order/handler.go", Function: "(*Handler).accounts", Operator: "BRANCH_IF", Number: 12}, inBrackets)
+			require.Equal(t, mutant.ID{File: "[draft].go", Function: "f", Operator: "BRANCH_IF", Number: 1}, bracketFile)
+		})
+
 		t.Run("a file name with a colon keeps its colon", func(t *testing.T) {
 			id, err := mutant.ParseID("a:b.go:f:ARITHMETIC_BASE#2")
 
@@ -41,7 +51,7 @@ func TestID(t *testing.T) {
 		})
 
 		t.Run("text that is not an id returns an error that shows the form of an id", func(t *testing.T) {
-			for _, text := range []string{"", "handler.go:42", "handler.go:f:BRANCH_IF", "handler.go:f:BRANCH_IF#-1", "handler.go:f:BRANCH_IF#+1", "handler.go:f:#1", "f:BRANCH_IF#1", ":f:BRANCH_IF#1"} {
+			for _, text := range []string{"", "handler.go:42", "handler.go:f:BRANCH_IF", "handler.go:f:BRANCH_IF#-1", "handler.go:f:BRANCH_IF#+1", "handler.go:f:#1", "f:BRANCH_IF#1", ":f:BRANCH_IF#1", "handler.go:f:BRANCH_IF#1]"} {
 				_, err := mutant.ParseID(text)
 
 				require.ErrorContains(t, err, "<file>:<function>:<operator>#<number>", text)

@@ -65,6 +65,10 @@ func (l Lines) Files() []string {
 	return slices.Sorted(maps.Keys(l.files))
 }
 
+func (l Lines) LenOf(file string) int {
+	return len(l.files[file])
+}
+
 func (l Lines) Len() int {
 	count := 0
 	for _, lines := range l.files {

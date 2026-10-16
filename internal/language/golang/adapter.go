@@ -109,8 +109,12 @@ func (a *adapter) IndentationMatters() bool {
 	return false
 }
 
+func (a *adapter) TestFile(file string) bool {
+	return strings.HasSuffix(file, "_test.go")
+}
+
 func (a *adapter) Keep(candidate operator.Edit) bool {
-	if candidate.Replacement == candidate.Original || strings.HasSuffix(candidate.File, "_test.go") {
+	if candidate.Replacement == candidate.Original || a.TestFile(candidate.File) {
 		return false
 	}
 	syntax, _, err := a.sources.parse(candidate.File)

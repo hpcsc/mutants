@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/process"
 	"golang.org/x/sync/errgroup"
@@ -375,7 +376,7 @@ func (c *coverage) profile(ctx context.Context, pkg goPackage, covered []goPacka
 		return result, err
 	}
 	if tested.Code != 0 {
-		return result, fmt.Errorf("the tests of %s fail with the real code, so no mutant can get a verdict:\n%s", pkg.ImportPath, strings.TrimSpace(tested.Tail))
+		return result, &language.TestsFailWithRealCode{Tests: pkg.ImportPath, Output: strings.TrimSpace(tested.Tail)}
 	}
 	result.blocks, err = c.readProfile(folderOf, profile)
 	return result, err

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/report"
 	"github.com/hpcsc/mutants/internal/run"
@@ -21,7 +22,7 @@ func newRerunCommand() *cli.Command {
 		Name:      "rerun",
 		Usage:     "run one mutant again by its id, with no cache",
 		ArgsUsage: "ID",
-		Description: "The id is the text in [ ] at the end of a row, for example\n" +
+		Description: "The id is the text in [ ] at the end of a row, with or without the [ ], for example\n" +
 			"internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1\n\n" +
 			"Exit codes: 0 killed, 10 lived or not covered, 1 no verdict, 2 an unknown id.",
 		Flags: []cli.Flag{
@@ -55,11 +56,15 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	}
 
 	m, err := instance.Rerun(ctx, id, configured.base(cmd), configured.Exclude)
+	var failing *language.TestsFailWithRealCode
 	switch {
 	case errors.Is(err, run.ErrUnknownID):
 		return cli.Exit(fmt.Errorf("%w: %s", run.ErrUnknownID, cmd.Args().First()), exitUsage)
 	case errors.Is(err, context.Canceled):
 		return cli.Exit("mutants stopped: the run was interrupted", exitInterrupted)
+	case errors.As(err, &failing):
+		fmt.Fprintf(cmd.Root().Writer, "%s\nNO VERDICT: the tests of %s fail with the real code, without the mutant\n", failing.Output, failing.Tests)
+		return cli.Exit("", exitNoVerdict)
 	case err != nil:
 		return cli.Exit(err, exitNoVerdict)
 	}

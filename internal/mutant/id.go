@@ -15,6 +15,9 @@ type ID struct {
 
 func ParseID(text string) (ID, error) {
 	invalid := fmt.Errorf("%q is not a mutant id: an id is <file>:<function>:<operator>#<number>", text)
+	if trimmed := strings.TrimSpace(text); strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		text = trimmed[1 : len(trimmed)-1]
+	}
 	place, number, found := cutLast(text, "#")
 	n, err := strconv.Atoi(number)
 	if !found || err != nil || number == "" || strings.Trim(number, "0123456789") != "" {

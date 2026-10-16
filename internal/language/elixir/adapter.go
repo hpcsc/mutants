@@ -3,6 +3,8 @@ package elixir
 import (
 	"context"
 	_ "embed"
+	"path"
+	"slices"
 	"strings"
 
 	"github.com/hpcsc/mutants/internal/diff"
@@ -55,6 +57,11 @@ func (a *adapter) Extensions() []string {
 
 func (a *adapter) IndentationMatters() bool {
 	return false
+}
+
+// TestFile takes the files of the skip rule test-file in skip/elixir/test_file.yml.
+func (a *adapter) TestFile(file string) bool {
+	return slices.Contains(strings.Split(path.Dir(file), "/"), "test")
 }
 
 func (a *adapter) Keep(candidate operator.Edit) bool {

@@ -3,6 +3,8 @@ package python
 import (
 	"context"
 	"embed"
+	"path"
+	"slices"
 	"strings"
 
 	"github.com/hpcsc/mutants/internal/diff"
@@ -52,6 +54,13 @@ func (a *adapter) Extensions() []string {
 
 func (a *adapter) IndentationMatters() bool {
 	return true
+}
+
+// TestFile takes the files of the skip rule test-file in skip/python/test_file.yml.
+func (a *adapter) TestFile(file string) bool {
+	name := path.Base(file)
+	return strings.HasPrefix(name, "test_") || strings.HasSuffix(name, "_test.py") || name == "conftest.py" ||
+		slices.Contains(strings.Split(path.Dir(file), "/"), "tests")
 }
 
 func (a *adapter) Keep(candidate operator.Edit) bool {

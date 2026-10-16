@@ -246,6 +246,21 @@ end
 		})
 	})
 
+	t.Run("test file", func(t *testing.T) {
+		t.Run("takes the files that the skip rule test-file skips", func(t *testing.T) {
+			adapter := elixir.New(t.TempDir(), elixir.Settings{})
+			taken := map[string]bool{}
+			for _, file := range []string{"test/support/factory.ex", "apps/shop/test/support/case.ex", "lib/shop/order.ex", "lib/shop/test_helpers.ex"} {
+				taken[file] = adapter.TestFile(file)
+			}
+
+			require.Equal(t, map[string]bool{
+				"test/support/factory.ex": true, "apps/shop/test/support/case.ex": true,
+				"lib/shop/order.ex": false, "lib/shop/test_helpers.ex": false,
+			}, taken)
+		})
+	})
+
 	t.Run("function", func(t *testing.T) {
 		t.Run("names the modules from the outside in, and the function with its arity", func(t *testing.T) {
 			source := `defmodule Shop do
@@ -429,6 +444,9 @@ end
 			_, err := newAdapter(root).Uncovered(context.Background(), []mutant.Mutant{m}, diff.Lines{})
 
 			require.ErrorContains(t, err, "the tests of the Elixir project in services/api fail with the real code")
+			var failing *language.TestsFailWithRealCode
+			require.ErrorAs(t, err, &failing)
+			require.Contains(t, failing.Output, "test one (ApiTest)")
 		})
 
 		t.Run("a project that does not compile returns an error that names the project", func(t *testing.T) {

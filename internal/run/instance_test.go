@@ -57,6 +57,9 @@ func (f *fakeAdapter) Keep(edit operator.Edit) bool {
 	return !f.dropped[edit.Original+" -> "+edit.Replacement]
 }
 func (f *fakeAdapter) Runner() mutant.Runner { return f }
+func (f *fakeAdapter) TestFile(file string) bool {
+	return strings.HasSuffix(file, "_test.go") || strings.HasPrefix(filepath.Base(file), "test_")
+}
 
 // Function names the func or def whose declaration comes last before offset, which is enough for the sources
 // here.
@@ -328,6 +331,17 @@ func TestInstance(t *testing.T) {
 			require.Empty(t, outcome.Mutants)
 			require.Equal(t, 2, outcome.Files)
 			require.Equal(t, 3, outcome.Lines)
+		})
+
+		t.Run("a change in a test file counts apart from the other changed files", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", "// Package a compares.\n"+compareBefore)
+			r.write("a_test.go", "package a\n\nimport \"testing\"\n")
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), boundary)
+
+			require.NoError(t, err)
+			require.Equal(t, [4]int{1, 1, 1, 3}, [4]int{outcome.Files, outcome.Lines, outcome.TestFiles, outcome.TestLines})
 		})
 
 		t.Run("the limit stops the run, and the outcome keeps the mutants that got a verdict", func(t *testing.T) {

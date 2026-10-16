@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/process"
 	"golang.org/x/sync/errgroup"
@@ -191,7 +192,7 @@ func (c *coverage) measure(ctx context.Context, run *coverageRun) error {
 		run.noTests = true
 		return nil
 	case tested.Code == pytestTestsFailed:
-		return fmt.Errorf("the tests of the Python project in %s fail with the real code, so no mutant can get a verdict:\n%s", run.project.path, strings.TrimSpace(tested.Tail))
+		return &language.TestsFailWithRealCode{Tests: "the Python project in " + run.project.path, Output: strings.TrimSpace(tested.Tail)}
 	case tested.Code != 0:
 		return fmt.Errorf("pytest exited with code %d in the Python project in %s:\n%s", tested.Code, run.project.path, strings.TrimSpace(tested.Tail))
 	case errors.Is(readErr, os.ErrNotExist):

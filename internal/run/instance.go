@@ -49,6 +49,8 @@ type Outcome struct {
 	Base       string
 	Files      int
 	Lines      int
+	TestFiles  int
+	TestLines  int
 	Mutants    []mutant.Mutant
 	Stopped    bool
 	Proposals  *proposal.Summary
@@ -116,7 +118,13 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	if err != nil {
 		return Outcome{}, err
 	}
-	outcome.Files, outcome.Lines = len(lines.Files()), lines.Len()
+	for _, file := range lines.Files() {
+		if l, found := r.languageOf(file); found && l.Adapter.TestFile(file) {
+			outcome.TestFiles, outcome.TestLines = outcome.TestFiles+1, outcome.TestLines+lines.LenOf(file)
+		} else {
+			outcome.Files, outcome.Lines = outcome.Files+1, outcome.Lines+lines.LenOf(file)
+		}
+	}
 
 	finding := progress.Start(r.stderr, r.terminal, fmt.Sprintf("Finding the mutants in %d files", outcome.Files))
 	mutants, err := r.findAll(ctx, languages, lines.Files(), lines.Touches)

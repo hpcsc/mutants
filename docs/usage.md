@@ -33,11 +33,16 @@ so its lines do not count.
   that `gofmt` aligns again. In Python, such a line counts, because indentation changes what the code does.
 
 A mutant runs when its change touches a changed line. `mutants` never writes to the work tree or to the git
-index. When the changed lines give no mutant, it says so in one line:
+index. When the changed lines give no mutant, it says so in one line, with the reason:
 
 ```text
-no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
+no mutant: no operator changes the 13 changed lines in 1 file, and 2 changed lines are in 1 test file (base 1a2b3c4d5e)
+no mutant: the 9 changed lines are in 1 test file (base 1a2b3c4d5e)
+no mutant: no changed line in a file that mutants tests (base 1a2b3c4d5e)
 ```
+
+The line counts the changed lines of the test files apart, because a test file gets no mutant. A change only
+to the text of a string, such as a prompt, gives the first line.
 
 ## Commands
 
@@ -71,7 +76,7 @@ no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
 
 ## Flags of mutants rerun
 
-`mutants rerun` takes the id in `[ ]` at the end of a row:
+`mutants rerun` takes the id in `[ ]` at the end of a row, with or without the `[ ]`:
 
 ```shell
 mutants rerun 'internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1'
@@ -81,7 +86,12 @@ It finds the mutant with all the rules of its operator, also an operator that is
 no diff to find the mutant, so it also works after a commit. It reads the changes against the base only to
 find the [tests of a changed caller](#tests-of-a-changed-caller), so give it the `--base` of the run. When it
 cannot read the changes, it says so on stderr and uses only the tests of the package of the mutant. It
-prints one row, and the detail of the status below the row.
+prints one row, and the detail of the status below the row. When the tests fail with the real code, it prints
+their output, and then a last line, so that the reason stays when you cut the output with `tail`:
+
+```text
+NO VERDICT: the tests of example.com/shop/calc fail with the real code, without the mutant
+```
 
 | Flag | Does |
 | --- | --- |
@@ -102,7 +112,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | | 130 | an interrupt or SIGTERM stopped the run |
 | `mutants rerun` | 0 | a test killed the mutant |
 | | 10 | the mutant lived, or no test runs its line |
-| | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, or the proposal of the mutant does not fit the code |
+| | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, the proposal of the mutant does not fit the code, or the tests fail with the real code |
 | | 2 | the text is not a mutant id, no mutant has this id, or a usage error or a tool error before the mutant runs, for example a key of `.mutants.yml` that `mutants` does not know |
 
 ## Statuses

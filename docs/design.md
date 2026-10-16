@@ -147,12 +147,18 @@ git ls-files --others --exclude-standard -z -- ':(glob)**/*.go' ':(glob,exclude)
 - **`--all FOLDER...`** reads every line of the files in each folder, tracked or untracked, from
   `git ls-files`. `FOLDER/...` adds the subfolders.
 
-When the changed files give no mutant, `mutants` says so in one line. That line shows a diff that is empty by
-mistake:
+When the changed files give no mutant, `mutants` says so in one line, with the reason. That line shows a diff
+that is empty by mistake, and a change that only a test file holds:
 
 ```text
-no mutant: 0 changed lines in 0 files (base 1a2b3c4d5e)
+no mutant: no changed line in a file that mutants tests (base 1a2b3c4d5e)
+no mutant: the 9 changed lines are in 1 test file (base 1a2b3c4d5e)
+no mutant: no operator changes the 13 changed lines in 1 file (base 1a2b3c4d5e)
 ```
+
+Each adapter says which of its files are test files: in Go a `_test.go` file, and in Python and Elixir the files
+of the skip rule `test-file`. The run counts the changed lines of the test files apart, because they get no
+mutant.
 
 ### Operators
 
@@ -776,7 +782,7 @@ coverage runs of different packages run at the same time, as many as there are w
 | --- | --- | --- |
 | `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors, caller gaps or rejected proposals, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
-| `mutants rerun ID` | runs one mutant again, with no cache | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, an unknown id, or an error before the mutant runs |
+| `mutants rerun ID` | runs one mutant again, with no cache. It takes the id with or without the `[ ]` of a row. When the tests fail with the real code, its last line is `NO VERDICT: ...`. | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, an unknown id, or an error before the mutant runs |
 | `mutants operators` | lists the operators and their rules | 0 |
 | `mutants config init` | writes a first `.mutants.yml`, with the default branch of origin and the build tags of the tests | 0 written, 2 the file exists |
 | `mutants version` | prints the tag of the binary, or its commit when it has no tag | 0 |

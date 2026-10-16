@@ -87,7 +87,9 @@ describe('mutants run', { timeout: 240_000 }, () => {
     const result = await runCli(dir, ['run', '--base', 'HEAD'])
 
     expect(result.status).toBe(0)
-    expect(result.stdout).toBe(`no mutant: 2 changed lines in 1 files (base ${git(dir, 'rev-parse', '--short=10', 'HEAD')})\n`)
+    expect(result.stdout).toBe(
+      `no mutant: no operator changes the 2 changed lines in 1 file (base ${git(dir, 'rev-parse', '--short=10', 'HEAD')})\n`,
+    )
   })
 
   it('with --format json and no mutant, writes only JSON on stdout and the count on stderr', async () => {
@@ -98,7 +100,7 @@ describe('mutants run', { timeout: 240_000 }, () => {
 
     expect(result.status).toBe(0)
     expect(JSON.parse(result.stdout)).toEqual({ base: git(dir, 'rev-parse', 'HEAD'), mutants: [] })
-    expect(result.stderr).toMatch(/^no mutant: 2 changed lines in 1 files/m)
+    expect(result.stderr).toMatch(/^no mutant: no operator changes the 2 changed lines in 1 file/m)
   })
 
   it('takes the base, the tags and the operators from .mutants.yml', async () => {
@@ -322,6 +324,36 @@ describe('mutants rerun', { timeout: 240_000 }, () => {
     expect(dies.stdout).toContain('KILLED: figures/figures.go:8 NAMED_VALUE_SWAP')
     expect(unknown.status).toBe(2)
     expect(unknown.stderr).toContain('no mutant has this id')
+  })
+
+  it('says so in one line when the changed lines are all in a test file', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    writeFiles(dir, { 'calc/calc_test.go': `${maxTest}\n// one more line\n` })
+
+    const result = await runCli(dir, ['run', '--base', 'HEAD'])
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toMatch(/^no mutant: the 2 changed lines are in 1 test file \(base /)
+  })
+
+  it('reruns a mutant by the id that a row prints, in [ ]', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+
+    const rerun = await runCli(dir, ['rerun', '[calc/calc.go:Max:CONDITIONALS_NEGATION#1]'])
+
+    expect(rerun.status).toBe(0)
+    expect(rerun.stdout).toMatch(/^KILLED: calc\/calc.go:\d+ CONDITIONALS_NEGATION/)
+  })
+
+  it('ends the output of rerun with NO VERDICT and exits 1, when the tests fail with the real code', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest.replace('Max(1, 2) != 2', 'Max(1, 2) != 3') })
+
+    const rerun = await runCli(dir, ['rerun', 'calc/calc.go:Max:CONDITIONALS_NEGATION#1'])
+
+    expect(rerun.status).toBe(1)
+    expect(rerun.stdout.trimEnd().split('\n').at(-1)).toBe(
+      'NO VERDICT: the tests of example.com/fixture/calc fail with the real code, without the mutant',
+    )
   })
 
   it('exits 1 for a mutant that gets no verdict, because it does not build', async () => {
