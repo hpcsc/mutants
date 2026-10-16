@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"maps"
 	"path/filepath"
@@ -36,12 +37,13 @@ func (g *callerGaps) find(ctx context.Context, changed diff.Lines) ([]language.C
 	var callers []*caller
 	for _, importPath := range slices.Sorted(maps.Keys(changedPackages)) {
 		c := &caller{pkg: changedPackages[importPath], reached: map[string]bool{}}
+		called := g.calledMethods(c.pkg)
 		for _, callee := range g.coverage.changedImports(c.pkg, changedPackages) {
-			entries := g.entries(c.pkg, callee, changed)
+			entries := g.entries(c.pkg, callee, changed, called)
 			if len(entries) == 0 {
 				continue
 			}
-			for name := range g.reach(callee, entries) {
+			for name := range g.reach(callee, entries, called) {
 				c.reached[name] = true
 			}
 			c.callees = append(c.callees, callee)
@@ -78,7 +80,7 @@ func (g *callerGaps) find(ctx context.Context, changed diff.Lines) ([]language.C
 	return gaps, nil
 }
 
-func (g *callerGaps) entries(pkg, callee goPackage, changed diff.Lines) []string {
+func (g *callerGaps) entries(pkg, callee goPackage, changed diff.Lines, called map[string]bool) []string {
 	loaded := g.types.load(pkg.Dir)
 	if loaded == nil {
 		return nil
@@ -96,7 +98,7 @@ func (g *callerGaps) entries(pkg, callee goPackage, changed diff.Lines) []string
 					names = append(names, function.Origin().FullName())
 				}
 			case *ast.CompositeLit:
-				names = append(names, g.methods(loaded.TypesInfo.TypeOf(node), callee.ImportPath)...)
+				names = append(names, g.methods(loaded.TypesInfo.TypeOf(node), callee.ImportPath, called)...)
 			}
 			return true
 		})
@@ -104,8 +106,9 @@ func (g *callerGaps) entries(pkg, callee goPackage, changed diff.Lines) []string
 	return names
 }
 
-// a caller that gets a value from a constructor can call each method of that value
-func (g *callerGaps) reach(pkg goPackage, entries []string) map[string]bool {
+// a caller that gets a value from a constructor can call each method of that value whose name it calls, also
+// through an interface
+func (g *callerGaps) reach(pkg goPackage, entries []string, called map[string]bool) map[string]bool {
 	loaded := g.types.load(pkg.Dir)
 	if loaded == nil {
 		return nil
@@ -133,7 +136,7 @@ func (g *callerGaps) reach(pkg goPackage, entries []string) map[string]bool {
 		reached[name] = true
 		results := functions[name].Signature().Results()
 		for i := range results.Len() {
-			queue = append(queue, g.methods(results.At(i).Type(), pkg.ImportPath)...)
+			queue = append(queue, g.methods(results.At(i).Type(), pkg.ImportPath, called)...)
 		}
 		if declaration.Body == nil {
 			continue
@@ -145,7 +148,7 @@ func (g *callerGaps) reach(pkg goPackage, entries []string) map[string]bool {
 					queue = append(queue, function.Origin().FullName())
 				}
 			case *ast.CompositeLit:
-				queue = append(queue, g.methods(loaded.TypesInfo.TypeOf(node), pkg.ImportPath)...)
+				queue = append(queue, g.methods(loaded.TypesInfo.TypeOf(node), pkg.ImportPath, called)...)
 			}
 			return true
 		})
@@ -153,7 +156,7 @@ func (g *callerGaps) reach(pkg goPackage, entries []string) map[string]bool {
 	return reached
 }
 
-func (g *callerGaps) methods(value types.Type, importPath string) []string {
+func (g *callerGaps) methods(value types.Type, importPath string, called map[string]bool) []string {
 	if value == nil {
 		return nil
 	}
@@ -167,8 +170,22 @@ func (g *callerGaps) methods(value types.Type, importPath string) []string {
 	methods := types.NewMethodSet(types.NewPointer(named.Origin()))
 	names := make([]string, 0, methods.Len())
 	for i := range methods.Len() {
-		if function, ok := methods.At(i).Obj().(*types.Func); ok {
+		if function, ok := methods.At(i).Obj().(*types.Func); ok && called[function.Name()] {
 			names = append(names, function.Origin().FullName())
+		}
+	}
+	return names
+}
+
+func (g *callerGaps) calledMethods(pkg goPackage) map[string]bool {
+	names := map[string]bool{}
+	loaded := g.types.load(pkg.Dir)
+	if loaded == nil {
+		return names
+	}
+	for _, selection := range loaded.TypesInfo.Selections {
+		if selection.Kind() != types.FieldVal {
+			names[selection.Obj().Name()] = true
 		}
 	}
 	return names
@@ -248,15 +265,31 @@ func (g *callerGaps) statementLines(loaded *packages.Package, function *ast.Func
 		return nil
 	}
 	lines := map[int]bool{}
+	errorBranches := map[*ast.BlockStmt]bool{}
 	ast.Inspect(function.Body, func(node ast.Node) bool {
-		if statement, ok := node.(ast.Stmt); ok {
-			if _, isBlock := statement.(*ast.BlockStmt); !isBlock {
-				lines[loaded.Fset.Position(statement.Pos()).Line] = true
+		switch statement := node.(type) {
+		case *ast.BlockStmt:
+			return !errorBranches[statement]
+		case *ast.IfStmt:
+			if g.isErrorCheck(statement.Cond, loaded.TypesInfo) {
+				errorBranches[statement.Body] = true
 			}
+		}
+		if statement, ok := node.(ast.Stmt); ok {
+			lines[loaded.Fset.Position(statement.Pos()).Line] = true
 		}
 		return true
 	})
 	return slices.Sorted(maps.Keys(lines))
+}
+
+func (g *callerGaps) isErrorCheck(condition ast.Expr, info *types.Info) bool {
+	comparison, isBinary := ast.Unparen(condition).(*ast.BinaryExpr)
+	if !isBinary || comparison.Op != token.NEQ {
+		return false
+	}
+	return g.types.isError(info.TypeOf(comparison.X)) && info.Types[comparison.Y].IsNil() ||
+		g.types.isError(info.TypeOf(comparison.Y)) && info.Types[comparison.X].IsNil()
 }
 
 func (g *callerGaps) relative(path string) string {

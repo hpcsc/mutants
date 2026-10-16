@@ -223,6 +223,9 @@ a caller runs `Allow`. The changed statements of `Allow` are a caller gap.
 - A caller gap is a changed statement that the tests of its own package run, but that no test of a caller
   runs.
 - When the changed lines of a caller call only an interface of the caller, the caller gives no gap.
+- A method of a value that the caller gets from a constructor counts only when the caller calls a method with
+  that name, also through an interface.
+- A statement inside an `if err != nil` branch is not a gap.
 
 The rows list the gaps under `CALLER GAPS`, by function, and a last line counts them:
 

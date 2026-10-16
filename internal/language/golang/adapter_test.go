@@ -1347,6 +1347,112 @@ func apply(xs []int, double func(int) int, extra int) int {
 			}, gaps)
 		})
 
+		t.Run("leaves out a method of a value that the caller builds, when the caller calls no method with its name", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"gate/gate.go":            "package gate\n\ntype Checker struct{ limit int }\n\nfunc NewChecker(limit int) *Checker {\n\treturn &Checker{limit: limit}\n}\n\nfunc (c *Checker) Allow(n int) bool {\n\treturn n <= c.limit\n}\n\nfunc (c *Checker) Describe() string {\n\treturn \"limit\"\n}\n",
+				"gate/gate_test.go":       "package gate\n\nimport \"testing\"\n\nfunc TestChecker(t *testing.T) {\n\tif !NewChecker(3).Allow(2) || NewChecker(3).Describe() != \"limit\" {\n\t\tt.Fatal(\"Checker\")\n\t}\n}\n",
+				"handler/handler.go":      "package handler\n\nimport \"example.com/fixture/gate\"\n\ntype Allower interface {\n\tAllow(n int) bool\n}\n\nfunc Main() Allower {\n\treturn gate.NewChecker(3)\n}\n\nfunc Handle(a Allower, n int) string {\n\tif a.Allow(n) {\n\t\treturn \"ok\"\n\t}\n\treturn \"no\"\n}\n",
+				"handler/handler_test.go": "package handler\n\nimport \"testing\"\n\ntype always bool\n\nfunc (a always) Allow(int) bool { return bool(a) }\n\nfunc TestHandle(t *testing.T) {\n\tif Handle(always(true), 1) != \"ok\" {\n\t\tt.Fatal(\"Handle\")\n\t}\n}\n",
+			})
+
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "handler/handler.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, []language.CallerGap{
+				{File: "gate/gate.go", Function: "NewChecker", Lines: []int{6}, Callers: []string{"handler"}},
+				{File: "gate/gate.go", Function: "(*Checker).Allow", Lines: []int{10}, Callers: []string{"handler"}},
+			}, gaps)
+		})
+
+		t.Run("leaves out the statements inside an if err != nil branch", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"store/store.go":      "package store\n\nimport \"errors\"\n\nvar errEmpty = errors.New(\"empty\")\n\nfunc Load(id string) (string, error) {\n\terr := check(id)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn \"item \" + id, nil\n}\n\nfunc check(id string) error {\n\tif id == \"\" {\n\t\treturn errEmpty\n\t}\n\treturn nil\n}\n",
+				"store/store_test.go": "package store\n\nimport \"testing\"\n\nfunc TestLoad(t *testing.T) {\n\tif _, err := Load(\"\"); err == nil {\n\t\tt.Fatal(\"no error\")\n\t}\n\tif item, _ := Load(\"a\"); item != \"item a\" {\n\t\tt.Fatal(item)\n\t}\n}\n",
+				"wired/wired.go":      "package wired\n\nimport \"example.com/fixture/store\"\n\nfunc Name(id string) string {\n\tname, err := store.Load(id)\n\tif err != nil {\n\t\treturn \"none\"\n\t}\n\treturn name\n}\n",
+				"wired/wired_test.go": "package wired\n\nimport \"testing\"\n\nfunc TestName(t *testing.T) {\n\tif Name(\"a\") != \"item a\" {\n\t\tt.Fatal(\"Name\")\n\t}\n}\n",
+			})
+
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changedFiles(t, root, "store/store.go", "wired/wired.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, []language.CallerGap{
+				{File: "store/store.go", Function: "check", Lines: []int{17}, Callers: []string{"wired"}},
+			}, gaps)
+		})
+
+		t.Run("leaves out a branch of nil != err too, and keeps a branch of err == nil, of a sentinel error, of a pointer and of a bool", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"store/store.go": `package store
+
+import "errors"
+
+var errEmpty = errors.New("empty")
+
+var errStale = errors.New("stale")
+
+var errGone = errors.New("gone")
+
+type Item struct{ Name string }
+
+func Load(id string, strict bool) (string, error) {
+	if err := check(id); nil != err {
+		return "", err
+	}
+	err := age(id)
+	if err == nil {
+		return "new " + id, nil
+	}
+	if err != errStale {
+		return "gone " + id, nil
+	}
+	var item *Item
+	if strict {
+		item = &Item{Name: id}
+	}
+	if item != nil {
+		id = item.Name + "!"
+	}
+	if nil != item {
+		return "strict " + id, nil
+	}
+	return "item " + id, nil
+}
+
+func check(id string) error {
+	if id == "" {
+		return errEmpty
+	}
+	return nil
+}
+
+func age(id string) error {
+	if id == "new" {
+		return nil
+	}
+	if id == "gone" {
+		return errGone
+	}
+	return errStale
+}
+`,
+				"store/store_test.go": "package store\n\nimport \"testing\"\n\nfunc TestLoad(t *testing.T) {\n\tfor _, id := range []string{\"\", \"new\", \"gone\", \"x\"} {\n\t\t_, _ = Load(id, false)\n\t}\n\tif item, _ := Load(\"x\", true); item != \"strict x!\" {\n\t\tt.Fatal(item)\n\t}\n}\n",
+				"wired/wired.go":      "package wired\n\nimport \"example.com/fixture/store\"\n\nfunc Name(id string) string {\n\tname, _ := store.Load(id, false)\n\treturn name\n}\n",
+				"wired/wired_test.go": "package wired\n\nimport \"testing\"\n\nfunc TestName(t *testing.T) {\n\tif Name(\"x\") != \"item x\" {\n\t\tt.Fatal(\"Name\")\n\t}\n}\n",
+			})
+
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changedFiles(t, root, "store/store.go", "wired/wired.go"))
+
+			require.NoError(t, err)
+			require.Equal(t, []language.CallerGap{
+				{File: "store/store.go", Function: "Load", Lines: []int{19, 22, 26, 29, 32}, Callers: []string{"wired"}},
+				{File: "store/store.go", Function: "check", Lines: []int{39}, Callers: []string{"wired"}},
+				{File: "store/store.go", Function: "age", Lines: []int{46, 49}, Callers: []string{"wired"}},
+			}, gaps)
+		})
+
 		t.Run("gives no gap when the changed lines of the caller call only an interface of its own", func(t *testing.T) {
 			t.Parallel()
 			root := newModule(t, map[string]string{

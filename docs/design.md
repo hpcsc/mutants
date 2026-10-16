@@ -435,14 +435,18 @@ With `--caller-gaps`, or `caller_gaps: true` in `.mutants.yml`, the run looks fo
    gives the imports.
 2. **Reach.** The check follows each function of the callee that a changed line of the caller calls, then
    each function that those functions call. It also follows the methods of a type that a reached function
-   returns, or builds with a composite literal. So a constructor that a changed line calls reaches each
-   method of the value that it returns. A changed line that calls only an interface of the caller reaches
+   returns, or builds with a composite literal, when the caller calls a method with that name, also through
+   an interface. So a constructor that a changed line calls reaches each method of the value that it returns
+   and that the caller uses. A method that the caller never calls by its name, such as a `MarshalJSON` that
+   `json.Marshal` calls, stays out. A changed line that calls only an interface of the caller reaches
    nothing, so a caller whose tests use a fake gives no gap.
 3. **One test run for each caller.** The tests of the caller run once with `-coverpkg` on its callees.
 4. **Gaps.** A caller gap is a changed line of a reached function, where a statement starts, that the tests
    of its own package run but that the tests of no caller that reaches the function run. The check takes
    the line where a statement starts, because Go 1.26 starts a coverage block on the line of the brace
-   before the statement, and Go 1.27 starts it on the statement.
+   before the statement, and Go 1.27 starts it on the statement. A statement inside an `if err != nil`
+   branch is not a gap: the tests of a caller reach it only with a fake that fails, and the tests of its own
+   package already run it.
 
 The rows list each gap apart from the statuses of the mutants, by function:
 
@@ -1068,7 +1072,10 @@ measured branch, two such guards had no test of their false side, and only hand-
 never runs the callee, and that is often the intent: the tests of the callee test the callee. When the check
 reported each line of each callee that no caller test runs, those callers gave rows that are not gaps. A
 changed line that calls the callee directly, for example a call of a constructor in the setup of the caller, is new code that
-depends on the real callee, so its reach is where a gap matters.
+depends on the real callee, so its reach is where a gap matters. On three measured implement runs, 22 of 24
+caller gaps were still not gaps. Most were methods of a built value that the caller never called, such as
+`MarshalJSON`, `Parse` or `Doc`, and error branches that the fakes of the caller could not make fail. So a
+method of a built value needs a call with its name, and a statement inside `if err != nil` is left out.
 
 **Why mutants reads proposals and never calls a model.** An AI agent that writes or reviews the change is
 already a model, and it knows the purpose of the change and the diff. A model SDK, its keys and network access
