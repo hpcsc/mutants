@@ -1128,7 +1128,25 @@ end
 
 			require.Equal(t, []string{
 				"total = sum(cart) -> _ = sum(cart)", "send(self(), {:total, total}) -> nil", "cart |> Map.get(:items) |> Enum.each(&ship/1) -> nil",
+				"|> Map.get(:items) -> ", "|> Enum.each(&ship/1) -> ",
 			}, elixirEditsOf(t, "STATEMENT_REMOVE", source))
+		})
+
+		t.Run("STATEMENT_REMOVE removes each step of a pipe in a function, also the last, and skips a pipe outside a function and in a quote", func(t *testing.T) {
+			source := `defmodule A do
+  @names ["a"] |> Enum.map(&String.upcase/1)
+
+  def f(conn) do
+    conn
+    |> put_status(422)
+    |> halt()
+  end
+
+  def g(x), do: quote(do: unquote(x) |> h())
+end
+`
+
+			require.Equal(t, []string{"|> put_status(422) -> ", "|> halt() -> "}, elixirEditsOf(t, "STATEMENT_REMOVE", source))
 		})
 
 		t.Run("RETURN_EMPTY gives each value of a function the empty values, for the filter of the adapter to choose", func(t *testing.T) {

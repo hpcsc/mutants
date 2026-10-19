@@ -141,3 +141,35 @@ rule:
     - matches: pipe
   matches: statement
 fix: nil
+---
+id: STATEMENT_REMOVE/pipe
+language: elixir
+utils:
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+rule:
+  kind: call
+  inside:
+    kind: binary_operator
+    field: right
+    has:
+      field: operator
+      regex: ^\|>$
+  all:
+    - inside:
+        matches: function
+        stopBy: end
+    - not:
+        inside:
+          kind: call
+          has:
+            field: target
+            regex: ^quote$
+          stopBy: end
+fix:
+  template: ''
+  expandStart:
+    regex: ^\|>$
