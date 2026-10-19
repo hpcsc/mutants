@@ -1266,6 +1266,23 @@ end
 			}, mutants)
 		})
 
+		t.Run("NAMED_VALUE_REMOVE removes the only keyword of an Ecto from, whose keywords are optional, with its comma, with and without parentheses, and one keyword of two", func(t *testing.T) {
+			source := "def f(n) do\n  Repo.delete_all(from c in C, where: c.n <= ^n)\n  Repo.one(Ecto.Query.from(c in C, select: c.n))\n  Repo.all(from c in C, where: c.n > 1, select: c.n)\nend\n"
+
+			edits := findEditsIn(t, "a.ex", "NAMED_VALUE_REMOVE", source)
+
+			var mutants []string
+			for _, edit := range edits {
+				mutants = append(mutants, source[:edit.Start]+edit.Replacement+source[edit.End:])
+			}
+			require.Equal(t, []string{
+				"def f(n) do\n  Repo.delete_all(from c in C)\n  Repo.one(Ecto.Query.from(c in C, select: c.n))\n  Repo.all(from c in C, where: c.n > 1, select: c.n)\nend\n",
+				"def f(n) do\n  Repo.delete_all(from c in C, where: c.n <= ^n)\n  Repo.one(Ecto.Query.from(c in C))\n  Repo.all(from c in C, where: c.n > 1, select: c.n)\nend\n",
+				"def f(n) do\n  Repo.delete_all(from c in C, where: c.n <= ^n)\n  Repo.one(Ecto.Query.from(c in C, select: c.n))\n  Repo.all(from c in C,  select: c.n)\nend\n",
+				"def f(n) do\n  Repo.delete_all(from c in C, where: c.n <= ^n)\n  Repo.one(Ecto.Query.from(c in C, select: c.n))\n  Repo.all(from c in C, where: c.n > 1)\nend\n",
+			}, mutants)
+		})
+
 		t.Run("NAMED_VALUE_REMOVE keeps a field of a pattern that binds a variable, which the body then reads, and removes a field of a pattern with a literal value", func(t *testing.T) {
 			source := "def round(%Decimal{coef: :inf}), do: :inf\ndef round(%Decimal{sign: sign, coef: coef, exp: _exp}), do: {sign, coef}\n"
 

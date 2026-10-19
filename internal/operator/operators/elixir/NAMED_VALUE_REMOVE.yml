@@ -285,3 +285,29 @@ rule:
         - kind: map_content
         - kind: list
 fix: ''
+---
+id: NAMED_VALUE_REMOVE/from
+language: elixir
+rule:
+  kind: keywords
+  inside:
+    kind: arguments
+    inside:
+      kind: call
+      has:
+        field: target
+        regex: ^(Ecto\.Query\.)?from$
+  has:
+    kind: pair
+    not:
+      any:
+        - follows:
+            kind: pair
+            stopBy: end
+        - precedes:
+            kind: pair
+            stopBy: end
+fix:
+  template: ''
+  expandStart:
+    regex: ^,$
