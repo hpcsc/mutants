@@ -1,0 +1,12 @@
+id: INVERT_NEGATIVES
+language: python
+rule:
+  kind: unary_operator
+  has:
+    field: operator
+    regex: ^-$
+  all:
+    - has:
+        field: argument
+        pattern: $X
+fix: $X

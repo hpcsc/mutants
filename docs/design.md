@@ -292,6 +292,7 @@ The Go pack for v1:
 | `ERROR_REMOVE` | an error return value to `nil` | `go/types` finds the error slot |
 | `RETURN_TRUE` | a bool return value to `true` | `go/types` finds the bool slot; `RETURN_EMPTY` already makes it `false` |
 | `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `n` to `(n+1)`, `(n-1)` | |
+| `INVERT_NEGATIVES` | `-x` to `x` | |
 | `BREAK_AT_START` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
 | `NAMED_VALUE_SWAP` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |

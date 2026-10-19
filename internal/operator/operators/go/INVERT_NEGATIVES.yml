@@ -1,0 +1,5 @@
+id: INVERT_NEGATIVES
+language: go
+rule:
+  pattern: '-$X'
+fix: $X

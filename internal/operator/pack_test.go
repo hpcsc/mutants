@@ -483,6 +483,12 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"a && b -> a || b", "a || b -> a && b"}, edits)
 		})
 
+		t.Run("INVERT_NEGATIVES removes the minus of a negative value, and skips a subtraction", func(t *testing.T) {
+			edits := editsOf(t, "INVERT_NEGATIVES", "package a\n\nfunc f(a, b int) int { return -a + (a - b) * -1 }\n")
+
+			require.Equal(t, []string{"-a -> a", "-1 -> 1"}, edits)
+		})
+
 		t.Run("REMOVE_LOGICAL_NOT removes a !", func(t *testing.T) {
 			edits := editsOf(t, "REMOVE_LOGICAL_NOT", "package a\n\nfunc f(ok bool) bool {\n\treturn !ok\n}\n")
 
@@ -768,6 +774,12 @@ func TestPack(t *testing.T) {
 			require.ElementsMatch(t, []string{"a and b -> True and b", "a and b -> a and True", "a or b -> False or b", "a or b -> a or False"}, edits)
 		})
 
+		t.Run("INVERT_NEGATIVES removes the minus of a negative value, also of an index, and skips a subtraction", func(t *testing.T) {
+			edits := pythonEditsOf(t, "INVERT_NEGATIVES", "def f(a, b, xs):\n    return -a + (a - b) * xs[-1]\n")
+
+			require.Equal(t, []string{"-a -> a", "-1 -> 1"}, edits)
+		})
+
 		t.Run("REMOVE_LOGICAL_NOT removes a not, and skips not in", func(t *testing.T) {
 			edits := pythonEditsOf(t, "REMOVE_LOGICAL_NOT", "def f(a, b):\n    return [not a, a not in b]\n")
 
@@ -979,6 +991,12 @@ func TestPack(t *testing.T) {
 				"a and b -> true and b", "a and b -> a and true", "a or b -> false or b", "a or b -> a or false",
 				"a && b -> true && b", "a && b -> a && true", "a || b -> false || b", "a || b -> a || false",
 			}, edits)
+		})
+
+		t.Run("INVERT_NEGATIVES removes the minus of a negative value, and skips a subtraction and the size of a bitstring segment", func(t *testing.T) {
+			edits := elixirEditsOf(t, "INVERT_NEGATIVES", "def f(a, b, now), do: [-a, a - b, DateTime.add(now, -b, :day), <<a::signed-64>>]\n")
+
+			require.Equal(t, []string{"-a -> a", "-b -> b"}, edits)
 		})
 
 		t.Run("REMOVE_LOGICAL_NOT removes a not and a !, and skips not in", func(t *testing.T) {
