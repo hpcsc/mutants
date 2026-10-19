@@ -1,0 +1,41 @@
+id: GUARD_REMOVE
+language: elixir
+utils:
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: boolean
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+rule:
+  matches: expression
+  inside:
+    kind: binary_operator
+    field: right
+    has:
+      field: operator
+      regex: ^when$
+  all:
+    - inside:
+        matches: function
+        stopBy: end
+    - not:
+        inside:
+          kind: call
+          has:
+            field: target
+            regex: ^quote$
+          stopBy: end
+fix:
+  template: ''
+  expandStart:
+    regex: ^when$

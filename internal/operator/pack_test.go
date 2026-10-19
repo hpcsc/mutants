@@ -1114,6 +1114,31 @@ end
 			require.Equal(t, []string{"g(a) -> nil", "h(a)\n      k(a) -> nil", ":none -> nil", "h(e) -> nil"}, elixirEditsOf(t, "BRANCH_CASE", source))
 		})
 
+		t.Run("GUARD_REMOVE removes the guard of a function head, a clause of case, fn and with, and skips a typespec and a guard outside a function", func(t *testing.T) {
+			source := `defmodule A do
+  defguard is_small(n) when n < 10
+
+  @spec f(x) :: x when x: term()
+  def f(x) when is_binary(x) do
+    case x do
+      y when y > "a" and y < "z" -> y
+      _ -> nil
+    end
+  end
+
+  defp g(conn) do
+    with id when is_binary(id) <- get(conn) do
+      Enum.map([id], fn i when i != "" -> i end)
+    end
+  end
+end
+`
+
+			require.Equal(t, []string{
+				`when is_binary(x) -> `, `when y > "a" and y < "z" -> `, `when is_binary(id) -> `, `when i != "" -> `,
+			}, elixirEditsOf(t, "GUARD_REMOVE", source))
+		})
+
 		t.Run("STATEMENT_REMOVE assigns the value to _ in place of a variable, and puts nil in place of a call or a pipe that stands alone, except the last statement", func(t *testing.T) {
 			source := `def f(cart) do
   total = sum(cart)

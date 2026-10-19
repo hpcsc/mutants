@@ -41,6 +41,7 @@ var catalog = Catalog{
 	"ERROR_CAUSE_REMOVE":    {Tier: Required, OffByDefault: true},
 	"ERROR_REMOVE":          {Tier: Required},
 	"EXPRESSION_REMOVE":     {Tier: Required},
+	"GUARD_REMOVE":          {Tier: Optional},
 	"INCREMENT_DECREMENT":   {Tier: Required},
 	"INTEGER_DECREMENT":     {Tier: Required},
 	"INTEGER_INCREMENT":     {Tier: Required},

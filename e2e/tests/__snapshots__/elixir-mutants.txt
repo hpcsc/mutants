@@ -78,6 +78,8 @@ lib/shop/order.ex:Shop.Order.summarise/2:NAMED_VALUE_REMOVE#2 25:46 NOT COVERED
   ", owed: owed" -> ""
 lib/shop/order.ex:Shop.Order.load/1:ERROR_REMOVE#1 29:5 NOT COVERED
   "raise ArgumentError, \"no key\"" -> "nil"
+lib/shop/order.ex:Shop.Order.load/1:GUARD_REMOVE#1 32:17 NOT COVERED
+  "when key in [\"a\", \"b\"]" -> ""
 lib/shop/order.ex:Shop.Order.load/1:CONDITIONALS_NEGATION#1 32:22 NOT COVERED
   "key in [\"a\", \"b\"]" -> "key not in [\"a\", \"b\"]"
 lib/shop/order.ex:Shop.Order.load/1:RETURN_EMPTY#1 32:45 NOT COVERED
@@ -108,6 +110,8 @@ lib/shop/order.ex:Shop.Order.kind/1:INTEGER_INCREMENT#1 42:17 NOT COVERED
   "2" -> "(2+1)"
 lib/shop/order.ex:Shop.Order.kind/1:BRANCH_CASE#1 43:12 NOT COVERED
   "\"even\"" -> "nil"
+lib/shop/order.ex:Shop.Order.kind/1:GUARD_REMOVE#1 44:9 NOT COVERED
+  "when m > 1" -> ""
 lib/shop/order.ex:Shop.Order.kind/1:CONDITIONALS_BOUNDARY#1 44:14 NOT COVERED
   "m > 1" -> "m >= 1"
 lib/shop/order.ex:Shop.Order.kind/1:CONDITIONALS_NEGATION#1 44:14 NOT COVERED

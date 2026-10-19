@@ -1087,7 +1087,8 @@ makes no gap in the others.
 
 The tier tells whether a language must have an operator, and the default tells whether it runs. They are
 separate: a required operator can be off by default, as `ERROR_CAUSE_REMOVE` is. Today each operator of the
-catalog is required, and Go, Python and Elixir have a rule for each one.
+catalog except `GUARD_REMOVE` is required, and Go, Python and Elixir have a rule for each of them. Only
+Elixir has a rule for `GUARD_REMOVE`, which removes the guard of a clause.
 
 Separate sets of operators, for example one for programming languages and one for infrastructure such as
 Terraform, do not fit. Most operators, such as the comparisons, the logic and the numbers, are the same change
