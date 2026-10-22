@@ -33,7 +33,7 @@ func TestConfig(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
 			content := "base: origin/main\nworkers: 2\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\ncaller_gaps: true\n" +
-				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\n  exclude_types: [Fake*]\npython:\n  command: [uv, run, python]\nelixir:\n  confirm_kills: true\n"
+				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\n  exclude_types: [Fake*]\npython:\n  command: [uv, run, python]\nelixir:\n  confirm_kills: true\n  reuse_vm: true\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
 			loaded, err := loadConfig(root, t.TempDir(), io.Discard)
@@ -47,7 +47,7 @@ func TestConfig(t *testing.T) {
 				CallerGaps: true,
 				Go:         goConfig{Tags: []string{"unit"}, ZeroFunctions: []string{"maybe.None"}, ExcludeTypes: []string{"Fake*"}},
 				Python:     pythonConfig{Command: []string{"uv", "run", "python"}},
-				Elixir:     elixirConfig{ConfirmKills: true},
+				Elixir:     elixirConfig{ConfirmKills: true, ReuseVM: true},
 			}, loaded)
 		})
 

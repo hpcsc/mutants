@@ -152,6 +152,28 @@ end
     await expect.poll(() => children.filter(isAlive), { timeout: 10_000 }).toEqual([])
   })
 
+  it('with elixir.reuse_vm, gives each mutant the verdict of a new VM, and no VM stays alive after the run', async () => {
+    const pids = join(scratchDir(), 'vms.pid')
+    const dir = elixirRepository()
+    const recordPid = '  setup_all do\n    File.write!(System.fetch_env!("E2E_PIDS"), System.pid() <> "\\n", [:append])\n    :ok\n  end\n\n'
+    writeFiles(dir, {
+      'lib/shop/discount.ex': discount,
+      'test/shop/discount_test.exs': discountTest.replace('  use ExUnit.Case\n\n', `  use ExUnit.Case\n\n${recordPid}`),
+      'lib/shop/total.ex': total,
+      'test/shop/total_test.exs': totalTest([3]),
+    })
+    const statuses = (stdout: string) => JSON.parse(stdout).mutants.map((m: { id: string; status: string }) => `${m.id} ${m.status}`)
+
+    const plain = await runCli(dir, ['run', '--format', 'json', '--base', 'HEAD'], { E2E_PIDS: pids })
+    writeFiles(dir, { '.mutants.yml': 'elixir:\n  reuse_vm: true\n' })
+    const reused = await runCli(dir, ['run', '--format', 'json', '--base', 'HEAD'], { E2E_PIDS: pids })
+
+    expect(statuses(reused.stdout)).toEqual(statuses(plain.stdout))
+    expect(statuses(reused.stdout)).toContain('lib/shop/discount.ex:Shop.Discount.discount/1:CONDITIONALS_BOUNDARY#1 KILLED')
+    const vms = [...new Set(readFileSync(pids, 'utf8').trim().split('\n').map(Number))]
+    await expect.poll(() => vms.filter(isAlive), { timeout: 10_000 }).toEqual([])
+  })
+
   it('runs the mutants of an untracked file, and adds nothing to git status but the build in _build', async () => {
     const dir = elixirRepository()
     writeFiles(dir, { 'lib/shop/discount.ex': discount, 'test/shop/discount_test.exs': discountTest })

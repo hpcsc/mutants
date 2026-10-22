@@ -532,6 +532,59 @@ end
 			require.Contains(t, verdict.Detail, "the mutant does not compile")
 		})
 
+		t.Run("in a reused VM, a mutant that a test catches is KILLED, with the failed test as the detail", func(t *testing.T) {
+			root := newProject(t, shop(nil))
+			m := mutantOf(t, root, "lib/shop/discount.ex", "total >= @limit", "total > @limit")
+
+			verdict, err := elixir.New(root, elixir.Settings{Workers: 2, ReuseVM: true}).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Verdict{Status: mutant.Killed, Detail: "test edge (Shop.DiscountTest), test/shop/discount_test.exs:8"}, verdict)
+		})
+
+		t.Run("in a reused VM, a mutant that does not compile is NOT VIABLE, with the error as the detail", func(t *testing.T) {
+			root := newProject(t, shop(nil))
+			m := mutantOf(t, root, "lib/shop/discount.ex", "total >= @limit", "total >= @limit +")
+
+			verdict, err := elixir.New(root, elixir.Settings{Workers: 2, ReuseVM: true}).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.NotViable, verdict.Status)
+			require.Contains(t, verdict.Detail, "syntax error")
+		})
+
+		t.Run("in a reused VM, the next mutant runs against the real code again, so each mutant gets its own verdict", func(t *testing.T) {
+			root := newProject(t, shop(nil))
+			runner := elixir.New(root, elixir.Settings{Workers: 1, ReuseVM: true}).Runner()
+			caught := mutantOf(t, root, "lib/shop/discount.ex", "total >= @limit", "total > @limit")
+			lives := mutantOf(t, root, "lib/shop/discount.ex", "else\n      0", "else\n      0 * 2")
+			var statuses []mutant.Status
+
+			for _, m := range []mutant.Mutant{caught, lives, caught} {
+				verdict, err := runner.Run(context.Background(), m)
+				require.NoError(t, err)
+				statuses = append(statuses, verdict.Status)
+			}
+
+			require.Equal(t, []mutant.Status{mutant.Killed, mutant.Lived, mutant.Killed}, statuses)
+		})
+
+		t.Run("in a reused VM, a mutant of the code that starts the application is KILLED by the check in a new VM", func(t *testing.T) {
+			root := newProject(t, shop(map[string]string{
+				"mix.exs": "defmodule Shop.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :shop, version: \"0.1.0\", deps: []]\n\n" +
+					"  def application, do: [mod: {Shop.Application, []}]\nend\n",
+				"lib/shop/application.ex": "defmodule Shop.Application do\n  use Application\n\n  def start(_type, _args) do\n" +
+					"    Supervisor.start_link([%{id: Shop.Limit, start: {Agent, :start_link, [fn -> 100 end, [name: Shop.Limit]]}}], strategy: :one_for_one)\n  end\nend\n",
+				"test/shop/limit_test.exs": "defmodule Shop.LimitTest do\n  use ExUnit.Case\n\n  test \"limit\", do: assert(Agent.get(Shop.Limit, & &1) == 100)\nend\n",
+			}))
+			m := mutantOf(t, root, "lib/shop/application.ex", "fn -> 100 end", "fn -> 101 end")
+
+			verdict, err := elixir.New(root, elixir.Settings{Workers: 2, ReuseVM: true}).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Killed, verdict.Status, verdict.Detail)
+		})
+
 		t.Run("a mutant of the code that starts the application is KILLED, because the mutant loads before the application starts", func(t *testing.T) {
 			application := `defmodule Shop.Application do
   use Application

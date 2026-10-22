@@ -134,6 +134,7 @@ project with no dependencies, `test/test_helper.exs`, and a `.gitignore` with `/
 | An `Enum.reduce` over a list that a test runs with one item | `BREAK_AT_END` LIVED. With two items: KILLED. |
 | A proposal that does not compile | NOT VIABLE, and `rerun` exits 1 |
 | A recursion that the mutant makes endless, in a test that starts `cat` through a port | TIMED OUT, and no `cat` is alive after the run, because each VM stops |
+| Two runs of the same mutants, the second with `elixir.reuse_vm: true` | the same verdict for each mutant, and no VM alive after the second run |
 | An untracked new file | its mutants run, and `git status --ignored` adds only `_build/` |
 | A module that does not compile | exit 2, and a message that names the project |
 | A test that fails with the real code | exit 2, and a message that names the project |

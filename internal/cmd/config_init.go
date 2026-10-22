@@ -107,7 +107,9 @@ func configTemplate(base string, tags map[string]int) string {
 
 	text.WriteString("# The settings of Elixir.\nelixir:\n")
 	text.WriteString("  # true runs the tests of a mutant again after a kill, and gives UNSTABLE when they pass. Each second\n" +
-		"  # run starts a new VM, so it is off by default.\n  # confirm_kills: false\n")
+		"  # run starts a new VM, so it is off by default.\n  # confirm_kills: false\n\n")
+	text.WriteString("  # true tests the mutants in VMs that load the application and the tests one time. A new VM still\n" +
+		"  # checks each mutant that lives. This runner is experimental.\n  # reuse_vm: false\n")
 	return text.String()
 }
 

@@ -48,6 +48,7 @@ type pythonConfig struct {
 
 type elixirConfig struct {
 	ConfirmKills bool `yaml:"confirm_kills"`
+	ReuseVM      bool `yaml:"reuse_vm"`
 }
 
 func repositoryConfig(ctx context.Context, repository *diff.Repository, stderr io.Writer) (config, error) {
@@ -186,5 +187,5 @@ func (c config) pythonSettings(workers int) python.Settings {
 }
 
 func (c config) elixirSettings(workers int) elixir.Settings {
-	return elixir.Settings{Workers: workers, ConfirmKills: c.Elixir.ConfirmKills}
+	return elixir.Settings{Workers: workers, ConfirmKills: c.Elixir.ConfirmKills, ReuseVM: c.Elixir.ReuseVM}
 }

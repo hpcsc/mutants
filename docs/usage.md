@@ -374,6 +374,7 @@ python:
   command: [uv, run, python]
 elixir:
   confirm_kills: true
+  reuse_vm: true
 ```
 
 | Key | Does |
@@ -386,6 +387,7 @@ elixir:
 | `go.tags` | the build tags, as `--tags` |
 | `python.command` | the command that starts the Python of a project, in the folder of the project. See [Python](#python). |
 | `elixir.confirm_kills` | `true` runs the tests of a mutant again after a kill, as in Go and Python, and gives UNSTABLE when they pass. It is off by default, because each second run starts a new VM. See [Elixir](#elixir). |
+| `elixir.reuse_vm` | `true` tests the mutants in VMs that load the application and the tests one time, and a new VM checks each mutant that lives. It is experimental and off by default. See [Elixir](#elixir). |
 | `go.zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field or a map entry whose value is a call of one of them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change gives the same value. Use the name of the package, not its path. |
 | `go.exclude_types` | the types that get no mutant, as globs of the name of the type, such as `Fake*`. A method of such a type, and a function that returns one, get no mutant. Use it for the fakes that live in a file that is not a test file, so that the tests of other packages can use them. |
 
@@ -562,6 +564,12 @@ exits 0. Write it in `.mutants/equivalent.yml`, with the reason:
   because it passes when it runs again.
 - **One run of a kill.** A kill does not run the tests again, unless `elixir.confirm_kills` is `true`. Each
   run starts a new VM, which costs about 2 s on a Phoenix app, so the second run makes a run much longer.
+- **Reused VMs (experimental).** With `elixir.reuse_vm: true`, each worker keeps a VM for each project. The VM
+  starts the application, loads the tests and runs them one time. For each mutant, it then loads the mutant,
+  runs the tests, and loads the real code again. A mutant that lives in such a VM runs again in a new VM,
+  because the application started before the mutant loaded. The VM does not run the `test` alias, so the
+  coverage run must create the database first, as it does. When the tests fail in a VM, or the VM stops, the
+  mutants of the project run in a new VM each, as without the setting.
 - **One order.** `mutants` runs the tests with `--seed 0`, so the tests run in the same order in each run.
 - **Limits.** A mutant of a macro, a guard or the defaults of a struct gets no row: a module that uses them
   keeps the code that it got when it compiled. A program that a test starts through a port, such as with

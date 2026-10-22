@@ -728,6 +728,14 @@ sequenceDiagram
   detail of KILLED is the first failed test and its file, or else the first `** (` line of an error.
 - **Workers.** The workers run `mix` at the same time in one project. Mix holds a lock on `_build` while it
   loads the build, and `--no-compile` keeps that time short.
+- **Reused VMs (experimental).** With `elixir.reuse_vm`, each worker keeps one VM for each project, with
+  `mutants_worker.exs`, a second Mix task in the binary. The VM starts the application, loads the test files
+  and runs the tests one time. For each line on stdin, the path of the original file and of the mutated file,
+  it compiles the mutant, runs the tests with `ExUnit.run/1`, loads the real modules from the build again, and
+  writes one reply line on stdout. When `:code.soft_purge` fails, a process still runs the mutated code, so the
+  runner stops that VM and starts a new one. A LIVED mutant runs again in a new VM, because the reused VM
+  started the application before the mutant loaded. A VM that does not reply within the limit of the tests
+  stops, and the mutant runs in a new VM.
 - **No process stays alive.** The VM runs in its own process group, as each test binary of Go does. The VM
   gives each port program, such as the program of a `System.cmd`, a session of its own, so the kill of the
   group does not reach it. A port program stops when its input ends, as at the end of `mix test`, and a port
@@ -1009,7 +1017,7 @@ gives back.
 | `language` | `language.Adapter`: the name of its rule pack, the files it supports, its filters, the function that holds an offset, its coverage and its runner. `language.CallerGapFinder`: the caller gaps of a language that has the check. |
 | `language/golang` | the Go adapter |
 | `language/python` | the Python adapter, with its import hook and its pytest plugin |
-| `language/elixir` | the Elixir adapter, with its Mix task |
+| `language/elixir` | the Elixir adapter, with its two Mix tasks: one that tests one mutant in a new VM, and one for the reused VMs |
 | `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends. `RunAgainAfterTimeout` runs the program a second time with twice the limit, and `process.TestLimit` gives the limit of the tests of one mutant from its baseline. |
 | `run` | one run: changed lines, candidates, filters, ids, scope, proposals, stale equivalent entries, caller gaps, coverage and workers |
 | `report` | the rows, the line for a run with no mutant, the JSON and the Stryker format |

@@ -27,6 +27,7 @@ const (
 type Settings struct {
 	Workers      int
 	ConfirmKills bool
+	ReuseVM      bool
 }
 
 type adapter struct {
@@ -40,11 +41,15 @@ func New(root string, settings Settings) language.Adapter {
 	projects := newProjects(root)
 	coverage := newCoverage(settings, projects)
 	matcher := astgrep.New(root)
+	runner := &runner{root: root, projects: projects, coverage: coverage, confirmKills: settings.ConfirmKills}
+	if settings.ReuseVM {
+		runner.vms = newVMs()
+	}
 	return &adapter{
 		sources:  newSourceFiles(root, matcher),
 		structs:  newStructDefaults(root, matcher),
 		coverage: coverage,
-		runner:   &runner{root: root, projects: projects, coverage: coverage, confirmKills: settings.ConfirmKills},
+		runner:   runner,
 	}
 }
 

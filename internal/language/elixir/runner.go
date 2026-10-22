@@ -23,6 +23,7 @@ type runner struct {
 	projects     *projects
 	coverage     *coverage
 	confirmKills bool
+	vms          *vms
 }
 
 func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, error) {
@@ -60,6 +61,13 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 		return mutant.Verdict{}, err
 	}
 
+	if r.vms != nil {
+		verdict, judged, err := r.inReusedVM(ctx, project, original, mutated, process.TestLimit(run.baseline))
+		if err != nil || judged {
+			return verdict, err
+		}
+	}
+
 	test := process.Command{
 		Program:   "elixir",
 		Arguments: append(testArguments(folder), "--max-failures", "1"),
@@ -79,6 +87,26 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 		again, err := test.Run(ctx)
 		return verdict(again, limit), err
 	})
+}
+
+// inReusedVM leaves a LIVED mutant to a new VM, because the reused VM started the application before the mutant
+// loaded, so a mutant of the code that starts the application has no effect there.
+func (r *runner) inReusedVM(ctx context.Context, project project, original, mutated string, limit time.Duration) (mutant.Verdict, bool, error) {
+	verdict, judged, err := r.vms.test(ctx, project, original, mutated, limit)
+	if err != nil || !judged || verdict.Status == mutant.Lived {
+		return mutant.Verdict{}, false, err
+	}
+	if !r.confirmKills {
+		return verdict, true, nil
+	}
+	verdict, err = mutant.ConfirmKill(ctx, verdict, func(ctx context.Context) (mutant.Verdict, error) {
+		again, judged, err := r.vms.test(ctx, project, original, mutated, limit)
+		if !judged {
+			return mutant.Verdict{Status: mutant.Killed}, err
+		}
+		return again, err
+	})
+	return verdict, true, err
 }
 
 func verdict(tested process.Exit, limit time.Duration) mutant.Verdict {

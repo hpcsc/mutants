@@ -54,7 +54,10 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
-	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, 1), configured.pythonSettings(1), configured.elixirSettings(1), cmd.Root().ErrWriter)
+	// a reused VM loads the tests for many mutants, and rerun tests one
+	elixirSettings := configured.elixirSettings(1)
+	elixirSettings.ReuseVM = false
+	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, 1), configured.pythonSettings(1), elixirSettings, cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
