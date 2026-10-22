@@ -372,6 +372,8 @@ go:
   exclude_types: [Fake*]
 python:
   command: [uv, run, python]
+elixir:
+  confirm_kills: true
 ```
 
 | Key | Does |
@@ -383,6 +385,7 @@ python:
 | `caller_gaps` | `true` looks for caller gaps in each run, as `--caller-gaps` |
 | `go.tags` | the build tags, as `--tags` |
 | `python.command` | the command that starts the Python of a project, in the folder of the project. See [Python](#python). |
+| `elixir.confirm_kills` | `true` runs the tests of a mutant again after a kill, as in Go and Python, and gives UNSTABLE when they pass. It is off by default, because each second run starts a new VM. See [Elixir](#elixir). |
 | `go.zero_functions` | the functions that return the zero value of their type, as `package.Function`. `NAMED_VALUE_REMOVE` skips a field or a map entry whose value is a call of one of them, and `RETURN_EMPTY` skips a struct literal whose fields are all such calls, because the change gives the same value. Use the name of the package, not its path. |
 | `go.exclude_types` | the types that get no mutant, as globs of the name of the type, such as `Fake*`. A method of such a type, and a function that returns one, get no mutant. Use it for the fakes that live in a file that is not a test file, so that the tests of other packages can use them. |
 
@@ -554,8 +557,11 @@ exits 0. Write it in `.mutants/equivalent.yml`, with the reason:
   lines that no test runs. Each other mutant runs each test of its project, and stops at the first failure.
   An alias for `test` in `mix.exs`, such as one that creates the database, runs as it does for `mix test`.
 - **The database.** The workers run the tests of more than one mutant at the same time, against the same test
-  database. When the tests of a project cannot run two times at the same time, use `--workers 1`. A test that
-  fails only when another worker uses the database gives UNSTABLE, because it passes when it runs again.
+  database. When the tests of a project cannot run two times at the same time, use `--workers 1`. With
+  `elixir.confirm_kills: true`, a test that fails only when another worker uses the database gives UNSTABLE,
+  because it passes when it runs again.
+- **One run of a kill.** A kill does not run the tests again, unless `elixir.confirm_kills` is `true`. Each
+  run starts a new VM, which costs about 2 s on a Phoenix app, so the second run makes a run much longer.
 - **One order.** `mutants` runs the tests with `--seed 0`, so the tests run in the same order in each run.
 - **Limits.** A mutant of a macro, a guard or the defaults of a struct gets no row: a module that uses them
   keeps the code that it got when it compiled. A program that a test starts through a port, such as with

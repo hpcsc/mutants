@@ -684,7 +684,7 @@ sequenceDiagram
             R-->>W: TIMED OUT
         else mix test exits
             M-->>R: exit code and output
-            opt a test failed
+            opt a test failed, and elixir.confirm_kills is true
                 R->>T: the same command again, with the same limit
             end
             R-->>W: KILLED, LIVED, UNSTABLE or INFRA ERROR
@@ -816,7 +816,7 @@ The load of the host can grow after the baseline. A mutant that runs past its li
 time with twice the limit, and it is TIMED OUT only when the second run also runs past the limit.
 
 A mutant whose tests fail runs its tests one more time, with the limit of the run that failed. It is KILLED
-only when the second run does not pass.
+only when the second run does not pass. In Elixir, this second run happens only with `elixir.confirm_kills`.
 
 At the `--limit` of the whole run, `mutants` stops the workers, writes the rows that it has, and exits 124.
 At SIGINT or SIGTERM, it stops the workers and exits 130.
@@ -1181,6 +1181,11 @@ failure gives KILLED, and a false KILLED hides a gap in the tests. The second ru
 KILLED mutant: in Go, only a run of the test binary, which is built already, and in Python and Elixir, the whole
 command. The second run runs the same tests in the same order, not only the test that failed, because a mutant can
 make a test fail only after an earlier test changed the state.
+
+**Why the Elixir runner runs a kill once by default.** Each run of the Elixir runner starts a new VM. On a Phoenix
+app with 94 tests, the start took 2.0 s to 2.2 s, and the tests of a killed mutant 0.55 s. On five files of that
+app, the second run used 60 % to 80 % more CPU, and no mutant was UNSTABLE. So the second run is off unless
+`elixir.confirm_kills` is `true`.
 
 **Why an equivalent mutant still runs.** The entry is a claim. When a later test kills the mutant, the run
 shows KILLED, and the claim was wrong. A run that skipped the mutant shows nothing.

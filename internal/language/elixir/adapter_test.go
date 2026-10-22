@@ -489,7 +489,18 @@ end
 			require.Equal(t, mutant.Verdict{Status: mutant.Killed, Detail: "test edge (Shop.DiscountTest), test/shop/discount_test.exs:8"}, verdict)
 		})
 
-		t.Run("a mutant whose tests fail and then pass when they run again is UNSTABLE, with the failure as the detail", func(t *testing.T) {
+		t.Run("with confirm kills, a mutant whose tests fail and then pass when they run again is UNSTABLE, with the failure as the detail", func(t *testing.T) {
+			t.Setenv("MUTANTS_TEST_COUNTER", filepath.Join(t.TempDir(), "counter"))
+			root := newProject(t, shop(map[string]string{"test/shop/second_run_test.exs": secondRunFailsTest}))
+			m := mutantOf(t, root, "lib/shop/discount.ex", "else\n      0", "else\n      0 * 2")
+
+			verdict, err := elixir.New(root, elixir.Settings{Workers: 2, ConfirmKills: true}).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Verdict{Status: mutant.Unstable, Detail: "a test failed, and passed when the tests ran again: test second run (Shop.SecondRunTest), test/shop/second_run_test.exs:4"}, verdict)
+		})
+
+		t.Run("without confirm kills, a mutant whose tests fail one time is KILLED, because the tests do not run again", func(t *testing.T) {
 			t.Setenv("MUTANTS_TEST_COUNTER", filepath.Join(t.TempDir(), "counter"))
 			root := newProject(t, shop(map[string]string{"test/shop/second_run_test.exs": secondRunFailsTest}))
 			m := mutantOf(t, root, "lib/shop/discount.ex", "else\n      0", "else\n      0 * 2")
@@ -497,7 +508,7 @@ end
 			verdict, err := newAdapter(root).Runner().Run(context.Background(), m)
 
 			require.NoError(t, err)
-			require.Equal(t, mutant.Verdict{Status: mutant.Unstable, Detail: "a test failed, and passed when the tests ran again: test second run (Shop.SecondRunTest), test/shop/second_run_test.exs:4"}, verdict)
+			require.Equal(t, mutant.Verdict{Status: mutant.Killed, Detail: "test second run (Shop.SecondRunTest), test/shop/second_run_test.exs:4"}, verdict)
 		})
 
 		t.Run("a mutant that each test passes LIVED", func(t *testing.T) {

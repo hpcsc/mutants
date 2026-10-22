@@ -25,7 +25,8 @@ const (
 )
 
 type Settings struct {
-	Workers int
+	Workers      int
+	ConfirmKills bool
 }
 
 type adapter struct {
@@ -43,7 +44,7 @@ func New(root string, settings Settings) language.Adapter {
 		sources:  newSourceFiles(root, matcher),
 		structs:  newStructDefaults(root, matcher),
 		coverage: coverage,
-		runner:   &runner{root: root, projects: projects, coverage: coverage},
+		runner:   &runner{root: root, projects: projects, coverage: coverage, confirmKills: settings.ConfirmKills},
 	}
 }
 

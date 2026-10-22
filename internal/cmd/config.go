@@ -33,6 +33,7 @@ type config struct {
 	CallerGaps bool         `yaml:"caller_gaps"`
 	Go         goConfig     `yaml:"go"`
 	Python     pythonConfig `yaml:"python"`
+	Elixir     elixirConfig `yaml:"elixir"`
 }
 
 type goConfig struct {
@@ -43,6 +44,10 @@ type goConfig struct {
 
 type pythonConfig struct {
 	Command []string `yaml:"command"`
+}
+
+type elixirConfig struct {
+	ConfirmKills bool `yaml:"confirm_kills"`
 }
 
 func repositoryConfig(ctx context.Context, repository *diff.Repository, stderr io.Writer) (config, error) {
@@ -181,5 +186,5 @@ func (c config) pythonSettings(workers int) python.Settings {
 }
 
 func (c config) elixirSettings(workers int) elixir.Settings {
-	return elixir.Settings{Workers: workers}
+	return elixir.Settings{Workers: workers, ConfirmKills: c.Elixir.ConfirmKills}
 }

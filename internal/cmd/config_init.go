@@ -103,7 +103,11 @@ func configTemplate(base string, tags map[string]int) string {
 
 	text.WriteString("# The settings of Python.\npython:\n")
 	text.WriteString("  # The command that starts the Python of a project, in the folder of the project. The default is\n" +
-		"  # .venv/bin/python of the project when it exists, and python3 when it does not.\n  # command: [uv, run, python]\n")
+		"  # .venv/bin/python of the project when it exists, and python3 when it does not.\n  # command: [uv, run, python]\n\n")
+
+	text.WriteString("# The settings of Elixir.\nelixir:\n")
+	text.WriteString("  # true runs the tests of a mutant again after a kill, and gives UNSTABLE when they pass. Each second\n" +
+		"  # run starts a new VM, so it is off by default.\n  # confirm_kills: false\n")
 	return text.String()
 }
 

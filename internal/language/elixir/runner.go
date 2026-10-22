@@ -19,9 +19,10 @@ const exitNotCompiled = 97
 var failedTest = regexp.MustCompile(`^\s*\d+\) (.+)$`)
 
 type runner struct {
-	root     string
-	projects *projects
-	coverage *coverage
+	root         string
+	projects     *projects
+	coverage     *coverage
+	confirmKills bool
 }
 
 func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, error) {
@@ -69,6 +70,9 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	tested, limit, err := test.RunAgainAfterTimeout(ctx)
 	if err != nil {
 		return mutant.Verdict{}, err
+	}
+	if !r.confirmKills {
+		return verdict(tested, limit), nil
 	}
 	return mutant.ConfirmKill(ctx, verdict(tested, limit), func(ctx context.Context) (mutant.Verdict, error) {
 		test.Limit = limit

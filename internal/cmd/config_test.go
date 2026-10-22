@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func TestConfig(t *testing.T) {
 		t.Run("reads each setting of .mutants.yml", func(t *testing.T) {
 			root := t.TempDir()
 			content := "base: origin/main\nworkers: 2\noperators: [-ERROR_CAUSE_REMOVE]\nexclude: [\"**/*_gen.go\", \"vendor/**\"]\ncaller_gaps: true\n" +
-				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\n  exclude_types: [Fake*]\npython:\n  command: [uv, run, python]\n"
+				"go:\n  tags: [unit]\n  zero_functions: [maybe.None]\n  exclude_types: [Fake*]\npython:\n  command: [uv, run, python]\nelixir:\n  confirm_kills: true\n"
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(content), 0o644))
 
 			loaded, err := loadConfig(root, t.TempDir(), io.Discard)
@@ -46,6 +47,7 @@ func TestConfig(t *testing.T) {
 				CallerGaps: true,
 				Go:         goConfig{Tags: []string{"unit"}, ZeroFunctions: []string{"maybe.None"}, ExcludeTypes: []string{"Fake*"}},
 				Python:     pythonConfig{Command: []string{"uv", "run", "python"}},
+				Elixir:     elixirConfig{ConfirmKills: true},
 			}, loaded)
 		})
 
@@ -62,7 +64,7 @@ func TestConfig(t *testing.T) {
 
 			_, err := loadConfig(root, t.TempDir(), io.Discard)
 
-			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, operators, exclude, caller_gaps, go, python")
+			require.EqualError(t, err, "unknown key workerz in .mutants.yml (line 2): the keys are base, workers, operators, exclude, caller_gaps, go, python, elixir")
 		})
 
 		t.Run("an unknown key of a language returns an error that names it with its language, its line and the keys of the language", func(t *testing.T) {
@@ -179,7 +181,7 @@ func TestConfig(t *testing.T) {
 				for _, key := range keysOf(reflect.TypeFor[config]()) {
 					require.True(t, strings.Contains(text, "\n"+key+":") || strings.Contains(text, "\n# "+key+":"), key)
 				}
-				for _, key := range append(keysOf(reflect.TypeFor[goConfig]()), keysOf(reflect.TypeFor[pythonConfig]())...) {
+				for _, key := range slices.Concat(keysOf(reflect.TypeFor[goConfig]()), keysOf(reflect.TypeFor[pythonConfig]()), keysOf(reflect.TypeFor[elixirConfig]())) {
 					require.True(t, strings.Contains(text, "\n  "+key+":") || strings.Contains(text, "\n  # "+key+":"), key)
 				}
 			})
@@ -193,7 +195,7 @@ func TestConfig(t *testing.T) {
 
 		t.Run("each commented setting loads when it is uncommented, and a commented default is the real default", func(t *testing.T) {
 			root := t.TempDir()
-			keys := append(append(keysOf(reflect.TypeFor[config]()), keysOf(reflect.TypeFor[goConfig]())...), keysOf(reflect.TypeFor[pythonConfig]())...)
+			keys := slices.Concat(keysOf(reflect.TypeFor[config]()), keysOf(reflect.TypeFor[goConfig]()), keysOf(reflect.TypeFor[pythonConfig]()), keysOf(reflect.TypeFor[elixirConfig]()))
 			commented := regexp.MustCompile(`(?m)^( *)# (` + strings.Join(keys, "|") + `): `)
 			text := commented.ReplaceAllString(configTemplate("", nil), "$1$2: ")
 			require.NoError(t, os.WriteFile(filepath.Join(root, ".mutants.yml"), []byte(text), 0o644))
@@ -205,6 +207,7 @@ func TestConfig(t *testing.T) {
 			require.Equal(t, config{}.base(command), loaded.base(command))
 			require.Equal(t, config{}.workers(command), loaded.workers(command))
 			require.Equal(t, config{}.callerGaps(command), loaded.callerGaps(command))
+			require.Equal(t, config{}.elixirSettings(4), loaded.elixirSettings(4))
 		})
 	})
 
