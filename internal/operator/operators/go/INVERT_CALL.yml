@@ -1,0 +1,279 @@
+id: INVERT_CALL/strings-has-prefix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.HasPrefix$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.HasSuffix
+---
+id: INVERT_CALL/strings-has-suffix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.HasSuffix$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.HasPrefix
+---
+id: INVERT_CALL/strings-trim-prefix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.TrimPrefix$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.TrimSuffix
+---
+id: INVERT_CALL/strings-trim-suffix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.TrimSuffix$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.TrimPrefix
+---
+id: INVERT_CALL/strings-trim-left
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.TrimLeft$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.TrimRight
+---
+id: INVERT_CALL/strings-trim-right
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.TrimRight$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.TrimLeft
+---
+id: INVERT_CALL/strings-to-upper
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.ToUpper$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.ToLower
+---
+id: INVERT_CALL/strings-to-lower
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.ToLower$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.ToUpper
+---
+id: INVERT_CALL/strings-index
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.Index$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.LastIndex
+---
+id: INVERT_CALL/strings-last-index
+language: go
+rule:
+  kind: selector_expression
+  regex: ^strings\.LastIndex$
+  inside:
+    kind: call_expression
+    field: function
+fix: strings.Index
+---
+id: INVERT_CALL/bytes-has-prefix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.HasPrefix$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.HasSuffix
+---
+id: INVERT_CALL/bytes-has-suffix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.HasSuffix$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.HasPrefix
+---
+id: INVERT_CALL/bytes-trim-prefix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.TrimPrefix$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.TrimSuffix
+---
+id: INVERT_CALL/bytes-trim-suffix
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.TrimSuffix$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.TrimPrefix
+---
+id: INVERT_CALL/bytes-trim-left
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.TrimLeft$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.TrimRight
+---
+id: INVERT_CALL/bytes-trim-right
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.TrimRight$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.TrimLeft
+---
+id: INVERT_CALL/bytes-to-upper
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.ToUpper$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.ToLower
+---
+id: INVERT_CALL/bytes-to-lower
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.ToLower$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.ToUpper
+---
+id: INVERT_CALL/bytes-index
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.Index$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.LastIndex
+---
+id: INVERT_CALL/bytes-last-index
+language: go
+rule:
+  kind: selector_expression
+  regex: ^bytes\.LastIndex$
+  inside:
+    kind: call_expression
+    field: function
+fix: bytes.Index
+---
+id: INVERT_CALL/slices-min
+language: go
+rule:
+  kind: selector_expression
+  regex: ^slices\.Min$
+  inside:
+    kind: call_expression
+    field: function
+fix: slices.Max
+---
+id: INVERT_CALL/slices-max
+language: go
+rule:
+  kind: selector_expression
+  regex: ^slices\.Max$
+  inside:
+    kind: call_expression
+    field: function
+fix: slices.Min
+---
+id: INVERT_CALL/slices-min-func
+language: go
+rule:
+  kind: selector_expression
+  regex: ^slices\.MinFunc$
+  inside:
+    kind: call_expression
+    field: function
+fix: slices.MaxFunc
+---
+id: INVERT_CALL/slices-max-func
+language: go
+rule:
+  kind: selector_expression
+  regex: ^slices\.MaxFunc$
+  inside:
+    kind: call_expression
+    field: function
+fix: slices.MinFunc
+---
+id: INVERT_CALL/math-min
+language: go
+rule:
+  kind: selector_expression
+  regex: ^math\.Min$
+  inside:
+    kind: call_expression
+    field: function
+fix: math.Max
+---
+id: INVERT_CALL/math-max
+language: go
+rule:
+  kind: selector_expression
+  regex: ^math\.Max$
+  inside:
+    kind: call_expression
+    field: function
+fix: math.Min
+---
+id: INVERT_CALL/min
+language: go
+rule:
+  kind: identifier
+  regex: ^min$
+  inside:
+    kind: call_expression
+    field: function
+fix: max
+---
+id: INVERT_CALL/max
+language: go
+rule:
+  kind: identifier
+  regex: ^max$
+  inside:
+    kind: call_expression
+    field: function
+fix: min

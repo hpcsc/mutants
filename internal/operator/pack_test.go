@@ -483,6 +483,15 @@ func TestPack(t *testing.T) {
 			require.Equal(t, []string{"a && b -> a || b", "a || b -> a && b"}, edits)
 		})
 
+		t.Run("INVERT_CALL changes a call of the standard library to its opposite, and skips a declaration and a method of the same name", func(t *testing.T) {
+			source := "package a\n\nimport (\n\t\"slices\"\n\t\"strings\"\n)\n\nfunc min(a, b int) int { return a }\n\n" +
+				"func f(s string, xs []int, r *strings.Replacer) []any {\n\treturn []any{strings.HasPrefix(s, \"a\"), slices.Max(xs), max(1, 2), r.Replace(s), strings.Repeat(s, 2)}\n}\n"
+
+			edits := editsOf(t, "INVERT_CALL", source)
+
+			require.Equal(t, []string{"strings.HasPrefix -> strings.HasSuffix", "slices.Max -> slices.Min", "max -> min"}, edits)
+		})
+
 		t.Run("INVERT_NEGATIVES removes the minus of a negative value, and skips a subtraction", func(t *testing.T) {
 			edits := editsOf(t, "INVERT_NEGATIVES", "package a\n\nfunc f(a, b int) int { return -a + (a - b) * -1 }\n")
 
@@ -774,6 +783,14 @@ func TestPack(t *testing.T) {
 			require.ElementsMatch(t, []string{"a and b -> True and b", "a and b -> a and True", "a or b -> False or b", "a or b -> a or False"}, edits)
 		})
 
+		t.Run("INVERT_CALL changes a builtin or a method of a string to its opposite, and skips a definition of the same name", func(t *testing.T) {
+			source := "def max(a, b):\n    return a\n\n\ndef f(s, xs):\n    return [min(xs), all(xs), s.startswith(\"a\"), s.lstrip(), s.split()]\n"
+
+			edits := pythonEditsOf(t, "INVERT_CALL", source)
+
+			require.Equal(t, []string{"min -> max", "all -> any", "startswith -> endswith", "lstrip -> rstrip"}, edits)
+		})
+
 		t.Run("INVERT_NEGATIVES removes the minus of a negative value, also of an index, and skips a subtraction", func(t *testing.T) {
 			edits := pythonEditsOf(t, "INVERT_NEGATIVES", "def f(a, b, xs):\n    return -a + (a - b) * xs[-1]\n")
 
@@ -998,6 +1015,14 @@ func TestPack(t *testing.T) {
 				"a and b -> true and b", "a and b -> a and true", "a or b -> false or b", "a or b -> a or false",
 				"a && b -> true && b", "a && b -> a && true", "a || b -> false || b", "a || b -> a || false",
 			}, edits)
+		})
+
+		t.Run("INVERT_CALL changes a call of Enum, Stream, List or String to its opposite, also in a pipe, and skips a capture", func(t *testing.T) {
+			source := "def f(xs, s) do\n  [xs |> Enum.filter(&keep?/1), Enum.any?(xs), List.first(xs), String.starts_with?(s, \"a\"), Enum.map(xs, &f/1), &Enum.take/2]\nend\n"
+
+			edits := elixirEditsOf(t, "INVERT_CALL", source)
+
+			require.Equal(t, []string{"Enum.filter -> Enum.reject", "Enum.any? -> Enum.all?", "List.first -> List.last", "String.starts_with? -> String.ends_with?"}, edits)
 		})
 
 		t.Run("INVERT_NEGATIVES removes the minus of a negative value, and skips a subtraction and the size of a bitstring segment", func(t *testing.T) {

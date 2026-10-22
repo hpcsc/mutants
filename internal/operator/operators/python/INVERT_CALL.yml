@@ -1,0 +1,169 @@
+id: INVERT_CALL/min
+language: python
+rule:
+  kind: identifier
+  regex: ^min$
+  inside:
+    kind: call
+    field: function
+fix: max
+---
+id: INVERT_CALL/max
+language: python
+rule:
+  kind: identifier
+  regex: ^max$
+  inside:
+    kind: call
+    field: function
+fix: min
+---
+id: INVERT_CALL/any
+language: python
+rule:
+  kind: identifier
+  regex: ^any$
+  inside:
+    kind: call
+    field: function
+fix: all
+---
+id: INVERT_CALL/all
+language: python
+rule:
+  kind: identifier
+  regex: ^all$
+  inside:
+    kind: call
+    field: function
+fix: any
+---
+id: INVERT_CALL/startswith
+language: python
+rule:
+  kind: identifier
+  regex: ^startswith$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: endswith
+---
+id: INVERT_CALL/endswith
+language: python
+rule:
+  kind: identifier
+  regex: ^endswith$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: startswith
+---
+id: INVERT_CALL/lstrip
+language: python
+rule:
+  kind: identifier
+  regex: ^lstrip$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: rstrip
+---
+id: INVERT_CALL/rstrip
+language: python
+rule:
+  kind: identifier
+  regex: ^rstrip$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: lstrip
+---
+id: INVERT_CALL/upper
+language: python
+rule:
+  kind: identifier
+  regex: ^upper$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: lower
+---
+id: INVERT_CALL/lower
+language: python
+rule:
+  kind: identifier
+  regex: ^lower$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: upper
+---
+id: INVERT_CALL/removeprefix
+language: python
+rule:
+  kind: identifier
+  regex: ^removeprefix$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: removesuffix
+---
+id: INVERT_CALL/removesuffix
+language: python
+rule:
+  kind: identifier
+  regex: ^removesuffix$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: removeprefix
+---
+id: INVERT_CALL/find
+language: python
+rule:
+  kind: identifier
+  regex: ^find$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: rfind
+---
+id: INVERT_CALL/rfind
+language: python
+rule:
+  kind: identifier
+  regex: ^rfind$
+  inside:
+    kind: attribute
+    field: attribute
+    inside:
+      kind: call
+      field: function
+fix: find

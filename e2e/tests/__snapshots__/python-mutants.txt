@@ -136,3 +136,11 @@ shop/order.py:stamp:RETURN_EMPTY#1 75:16 NOT COVERED
   "\"new\"" -> "\"\""
 shop/order.py:stamp:RETURN_EMPTY#2 76:12 NOT COVERED
   "\"old\"" -> "\"\""
+shop/order.py:tagged:RETURN_EMPTY#1 80:12 NOT COVERED
+  "name.startswith(\"#\")" -> "False"
+shop/order.py:tagged:RETURN_TRUE#1 80:12 NOT COVERED
+  "name.startswith(\"#\")" -> "True"
+shop/order.py:tagged:INVERT_CALL#1 80:17 NOT COVERED
+  "startswith" -> "endswith"
+shop/order.py:tagged:ARGUMENT_EMPTY#1 80:28 NOT COVERED
+  "\"#\"" -> "None"

@@ -294,6 +294,7 @@ The Go pack for v1:
 | `RETURN_TRUE` | a bool return value to `true` | `go/types` finds the bool slot; `RETURN_EMPTY` already makes it `false` |
 | `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `n` to `(n+1)`, `(n-1)` | a limit of a comparison of integers moves only to the side that `CONDITIONALS_BOUNDARY` does not test |
 | `INVERT_NEGATIVES` | `-x` to `x` | |
+| `INVERT_CALL` | `strings.HasPrefix` to `strings.HasSuffix`, `strings.TrimLeft` to `strings.TrimRight`, `strings.Index` to `strings.LastIndex`, `slices.Min` to `slices.Max`, `math.Min` to `math.Max`, `min` to `max`, the same calls of `bytes`, and the reverse of each | a filter or a search that each test passes with either call |
 | `BREAK_AT_START` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
 | `NAMED_VALUE_SWAP` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |

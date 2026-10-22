@@ -45,6 +45,7 @@ var catalog = Catalog{
 	"INCREMENT_DECREMENT":   {Tier: Required},
 	"INTEGER_DECREMENT":     {Tier: Required},
 	"INTEGER_INCREMENT":     {Tier: Required},
+	"INVERT_CALL":           {Tier: Required},
 	"INVERT_LOGICAL":        {Tier: Required},
 	"INVERT_NEGATIVES":      {Tier: Required},
 	"NAMED_VALUE_REMOVE":    {Tier: Required},

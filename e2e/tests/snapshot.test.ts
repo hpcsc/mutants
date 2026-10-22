@@ -107,6 +107,10 @@ var labels = map[string]string{
 	"even": "Even",
 	"odd":  "",
 }
+
+func Larger(a, b int) int {
+	return max(a, b)
+}
 `
 
 const pythonShop = `import logging
@@ -185,6 +189,10 @@ def stamp() -> str:
     if sys.version_info >= (3, 14):
         return "new"
     return "old"
+
+
+def tagged(name: str) -> bool:
+    return name.startswith("#")
 `
 
 const elixirShop = `defmodule Shop.Order do
@@ -261,6 +269,8 @@ const elixirShop = `defmodule Shop.Order do
     if ready, do: send(pid, :done)
     :ok
   end
+
+  def tagged(names), do: Enum.filter(names, fn name -> String.starts_with?(name, "#") end)
 end
 `
 

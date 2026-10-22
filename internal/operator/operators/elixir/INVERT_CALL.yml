@@ -1,0 +1,279 @@
+id: INVERT_CALL/enum-all
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.all\?$
+  inside:
+    kind: call
+    field: target
+fix: Enum.any?
+---
+id: INVERT_CALL/enum-any
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.any\?$
+  inside:
+    kind: call
+    field: target
+fix: Enum.all?
+---
+id: INVERT_CALL/enum-filter
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.filter$
+  inside:
+    kind: call
+    field: target
+fix: Enum.reject
+---
+id: INVERT_CALL/enum-reject
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.reject$
+  inside:
+    kind: call
+    field: target
+fix: Enum.filter
+---
+id: INVERT_CALL/enum-take
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.take$
+  inside:
+    kind: call
+    field: target
+fix: Enum.drop
+---
+id: INVERT_CALL/enum-drop
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.drop$
+  inside:
+    kind: call
+    field: target
+fix: Enum.take
+---
+id: INVERT_CALL/enum-take-while
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.take_while$
+  inside:
+    kind: call
+    field: target
+fix: Enum.drop_while
+---
+id: INVERT_CALL/enum-drop-while
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.drop_while$
+  inside:
+    kind: call
+    field: target
+fix: Enum.take_while
+---
+id: INVERT_CALL/enum-max
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.max$
+  inside:
+    kind: call
+    field: target
+fix: Enum.min
+---
+id: INVERT_CALL/enum-min
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.min$
+  inside:
+    kind: call
+    field: target
+fix: Enum.max
+---
+id: INVERT_CALL/enum-max-by
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.max_by$
+  inside:
+    kind: call
+    field: target
+fix: Enum.min_by
+---
+id: INVERT_CALL/enum-min-by
+language: elixir
+rule:
+  kind: dot
+  regex: ^Enum\.min_by$
+  inside:
+    kind: call
+    field: target
+fix: Enum.max_by
+---
+id: INVERT_CALL/stream-filter
+language: elixir
+rule:
+  kind: dot
+  regex: ^Stream\.filter$
+  inside:
+    kind: call
+    field: target
+fix: Stream.reject
+---
+id: INVERT_CALL/stream-reject
+language: elixir
+rule:
+  kind: dot
+  regex: ^Stream\.reject$
+  inside:
+    kind: call
+    field: target
+fix: Stream.filter
+---
+id: INVERT_CALL/stream-take
+language: elixir
+rule:
+  kind: dot
+  regex: ^Stream\.take$
+  inside:
+    kind: call
+    field: target
+fix: Stream.drop
+---
+id: INVERT_CALL/stream-drop
+language: elixir
+rule:
+  kind: dot
+  regex: ^Stream\.drop$
+  inside:
+    kind: call
+    field: target
+fix: Stream.take
+---
+id: INVERT_CALL/stream-take-while
+language: elixir
+rule:
+  kind: dot
+  regex: ^Stream\.take_while$
+  inside:
+    kind: call
+    field: target
+fix: Stream.drop_while
+---
+id: INVERT_CALL/stream-drop-while
+language: elixir
+rule:
+  kind: dot
+  regex: ^Stream\.drop_while$
+  inside:
+    kind: call
+    field: target
+fix: Stream.take_while
+---
+id: INVERT_CALL/list-first
+language: elixir
+rule:
+  kind: dot
+  regex: ^List\.first$
+  inside:
+    kind: call
+    field: target
+fix: List.last
+---
+id: INVERT_CALL/list-last
+language: elixir
+rule:
+  kind: dot
+  regex: ^List\.last$
+  inside:
+    kind: call
+    field: target
+fix: List.first
+---
+id: INVERT_CALL/string-upcase
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.upcase$
+  inside:
+    kind: call
+    field: target
+fix: String.downcase
+---
+id: INVERT_CALL/string-downcase
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.downcase$
+  inside:
+    kind: call
+    field: target
+fix: String.upcase
+---
+id: INVERT_CALL/string-starts-with
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.starts_with\?$
+  inside:
+    kind: call
+    field: target
+fix: String.ends_with?
+---
+id: INVERT_CALL/string-ends-with
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.ends_with\?$
+  inside:
+    kind: call
+    field: target
+fix: String.starts_with?
+---
+id: INVERT_CALL/string-trim-leading
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.trim_leading$
+  inside:
+    kind: call
+    field: target
+fix: String.trim_trailing
+---
+id: INVERT_CALL/string-trim-trailing
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.trim_trailing$
+  inside:
+    kind: call
+    field: target
+fix: String.trim_leading
+---
+id: INVERT_CALL/string-pad-leading
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.pad_leading$
+  inside:
+    kind: call
+    field: target
+fix: String.pad_trailing
+---
+id: INVERT_CALL/string-pad-trailing
+language: elixir
+rule:
+  kind: dot
+  regex: ^String\.pad_trailing$
+  inside:
+    kind: call
+    field: target
+fix: String.pad_leading
