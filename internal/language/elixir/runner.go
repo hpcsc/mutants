@@ -98,7 +98,7 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 // VM, because the reused VM did both before the mutant loaded.
 func (r *runner) inReusedVM(ctx context.Context, project project, original, mutated string, limit time.Duration) (mutant.Verdict, bool, error) {
 	first, judged, err := r.vms.test(ctx, project, original, mutated, limit)
-	if err != nil || !judged || first.verdict.Status == mutant.Lived && first.loadedBeforeTests {
+	if err != nil || !judged || first.needsNewVM() {
 		return mutant.Verdict{}, false, err
 	}
 	if !r.confirmKills {

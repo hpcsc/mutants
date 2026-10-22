@@ -655,6 +655,29 @@ end
 			require.Equal(t, mutant.Killed, verdict.Status, verdict.Detail)
 		})
 
+		t.Run("in a reused VM, a mutant that a new VM checks stops the reused VM first, so the run holds no more VMs than workers", func(t *testing.T) {
+			pids := filepath.Join(t.TempDir(), "pids")
+			t.Setenv("MUTANTS_TEST_PIDS", pids)
+			root := newProject(t, shop(map[string]string{
+				"test/shop/pid_test.exs": pidTest,
+				"mix.exs": "defmodule Shop.MixProject do\n  use Mix.Project\n\n  def project, do: [app: :shop, version: \"0.1.0\", deps: []]\n\n" +
+					"  def application, do: [mod: {Shop.Application, []}]\nend\n",
+				"lib/shop/application.ex": "defmodule Shop.Application do\n  use Application\n\n  def start(_type, _args) do\n" +
+					"    Supervisor.start_link([%{id: Shop.Limit, start: {Agent, :start_link, [fn -> 100 end, [name: Shop.Limit]]}}], strategy: :one_for_one)\n  end\nend\n",
+			}))
+			runner := elixir.New(root, elixir.Settings{Workers: 1, ReuseVM: true}).Runner()
+
+			for _, m := range []mutant.Mutant{
+				mutantOf(t, root, "lib/shop/application.ex", "fn -> 100 end", "fn -> 101 end"),
+				mutantOf(t, root, "lib/shop/discount.ex", "total >= @limit", "total > @limit"),
+			} {
+				_, err := runner.Run(context.Background(), m)
+				require.NoError(t, err)
+			}
+
+			require.Equal(t, 4, vmsOf(t, pids), "the coverage run, the first reused VM, the new VM that checks the first mutant, and the reused VM of the second mutant")
+		})
+
 		t.Run("a mutant of the code that starts the application is KILLED, because the mutant loads before the application starts", func(t *testing.T) {
 			application := `defmodule Shop.Application do
   use Application

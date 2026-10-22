@@ -40,6 +40,10 @@ type vmVerdict struct {
 	loadedBeforeTests bool
 }
 
+func (v vmVerdict) needsNewVM() bool {
+	return v.verdict.Status == mutant.Lived && v.loadedBeforeTests
+}
+
 // vm must test one mutant at a time, because the code server holds one version of a module.
 type vm struct {
 	command *exec.Cmd
@@ -64,27 +68,29 @@ func (p *vms) test(ctx context.Context, project project, original, mutated strin
 		return vmVerdict{}, false, ctx.Err()
 	}
 	reply, answered := v.test(ctx, original, mutated, limit)
-	switch {
-	case ctx.Err() != nil:
+	if ctx.Err() != nil || !answered {
 		v.stop()
 		return vmVerdict{}, false, ctx.Err()
-	case !answered:
-		v.stop()
-		return vmVerdict{}, false, nil
-	case reply.Restart:
-		v.stop()
-	default:
-		p.give(project, v)
 	}
+	var judged vmVerdict
 	switch reply.Status {
 	case "killed":
-		return vmVerdict{verdict: mutant.Verdict{Status: mutant.Killed, Detail: reply.Detail}}, true, nil
+		judged = vmVerdict{verdict: mutant.Verdict{Status: mutant.Killed, Detail: reply.Detail}}
 	case "lived":
-		return vmVerdict{verdict: mutant.Verdict{Status: mutant.Lived}, loadedBeforeTests: reply.LoadedBeforeTests}, true, nil
+		judged = vmVerdict{verdict: mutant.Verdict{Status: mutant.Lived}, loadedBeforeTests: reply.LoadedBeforeTests}
 	case "not_compiled":
-		return vmVerdict{verdict: mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(reply.Detail)}}, true, nil
+		judged = vmVerdict{verdict: mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(reply.Detail)}}
+	default:
+		v.stop()
+		return vmVerdict{}, false, nil
 	}
-	return vmVerdict{}, false, nil
+	// the new VM opens its own pool of database connections, and the run must hold no more VMs than workers
+	if reply.Restart || judged.needsNewVM() {
+		v.stop()
+	} else {
+		p.give(project, v)
+	}
+	return judged, true, nil
 }
 
 func (p *vms) take(ctx context.Context, project project, limit time.Duration) *vm {
