@@ -46,11 +46,21 @@ type jsonCallerGap struct {
 	Callers  []string `json:"callers"`
 }
 
+type jsonStaleEquivalent struct {
+	File        string `json:"file"`
+	Line        int    `json:"line"`
+	ID          string `json:"id"`
+	Original    string `json:"original"`
+	Replacement string `json:"replacement"`
+	Reason      string `json:"reason"`
+}
+
 type jsonReport struct {
-	Base       string           `json:"base,omitempty"`
-	Mutants    []jsonMutant     `json:"mutants"`
-	Proposals  *jsonProposals   `json:"proposals,omitempty"`
-	CallerGaps *[]jsonCallerGap `json:"callerGaps,omitempty"`
+	Base             string                `json:"base,omitempty"`
+	Mutants          []jsonMutant          `json:"mutants"`
+	Proposals        *jsonProposals        `json:"proposals,omitempty"`
+	CallerGaps       *[]jsonCallerGap      `json:"callerGaps,omitempty"`
+	StaleEquivalents []jsonStaleEquivalent `json:"staleEquivalents,omitempty"`
 }
 
 func JSON(w io.Writer, outcome run.Outcome) error {
@@ -75,6 +85,16 @@ func JSON(w io.Writer, outcome run.Outcome) error {
 				Reason: rejection.Reason,
 			})
 		}
+	}
+	for _, entry := range outcome.StaleEquivalents.Entries {
+		report.StaleEquivalents = append(report.StaleEquivalents, jsonStaleEquivalent{
+			File:        outcome.StaleEquivalents.File,
+			Line:        entry.Line,
+			ID:          entry.ID.String(),
+			Original:    entry.Original,
+			Replacement: entry.Replacement,
+			Reason:      entry.Reason,
+		})
 	}
 	sorted := slices.SortedFunc(slices.Values(mutants), func(a, b mutant.Mutant) int {
 		return cmp.Or(cmp.Compare(a.File, b.File), cmp.Compare(a.Start, b.Start), cmp.Compare(a.ID.String(), b.ID.String()))

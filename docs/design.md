@@ -118,7 +118,8 @@ A blue border marks a step of the core. A green border marks ast-grep. An orange
    own package do not run, the tests of a changed caller can run it (see
    [Tests of a changed caller](#tests-of-a-changed-caller)). The other mutants are NOT COVERED, and they do
    not run.
-9. **Run.** The workers give each mutant to the runner of its language. The runner returns a status.
+9. **Run.** The workers give each mutant to the runner of its language. The runner returns a status. A LIVED
+   mutant that an entry of the list of [equivalent mutants](#equivalent-mutants) fits becomes EQUIVALENT.
 10. **Report.** It prints the rows, writes the files that the user asks for, and sets the exit code.
 
 ### Changed lines
@@ -438,6 +439,32 @@ On two reviewed commits of the measured monorepo, two AI agents read only the co
 proposed 8 mutants. On one commit 4 of 8 lived, and on the other 8 of 8 lived. Each commit had one survivor
 that a reviewer found by hand, and that no operator makes.
 
+### Equivalent mutants
+
+An equivalent mutant changes the code, but no test can see the change. Such a survivor stays in each run of the
+branch, so a run never exits 0, and an agent that runs `mutants` until exit 0 never stops. The other ways out
+act on all code of a shape: `--operators` takes out an operator, and a skip rule or `zero_functions` drops each
+edit of a pattern. They also drop real gaps.
+
+`.mutants/equivalent.yml`, or `mutants/equivalent.yml` in the shared git folder, lists single mutants:
+
+```yaml
+- id: shop/discount.go:Discount:RETURN_EMPTY#1
+  original: total
+  replacement: "0"
+  reason: no caller reads the discount of an empty order
+```
+
+- **The match.** An entry fits a mutant with the file, the function and the operator of its id, and the same
+  original and replacement, with each run of white space as one space. The number after `#` does not count.
+- **The status.** A LIVED mutant that an entry fits is EQUIVALENT, with the reason as its detail. It is not a
+  survivor. The mutant still runs, so a test that kills it gives KILLED.
+- **Stale entries.** The run keeps each mutant of a changed file before the scope. An entry whose file the
+  run read with the operator of the entry, and that fits none of these mutants, is stale. The rows and the
+  JSON report list it.
+- **A reason is required.** An entry says that no test can kill the mutant. A reviewer reads that claim in the
+  diff of the file, and the reason lets the reviewer check it.
+
 ### Caller gaps
 
 A change can wire new code of one package into another changed package, while the tests of the caller use a
@@ -732,6 +759,7 @@ flowchart TD
 | TIMED OUT | the tests ran past the limit | no |
 | INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past its limit. In Go, also tests that passed and wrote a file in the work tree. | no |
 | UNSTABLE | a test failed, and the same tests passed when they ran again | no |
+| EQUIVALENT | every test passed, and an entry of `.mutants/equivalent.yml` gives the reason why no test can kill the mutant | no |
 
 An INFRA ERROR and an UNSTABLE mutant have no verdict. A run with one and no survivor exits 1, not 0, so that a
 script that reads only the exit code does not take the run for a clean result. A NOT VIABLE mutant is no verdict either, but no run
@@ -810,7 +838,7 @@ coverage runs of different packages run at the same time, as many as there are w
 | --- | --- | --- |
 | `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors, caller gaps or rejected proposals, 1 no survivor but a mutant with no verdict, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
-| `mutants rerun ID` | runs one mutant again, with no cache. It takes the id with or without the `[ ]` of a row. When the tests fail with the real code, its last line is `NO VERDICT: ...`. | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, an unknown id, or an error before the mutant runs |
+| `mutants rerun ID` | runs one mutant again, with no cache. It takes the id with or without the `[ ]` of a row. When the tests fail with the real code, its last line is `NO VERDICT: ...`. | 0 killed or equivalent, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, an unknown id, or an error before the mutant runs |
 | `mutants operators` | lists the operators and their rules | 0 |
 | `mutants config init` | writes a first `.mutants.yml`, with the default branch of origin and the build tags of the tests | 0 written, 2 the file exists |
 | `mutants version` | prints the tag of the binary, or its commit when it has no tag | 0 |
@@ -845,6 +873,10 @@ twice. The last line still counts each mutant, and the JSON gives the folded mut
 `inside`. Only a NOT COVERED mutant folds, and only when its whole edit lies in the edit of a LIVED mutant or
 of a NOT COVERED mutant with its own row. A LIVED mutant inside another one keeps its row, because a test runs
 its code and the gap is a different one.
+
+An EQUIVALENT mutant gets a row with its reason on the next line, so that a reviewer reads the claim in the
+output too. A stale entry of the list of equivalent mutants gets a row under `STALE EQUIVALENT ENTRIES`, with
+the file and the line of the entry.
 
 Each row shows the original and the replacement on one line, cut at 40 characters. When both are long, both
 start a few words before the first difference, so that the row shows it. An empty replacement shows as
@@ -925,17 +957,21 @@ flowchart TD
     EX["internal/language/elixir<br/>declarations, :cover, the Elixir runner"]
     REP["internal/report<br/>rows, JSON, Stryker"]
     PROP["internal/proposal<br/>proposal.Proposal, proposal.Store"]
+    EQ["internal/equivalent<br/>equivalent.List, equivalent.Entry"]
     PROG["internal/progress<br/>the progress lines"]
     PROC["internal/process<br/>process.Command"]
     CMD --> RUN
     CMD --> AG
     CMD --> GO
     CMD --> REP
+    CMD --> EQ
+    EQ --> MUT
     RUN --> DIFF
     RUN --> OP
     RUN --> LANG
     RUN --> MUT
     RUN --> PROP
+    RUN --> EQ
     RUN --> PROG
     AG --> OP
     GO --> LANG
@@ -974,8 +1010,9 @@ gives back.
 | `language/python` | the Python adapter, with its import hook and its pytest plugin |
 | `language/elixir` | the Elixir adapter, with its Mix task |
 | `process` | `process.Command`, which runs a program of a runner in a process group of its own, with a time limit, and stops each process of the group when the program ends. `RunAgainAfterTimeout` runs the program a second time with twice the limit, and `process.TestLimit` gives the limit of the tests of one mutant from its baseline. |
-| `run` | one run: changed lines, candidates, filters, ids, scope, proposals, caller gaps, coverage and workers |
+| `run` | one run: changed lines, candidates, filters, ids, scope, proposals, stale equivalent entries, caller gaps, coverage and workers |
 | `report` | the rows, the line for a run with no mutant, the JSON and the Stryker format |
+| `equivalent` | the list of equivalent mutants: the file format, the place of the file, and the match of an entry and a mutant |
 | `proposal` | the file format of the proposed mutants, the place of each edit in its file, the number of their ids, the summary of the proposals of a run, and the store that `rerun` reads |
 | `progress` | the progress line of each step, on stderr |
 
@@ -1022,6 +1059,7 @@ The end-to-end fixtures:
 | A deadline that a test checks one hour before and one hour after | `CONDITIONALS_BOUNDARY` LIVED. With a check at the deadline itself: KILLED. |
 | A due date three calendar days after a start, the `CALENDAR_DAY` rule of [operators.md](operators.md#operators-of-your-own) in the repository, and a test in UTC | `CALENDAR_DAY` LIVED. With a test in Sydney across the start of daylight saving time: KILLED. |
 | A loop over a list that a test runs with one item | `BREAK_AT_END` LIVED. With two items: KILLED. |
+| A swap that lives, and an entry for it with a reason in `.mutants/equivalent.yml` | EQUIVALENT, with the reason as the detail, and exit 0 |
 | A busy loop and a removed `close` | TIMED OUT for both, and the child process of the test is not alive after the run |
 | `diff.mnemonicPrefix=true` in the git config of the fixture | the same mutants as without it |
 | An untracked new file | its mutants run, and `git status` is the same after the run |
@@ -1141,6 +1179,18 @@ failure gives KILLED, and a false KILLED hides a gap in the tests. The second ru
 KILLED mutant: in Go, only a run of the test binary, which is built already, and in Python and Elixir, the whole
 command. The second run runs the same tests in the same order, not only the test that failed, because a mutant can
 make a test fail only after an earlier test changed the state.
+
+**Why an equivalent mutant still runs.** The entry is a claim. When a later test kills the mutant, the run
+shows KILLED, and the claim was wrong. A run that skipped the mutant shows nothing.
+
+**Why an entry does not compare the number of the id.** The number counts the mutants of one operator in one
+function, in source order. A new `if` earlier in the function changes the number of each later mutant of that
+operator, and the entry then fits nothing. The function, the operator and the text of the edit change only
+when the code of the mutant changes.
+
+**Why a stale entry does not change the exit code.** A stale entry fits no mutant, so it hides no survivor
+now. A later change can bring back a mutant that the entry fits, and the claim of the entry can then be wrong.
+The rows and the JSON report name it, so that the author removes it in the same change.
 
 **Why the move of a limit skips the side of CONDITIONALS_BOUNDARY also when that operator is off.** The ids count
 after the filters, and `rerun` runs only the operator of its id. A filter that reads the operators of the run

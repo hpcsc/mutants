@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hpcsc/mutants/internal/equivalent"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/proposal"
@@ -94,6 +95,23 @@ func TestJSON(t *testing.T) {
 
 			require.JSONEq(t, `{"mutants": [], "callerGaps": [{"file": "gate/gate.go", "function": "(*Checker).Allow", "lines": [16, 17], "callers": ["handler"]}]}`, found.String())
 			require.JSONEq(t, `{"mutants": [], "callerGaps": []}`, none.String())
+		})
+
+		t.Run("holds each stale entry of the equivalent list with its file and line, and no list when no entry is stale", func(t *testing.T) {
+			stale := equivalent.List{File: ".mutants/equivalent.yml", Entries: []equivalent.Entry{{
+				ID:          mutant.ID{File: "cart.go", Function: "Total", Operator: "RETURN_EMPTY", Number: 1},
+				Original:    "total",
+				Replacement: "0",
+				Reason:      "no caller reads the total of an empty cart",
+				Line:        5,
+			}}}
+			var found, none strings.Builder
+
+			require.NoError(t, report.JSON(&found, run.Outcome{StaleEquivalents: stale}))
+			require.NoError(t, report.JSON(&none, run.Outcome{StaleEquivalents: equivalent.List{File: ".mutants/equivalent.yml"}}))
+
+			require.JSONEq(t, `{"mutants": [], "staleEquivalents": [{"file": ".mutants/equivalent.yml", "line": 5, "id": "cart.go:Total:RETURN_EMPTY#1", "original": "total", "replacement": "0", "reason": "no caller reads the total of an empty cart"}]}`, found.String())
+			require.JSONEq(t, `{"mutants": []}`, none.String())
 		})
 
 		t.Run("proposals with no rejection give an empty list of rejections", func(t *testing.T) {

@@ -31,6 +31,7 @@ tasks:
       - go test -tags=unit -run='^$' -fuzz='^FuzzIDParse$' -fuzztime={{.FUZZ_TIME}} ./internal/mutant
       - go test -tags=unit -run='^$' -fuzz='^FuzzProposalRead$' -fuzztime={{.FUZZ_TIME}} ./internal/proposal
       - go test -tags=unit -run='^$' -fuzz='^FuzzConfigLoad$' -fuzztime={{.FUZZ_TIME}} ./internal/cmd
+      - go test -tags=unit -run='^$' -fuzz='^FuzzEquivalentRead$' -fuzztime={{.FUZZ_TIME}} ./internal/equivalent
       - go test -tags=unit -run='^$' -fuzz='^FuzzRepositoryChanged$' -fuzztime={{.FUZZ_TIME}} ./internal/diff
 
   regression:

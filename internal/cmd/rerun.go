@@ -24,7 +24,7 @@ func newRerunCommand() *cli.Command {
 		ArgsUsage: "ID",
 		Description: "The id is the text in [ ] at the end of a row, with or without the [ ], for example\n" +
 			"internal/order/handler.go:(*Handler).accounts:BRANCH_IF#1\n\n" +
-			"Exit codes: 0 killed, 10 lived or not covered, 1 no verdict, 2 an unknown id.",
+			"Exit codes: 0 killed or equivalent, 10 lived or not covered, 1 no verdict, 2 an unknown id.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "base", Usage: "count the tests of the packages that the branch changes against the merge base of HEAD and this commit (default: " + defaultBase + ")"},
 			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "the least time for the build of the mutant; it is 3 times the build of the real code when that is longer"},
@@ -50,12 +50,16 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
+	equivalents, err := loadEquivalents(ctx, repository, cmd.Root().ErrWriter)
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
 	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, 1), configured.pythonSettings(1), configured.elixirSettings(1), cmd.Root().ErrWriter)
 	if err != nil {
 		return cli.Exit(err, exitUsage)
 	}
 
-	m, err := instance.Rerun(ctx, id, configured.base(cmd), configured.Exclude)
+	m, err := instance.Rerun(ctx, id, configured.base(cmd), configured.Exclude, equivalents)
 	var failing *language.TestsFailWithRealCode
 	switch {
 	case errors.Is(err, run.ErrUnknownID):
@@ -77,7 +81,7 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 		return cli.Exit(err, exitNoVerdict)
 	}
 	switch {
-	case m.Verdict.Status == mutant.Killed:
+	case m.Verdict.Status == mutant.Killed, m.Verdict.Status == mutant.Equivalent:
 		return nil
 	case m.Verdict.Status.IsSurvivor():
 		return cli.Exit("", exitSurvivors)

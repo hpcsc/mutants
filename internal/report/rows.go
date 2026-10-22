@@ -19,7 +19,7 @@ const (
 
 func Rows(w io.Writer, outcome run.Outcome) error {
 	text := noMutantLine(outcome)
-	if len(outcome.Mutants) > 0 || outcome.Stopped || outcome.Proposals != nil || outcome.CallerGaps != nil {
+	if len(outcome.Mutants) > 0 || outcome.Stopped || outcome.Proposals != nil || outcome.CallerGaps != nil || len(outcome.StaleEquivalents.Entries) > 0 {
 		text += rows(outcome)
 	}
 	_, err := io.WriteString(w, text)
@@ -75,7 +75,7 @@ func rows(outcome run.Outcome) string {
 	}
 	printed := map[string]bool{}
 	var text strings.Builder
-	for _, status := range []mutant.Status{mutant.Lived, mutant.NotCovered, mutant.TimedOut, mutant.InfraError, mutant.Unstable} {
+	for _, status := range []mutant.Status{mutant.Lived, mutant.NotCovered, mutant.TimedOut, mutant.InfraError, mutant.Unstable, mutant.Equivalent} {
 		header := false
 		for _, m := range sorted {
 			if _, isInside := outerOf[m.ID]; isInside || m.Verdict.Status != status {
@@ -87,6 +87,8 @@ func rows(outcome run.Outcome) string {
 			}
 			detail := m.Verdict.Detail
 			switch {
+			case status == mutant.Equivalent:
+				fmt.Fprintf(&text, "  %s\n    %s\n", Row(m), strings.Join(strings.Fields(detail), " "))
 			case status != mutant.NotCovered || detail == "":
 				fmt.Fprintf(&text, "  %s\n", Row(m))
 				if count := insiders[m.ID]; count > 0 {
@@ -108,6 +110,13 @@ func rows(outcome run.Outcome) string {
 		text.WriteString("CALLER GAPS:\n")
 		for _, gap := range *outcome.CallerGaps {
 			fmt.Fprintf(&text, "  %s:%s %s, not run by the tests of %s\n", gap.File, lineRanges(gap.Lines), gap.Function, strings.Join(gap.Callers, ", "))
+		}
+	}
+	if stale := outcome.StaleEquivalents; len(stale.Entries) > 0 {
+		text.WriteString("STALE EQUIVALENT ENTRIES:\n")
+		for _, entry := range stale.Entries {
+			original, replacement := shorten(entry.Original, entry.Replacement)
+			fmt.Fprintf(&text, "  %s:%d %s: %s -> %s  [%s]\n", stale.File, entry.Line, entry.ID.Operator, original, replacement, entry.ID)
 		}
 	}
 	text.WriteString(Counts(mutants, outcome.Base) + "\n")
@@ -150,7 +159,7 @@ func Row(m mutant.Mutant) string {
 
 func Counts(mutants []mutant.Mutant, base string) string {
 	counts := []string{fmt.Sprintf("mutants: %d", len(mutants))}
-	for _, status := range []mutant.Status{mutant.Killed, mutant.Lived, mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError, mutant.Unstable} {
+	for _, status := range []mutant.Status{mutant.Killed, mutant.Lived, mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError, mutant.Unstable, mutant.Equivalent} {
 		count := 0
 		for _, m := range mutants {
 			if m.Verdict.Status == status {

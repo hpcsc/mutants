@@ -147,6 +147,9 @@ from a struct literal. When the value of that field is already its zero value, t
 result as the real code. `mutants` already skips many of these mutants, such as the mutants of log lines.
 When you find one:
 
+- Write it in `.mutants/equivalent.yml` with the reason, as
+  [docs/usage.md](docs/usage.md#equivalent-mutants) tells. The run then shows it as EQUIVALENT, with the
+  reason, and it does not count as a survivor.
 - Leave it, and tell your reviewer why.
 - Take its operator out of one run: `mutants run --operators=-NAMED_VALUE_REMOVE`.
 - Take its operator out of each run in the repository, in `.mutants.yml` at the root:

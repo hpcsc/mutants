@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hpcsc/mutants/internal/equivalent"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/proposal"
@@ -175,6 +176,33 @@ mutants: 6, lived: 2, not covered: 4
 			require.NoError(t, report.Rows(&output, run.Outcome{CallerGaps: &gaps}))
 
 			require.Equal(t, "no mutant: no changed line in a file that mutants tests\nCALLER GAPS:\n  gate/gate.go:12-13,16-18,21 (*Checker).Allow, not run by the tests of handler, wired\nmutants: 0\ncaller gaps: 1\n", output.String())
+		})
+
+		t.Run("lists each EQUIVALENT mutant with its reason under it, and counts it apart from the survivors", func(t *testing.T) {
+			equivalentMutant := reported("cart.go", 12, "RETURN_EMPTY", 1, "total", "0", mutant.Equivalent)
+			equivalentMutant.Verdict.Detail = "no caller reads the total\nof an empty cart"
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, run.Outcome{Mutants: []mutant.Mutant{equivalentMutant}}))
+
+			require.Equal(t, "EQUIVALENT:\n  cart.go:12 RETURN_EMPTY: total -> 0  [cart.go:(*Handler).accounts:RETURN_EMPTY#1]\n"+
+				"    no caller reads the total of an empty cart\nmutants: 1, equivalent: 1\n", output.String())
+		})
+
+		t.Run("lists each stale entry of the equivalent list with its line, also in a run with no mutant", func(t *testing.T) {
+			stale := equivalent.List{File: ".mutants/equivalent.yml", Entries: []equivalent.Entry{{
+				ID:          mutant.ID{File: "cart.go", Function: "Total", Operator: "RETURN_EMPTY", Number: 1},
+				Original:    "total",
+				Replacement: "0",
+				Reason:      "no caller reads the total of an empty cart",
+				Line:        5,
+			}}}
+			var output strings.Builder
+
+			require.NoError(t, report.Rows(&output, run.Outcome{Lines: 2, Files: 1, StaleEquivalents: stale}))
+
+			require.Equal(t, "no mutant: no operator changes the 2 changed lines in 1 file\nSTALE EQUIVALENT ENTRIES:\n"+
+				"  .mutants/equivalent.yml:5 RETURN_EMPTY: total -> 0  [cart.go:Total:RETURN_EMPTY#1]\nmutants: 0\n", output.String())
 		})
 
 		t.Run("a run that looked for caller gaps and found none says so", func(t *testing.T) {

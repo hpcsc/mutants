@@ -111,7 +111,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | | 124 | the run reached `--limit` |
 | | 2 | a usage error or a tool error, for example a test that fails with the real code, or a file of proposals that `mutants` cannot read |
 | | 130 | an interrupt or SIGTERM stopped the run |
-| `mutants rerun` | 0 | a test killed the mutant |
+| `mutants rerun` | 0 | a test killed the mutant, or the mutant is EQUIVALENT |
 | | 10 | the mutant lived, or no test runs its line |
 | | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, a test failed and then passed, the proposal of the mutant does not fit the code, or the tests fail with the real code |
 | | 2 | the text is not a mutant id, no mutant has this id, or a usage error or a tool error before the mutant runs, for example a key of `.mutants.yml` that `mutants` does not know |
@@ -127,6 +127,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | TIMED OUT | the tests ran past their time limit two times | no |
 | INFRA ERROR | the computer stopped the run, for example when it had no more memory, or the build ran past its limit. In Go, also tests that passed and wrote a file in the work tree, such as a new snapshot: the detail names the file, so that you can remove it. | no |
 | UNSTABLE | a test failed with the mutant, and the same tests passed when they ran again. The detail gives the failure of the first run. | no |
+| EQUIVALENT | every test passed, and an entry of `.mutants/equivalent.yml` gives the reason why no test can kill the mutant. The detail gives the reason. See [Equivalent mutants](#equivalent-mutants). | no |
 
 A package whose tests fail with the real code stops the run with exit code 2, because its mutants cannot get
 a verdict.
@@ -328,6 +329,13 @@ at `--limit` before the check ends has no `callerGaps`.
 "callerGaps": [{"file": "gate/gate.go", "function": "(*Checker).Allow", "lines": [16, 17, 19], "callers": ["handler"]}]
 ```
 
+With a stale entry in the list of [equivalent mutants](#equivalent-mutants), the document also holds
+`staleEquivalents`, with the file and the line of each such entry:
+
+```json
+"staleEquivalents": [{"file": ".mutants/equivalent.yml", "line": 1, "id": "shop/discount.go:Discount:RETURN_EMPTY#1", "original": "total", "replacement": "0", "reason": "no caller reads the discount of an empty order"}]
+```
+
 The JSON encoder writes `<`, `>` and `&` in strings as `\u003c`, `\u003e` and `\u0026`, and a JSON parser
 reads them back as the same characters.
 
@@ -469,6 +477,42 @@ rule:
   share, for example `.git/mutants/skip/go/`. `mutants` reads that folder only when `.mutants/skip/go/` has
   no rule.
 - A skip rule with a `fix` stops the run with an error, because a skip rule changes no code.
+
+## Equivalent mutants
+
+An equivalent mutant changes the code, but no test can see the change. For example, a swap of two values
+that each caller sets to the same value. Such a survivor stays in each run of the branch, so the run never
+exits 0. Write it in `.mutants/equivalent.yml`, with the reason:
+
+```yaml
+- id: shop/discount.go:Discount:RETURN_EMPTY#1
+  original: total
+  replacement: "0"
+  reason: no caller reads the discount of an empty order
+```
+
+| Key | Holds |
+| --- | --- |
+| `id` | the id of the mutant, from its row or from the JSON report |
+| `original` | the code before the change, as `original` in the JSON report |
+| `replacement` | the code after the change, as `replacement` in the JSON report. An empty value is an empty replacement. |
+| `reason` | why no test can kill the mutant. A reviewer reads it in the diff of the file. |
+
+- **The match.** An entry fits a mutant with the file, the function and the operator of its id, and with the
+  same original and replacement. Each run of white space counts as one space. `mutants` does not compare the
+  number after `#`, because a new mutant earlier in the function changes that number.
+- **The status.** A LIVED mutant that an entry fits is EQUIVALENT, with the reason as its detail. It is not a
+  survivor, so it does not change the exit code. The mutant still runs, so a mutant that a new test kills is
+  KILLED. A NOT COVERED mutant stays NOT COVERED, because no test runs its line.
+- **A stale entry.** A run reads the whole file of each changed line. When it reads the file of an entry with
+  the operator of the entry, and no mutant of the file fits the entry, the code changed. The rows then list
+  the entry under `STALE EQUIVALENT ENTRIES`, with its line in the file, and the JSON report holds it in
+  `staleEquivalents`. Remove the entry, or write it again for the new code. A stale entry does not change the
+  exit code.
+- **The place.** Without `.mutants/equivalent.yml`, `mutants` reads `mutants/equivalent.yml` in the git folder
+  that all work trees share, for example `.git/mutants/equivalent.yml`. When both files exist, it reads only
+  `.mutants/equivalent.yml`, and says on stderr that it ignores the other one.
+- `mutants rerun` reads the same file, so it gives the same status as the run.
 
 ## Python
 

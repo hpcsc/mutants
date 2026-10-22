@@ -315,6 +315,24 @@ describe('mutants run on Go', { timeout: 240_000 }, () => {
     expect(dies.result.status).toBe(0)
   })
 
+  it('a survivor that .mutants/equivalent.yml names with a reason is EQUIVALENT, and the run exits 0', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'figures/figures.go': figures,
+      'figures/figures_test.go': figuresTest(5, 5),
+      '.mutants/equivalent.yml': `- id: figures/figures.go:Summarise:NAMED_VALUE_SWAP#1
+  original: "paid, Owed: owed"
+  replacement: "owed, Owed: paid"
+  reason: each caller passes the same figure for paid and owed
+`,
+    })
+
+    const { mutants, result } = await runMutants(dir, ['--base', 'HEAD', '--operators', 'NAMED_VALUE_SWAP'])
+
+    expect(mutants.map((m) => `${m.status}: ${m.detail}`)).toEqual(['EQUIVALENT: each caller passes the same figure for paid and owed'])
+    expect(result.status).toBe(0)
+  })
+
   it('in an error branch that no test enters, BRANCH_IF lives, and the return in it is not covered and shows under its row', async () => {
     const dir = goRepository()
     writeFiles(dir, { 'accounts/accounts.go': accounts, 'accounts/accounts_test.go': accountsTest })

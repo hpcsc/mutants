@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/equivalent"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/language/elixir"
 	"github.com/hpcsc/mutants/internal/language/golang"
@@ -83,6 +84,10 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	if cmd.Bool("proposals-anywhere") && len(proposals) == 0 {
 		return cli.Exit("--proposals-anywhere needs --proposals", exitUsage)
 	}
+	equivalents, err := loadEquivalents(ctx, repository, cmd.Root().ErrWriter)
+	if err != nil {
+		return cli.Exit(err, exitUsage)
+	}
 	runSettings := run.Settings{
 		Base:              configured.base(cmd),
 		Folders:           folders,
@@ -93,6 +98,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		Proposals:         proposals,
 		ProposalsAnywhere: cmd.Bool("proposals-anywhere"),
 		CallerGaps:        configured.callerGaps(cmd),
+		Equivalents:       equivalents,
 	}
 	instance, err := newInstance(ctx, repository, configured.goSettings(cmd, runSettings.Workers), configured.pythonSettings(runSettings.Workers), configured.elixirSettings(runSettings.Workers), cmd.Root().ErrWriter)
 	if err != nil {
@@ -189,6 +195,14 @@ func writeReports(cmd *cli.Command, root, format string, outcome run.Outcome) er
 		}
 	}
 	return nil
+}
+
+func loadEquivalents(ctx context.Context, repository *diff.Repository, stderr io.Writer) (equivalent.List, error) {
+	sharedGitFolder, err := repository.SharedGitFolder(ctx)
+	if err != nil {
+		return equivalent.List{}, err
+	}
+	return equivalent.Load(repository.Root(), sharedGitFolder, stderr)
 }
 
 func readProposals(path string) ([]proposal.Proposal, error) {

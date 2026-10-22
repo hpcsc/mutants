@@ -10,6 +10,7 @@ const (
 	TimedOut
 	InfraError
 	Unstable
+	Equivalent
 )
 
 func (s Status) String() string {
@@ -28,6 +29,8 @@ func (s Status) String() string {
 		return "INFRA ERROR"
 	case Unstable:
 		return "UNSTABLE"
+	case Equivalent:
+		return "EQUIVALENT"
 	}
 	return "NO VERDICT"
 }

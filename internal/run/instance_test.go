@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/equivalent"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
@@ -239,6 +240,41 @@ func TestInstance(t *testing.T) {
 			require.Equal(t, 1, outcome.Files)
 			require.Equal(t, 1, outcome.Lines)
 			require.Equal(t, r.head(), outcome.Base)
+		})
+
+		t.Run("a LIVED mutant that an entry of the equivalent list fits is EQUIVALENT, with the reason as the detail", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore})
+			r.write("a.go", compareAfter)
+			adapter := &fakeAdapter{statuses: map[string]mutant.Status{"a.go:f:CONDITIONALS_BOUNDARY#2": mutant.Lived}}
+			settings := boundary
+			settings.Equivalents = equivalent.List{Entries: []equivalent.Entry{
+				{ID: mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 2}, Original: "a > b", Replacement: "a >= b", Reason: "no caller passes two equal values"},
+			}}
+
+			outcome, err := r.instance(adapter).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []mutant.Verdict{{Status: mutant.Equivalent, Detail: "no caller passes two equal values"}}, []mutant.Verdict{outcome.Mutants[0].Verdict})
+		})
+
+		t.Run("an entry of the equivalent list that fits no mutant of a file of the run is stale, unless the run leaves out its operator", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "b.go": compareBefore})
+			r.write("a.go", compareAfter)
+			entry := func(file, operatorName string, number int, original, replacement string) equivalent.Entry {
+				return equivalent.Entry{ID: mutant.ID{File: file, Function: "f", Operator: operatorName, Number: number}, Original: original, Replacement: replacement, Reason: "no caller passes two equal values"}
+			}
+			onChangedLine := entry("a.go", "CONDITIONALS_BOUNDARY", 2, "a > b", "a >= b")
+			onOtherLine := entry("a.go", "CONDITIONALS_BOUNDARY", 1, "a < b", "a <= b")
+			gone := entry("a.go", "CONDITIONALS_BOUNDARY", 3, "a <= b", "a < b")
+			otherOperator := entry("a.go", "RETURN_TRUE", 1, "a > b", "true")
+			unchangedFile := entry("b.go", "CONDITIONALS_BOUNDARY", 1, "a <= b", "a < b")
+			settings := boundary
+			settings.Equivalents = equivalent.List{File: ".mutants/equivalent.yml", Entries: []equivalent.Entry{onChangedLine, onOtherLine, gone, otherOperator, unchangedFile}}
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, equivalent.List{File: ".mutants/equivalent.yml", Entries: []equivalent.Entry{gone}}, outcome.StaleEquivalents)
 		})
 
 		t.Run("each adapter covers and runs only the mutants of the files of its language", func(t *testing.T) {
@@ -664,11 +700,22 @@ func TestInstance(t *testing.T) {
 			require.NoError(t, err)
 			id := mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()}
 
-			m, err := r.instance(&fakeAdapter{statuses: map[string]mutant.Status{id.String(): mutant.Lived}}).Rerun(context.Background(), id, "HEAD", nil)
+			m, err := r.instance(&fakeAdapter{statuses: map[string]mutant.Status{id.String(): mutant.Lived}}).Rerun(context.Background(), id, "HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, []string{id.String() + " LIVED"}, idsAndStatuses([]mutant.Mutant{m}))
 			require.Equal(t, "equal values count as greater", m.Bug)
+		})
+
+		t.Run("rerun makes a LIVED mutant that an entry of the equivalent list fits EQUIVALENT", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
+			id := mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 2}
+			equivalents := equivalent.List{Entries: []equivalent.Entry{{ID: id, Original: "a > b", Replacement: "a >= b", Reason: "no caller passes two equal values"}}}
+
+			m, err := r.instance(&fakeAdapter{statuses: map[string]mutant.Status{id.String(): mutant.Lived}}).Rerun(context.Background(), id, "HEAD", nil, equivalents)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Verdict{Status: mutant.Equivalent, Detail: "no caller passes two equal values"}, m.Verdict)
 		})
 
 		t.Run("rerun of a proposal whose old text left the code returns ErrStaleProposal with the reason", func(t *testing.T) {
@@ -681,7 +728,7 @@ func TestInstance(t *testing.T) {
 			require.NoError(t, err)
 			r.write("a.go", compareBefore)
 
-			_, err = r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()}, "HEAD", nil)
+			_, err = r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: proposal.Operator, Number: proposed.Number()}, "HEAD", nil, equivalent.List{})
 
 			require.ErrorIs(t, err, run.ErrStaleProposal)
 			require.ErrorContains(t, err, "old not found")
@@ -694,7 +741,7 @@ func TestInstance(t *testing.T) {
 			inGo, inPython := &fakeAdapter{}, &fakeAdapter{name: "python"}
 			id := mutant.ID{File: "a.py", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}
 
-			m, err := r.instance(inGo, inPython).Rerun(context.Background(), id, "HEAD", nil)
+			m, err := r.instance(inGo, inPython).Rerun(context.Background(), id, "HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, "a > b -> a >= b", m.Original+" -> "+m.Replacement)
@@ -705,7 +752,7 @@ func TestInstance(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			adapter := &fakeAdapter{statuses: map[string]mutant.Status{"a.go:f:CONDITIONALS_BOUNDARY#1": mutant.Lived}}
 
-			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
+			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, "a < b -> a <= b", m.Original+" -> "+m.Replacement)
@@ -717,7 +764,7 @@ func TestInstance(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			r.write("a.go", "package a\n\nfunc g(a, b int) bool {\n\treturn a < b\n}\n\n"+strings.TrimPrefix(compareAfter, "package a\n\n"))
 
-			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
+			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, 8, m.Line)
@@ -728,7 +775,7 @@ func TestInstance(t *testing.T) {
 			r.write("b.go", "package a\n\nvar b = 1\n")
 			adapter := &fakeAdapter{}
 
-			_, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
+			_, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, []string{"b.go"}, adapter.coveredChanges)
@@ -739,7 +786,7 @@ func TestInstance(t *testing.T) {
 			adapter := &fakeAdapter{}
 			var stderr bytes.Buffer
 
-			m, err := r.instanceWritingTo(&stderr, adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "origin/HEAD", nil)
+			m, err := r.instanceWritingTo(&stderr, adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "origin/HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, mutant.Killed, m.Verdict.Status)
@@ -752,7 +799,7 @@ func TestInstance(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareAfter})
 			adapter := &fakeAdapter{uncovered: map[string]string{"a.go:f:CONDITIONALS_BOUNDARY#1": ""}}
 
-			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil)
+			m, err := r.instance(adapter).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1}, "HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, mutant.NotCovered, m.Verdict.Status)
@@ -762,7 +809,7 @@ func TestInstance(t *testing.T) {
 		t.Run("finds a mutant of an operator that is off by default", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": "package a\n\nimport \"fmt\"\n\nfunc f(err error) error {\n\treturn fmt.Errorf(\"load: %w\", err)\n}\n"})
 
-			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "ERROR_CAUSE_REMOVE", Number: 1}, "HEAD", nil)
+			m, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), mutant.ID{File: "a.go", Function: "f", Operator: "ERROR_CAUSE_REMOVE", Number: 1}, "HEAD", nil, equivalent.List{})
 
 			require.NoError(t, err)
 			require.Equal(t, `fmt.Errorf("load: %v", err)`, m.Replacement)
@@ -779,7 +826,7 @@ func TestInstance(t *testing.T) {
 				{File: "notes.md", Function: "f", Operator: "CONDITIONALS_BOUNDARY", Number: 1},
 			}
 			for _, id := range ids {
-				_, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), id, "HEAD", nil)
+				_, err := r.instance(&fakeAdapter{}).Rerun(context.Background(), id, "HEAD", nil, equivalent.List{})
 
 				require.ErrorIs(t, err, run.ErrUnknownID, id.String())
 			}

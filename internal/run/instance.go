@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/hpcsc/mutants/internal/diff"
+	"github.com/hpcsc/mutants/internal/equivalent"
 	"github.com/hpcsc/mutants/internal/language"
 	"github.com/hpcsc/mutants/internal/mutant"
 	"github.com/hpcsc/mutants/internal/operator"
@@ -41,20 +42,22 @@ type Settings struct {
 	Proposals         []proposal.Proposal
 	ProposalsAnywhere bool
 	CallerGaps        bool
+	Equivalents       equivalent.List
 }
 
 // Proposals is nil when the run got no proposals, and CallerGaps is nil when the run did not look for caller
 // gaps.
 type Outcome struct {
-	Base       string
-	Files      int
-	Lines      int
-	TestFiles  int
-	TestLines  int
-	Mutants    []mutant.Mutant
-	Stopped    bool
-	Proposals  *proposal.Summary
-	CallerGaps *[]language.CallerGap
+	Base             string
+	Files            int
+	Lines            int
+	TestFiles        int
+	TestLines        int
+	Mutants          []mutant.Mutant
+	Stopped          bool
+	Proposals        *proposal.Summary
+	CallerGaps       *[]language.CallerGap
+	StaleEquivalents equivalent.List
 }
 
 type Language struct {
@@ -127,16 +130,20 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	}
 
 	finding := progress.Start(r.stderr, r.terminal, fmt.Sprintf("Finding the mutants in %d files", outcome.Files))
-	mutants, err := r.findAll(ctx, languages, lines.Files(), lines.Touches)
+	fileMutants, err := r.findAll(ctx, languages, lines.Files())
+	mutants := inScope(fileMutants, lines.Touches)
+	if err == nil {
+		outcome.StaleEquivalents = stale(settings.Equivalents, languages, lines.Files(), fileMutants)
+	}
 	if err == nil && len(settings.Proposals) > 0 {
 		var proposed []mutant.Mutant
 		var rejected []proposal.Rejection
-		inScope := lines.Touches
+		scope := lines.Touches
 		if settings.ProposalsAnywhere {
-			inScope = func(string, int, int) bool { return true }
+			scope = func(string, int, int) bool { return true }
 		}
 		var accepted int
-		if proposed, accepted, rejected, err = r.propose(ctx, settings.Proposals, inScope); err == nil {
+		if proposed, accepted, rejected, err = r.propose(ctx, settings.Proposals, scope); err == nil {
 			outcome.Proposals = &proposal.Summary{Accepted: accepted, Rejected: rejected}
 		}
 		mutants = append(mutants, proposed...)
@@ -170,13 +177,14 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	finished, err := r.test(ctx, mutants, toRun, settings.Workers)
 	for i, m := range mutants {
 		if _, found := uncovered[m.ID]; found || finished[i] {
+			m.Verdict = settings.Equivalents.Verdict(m)
 			outcome.Mutants = append(outcome.Mutants, m)
 		}
 	}
 	return outcome, err
 }
 
-func (r *Instance) Rerun(ctx context.Context, id mutant.ID, base string, exclude []string) (mutant.Mutant, error) {
+func (r *Instance) Rerun(ctx context.Context, id mutant.ID, base string, exclude []string, equivalents equivalent.List) (mutant.Mutant, error) {
 	unknown := fmt.Errorf("%w: %s", ErrUnknownID, id)
 	l, found := r.languageOf(id.File)
 	if !found {
@@ -209,6 +217,7 @@ func (r *Instance) Rerun(ctx context.Context, id mutant.ID, base string, exclude
 		return m, nil
 	}
 	m.Verdict, err = l.Adapter.Runner().Run(ctx, m)
+	m.Verdict = equivalents.Verdict(m)
 	return m, err
 }
 
@@ -219,16 +228,15 @@ func (r *Instance) findOperated(ctx context.Context, l Language, id mutant.ID) (
 		return mutant.Mutant{}, unknown
 	}
 	l.Pack = pack
-	everyLine := func(string, int, int) bool { return true }
-	mutants, err := r.find(ctx, l, []string{id.File}, everyLine)
+	fileMutants, err := r.find(ctx, l, []string{id.File})
 	if err != nil {
 		return mutant.Mutant{}, err
 	}
-	index := slices.IndexFunc(mutants, func(m mutant.Mutant) bool { return m.ID == id })
+	index := slices.IndexFunc(fileMutants, func(f fileMutant) bool { return f.mutant.ID == id })
 	if index < 0 {
 		return mutant.Mutant{}, unknown
 	}
-	return mutants[index], nil
+	return fileMutants[index].mutant, nil
 }
 
 func (r *Instance) findProposed(ctx context.Context, id mutant.ID) (mutant.Mutant, error) {
@@ -254,7 +262,7 @@ func (r *Instance) findProposed(ctx context.Context, id mutant.ID) (mutant.Mutan
 	return m, nil
 }
 
-func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, inScope func(file string, first, last int) bool) ([]mutant.Mutant, int, []proposal.Rejection, error) {
+func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, scope func(file string, first, last int) bool) ([]mutant.Mutant, int, []proposal.Rejection, error) {
 	sources := map[string][]byte{}
 	saved := map[string]proposal.Proposal{}
 	positions := map[string]int{}
@@ -266,7 +274,7 @@ func (r *Instance) propose(ctx context.Context, proposals []proposal.Proposal, i
 		if err != nil {
 			return nil, 0, nil, err
 		}
-		if reason == "" && !inScope(m.File, m.Line, last) {
+		if reason == "" && !scope(m.File, m.Line, last) {
 			reason = "not on a changed line (--proposals-anywhere accepts it)"
 		}
 		if reason != "" {
@@ -344,20 +352,52 @@ func (r *Instance) store(ctx context.Context) (proposal.Store, error) {
 	return proposal.NewStore(filepath.Join(gitFolder, "mutants")), nil
 }
 
-func (r *Instance) findAll(ctx context.Context, languages []Language, files []string, inScope func(file string, first, last int) bool) ([]mutant.Mutant, error) {
+type fileMutant struct {
+	mutant   mutant.Mutant
+	lastLine int
+}
+
+func inScope(fileMutants []fileMutant, scope func(file string, first, last int) bool) []mutant.Mutant {
 	var mutants []mutant.Mutant
+	for _, f := range fileMutants {
+		if scope(f.mutant.File, f.mutant.Line, f.lastLine) {
+			mutants = append(mutants, f.mutant)
+		}
+	}
+	return mutants
+}
+
+func stale(list equivalent.List, languages []Language, files []string, fileMutants []fileMutant) equivalent.List {
+	found := equivalent.List{File: list.File}
+	for _, entry := range list.Entries {
+		index := slices.IndexFunc(languages, func(l Language) bool { return l.takes(entry.ID.File) })
+		if index < 0 || !slices.Contains(files, entry.ID.File) {
+			continue
+		}
+		if !slices.ContainsFunc(languages[index].Pack.Rules(), func(rule operator.Rule) bool { return rule.Operator == entry.ID.Operator }) {
+			continue
+		}
+		if !slices.ContainsFunc(fileMutants, func(f fileMutant) bool { return entry.Matches(f.mutant) }) {
+			found.Entries = append(found.Entries, entry)
+		}
+	}
+	return found
+}
+
+func (r *Instance) findAll(ctx context.Context, languages []Language, files []string) ([]fileMutant, error) {
+	var fileMutants []fileMutant
 	for _, l := range languages {
-		found, err := r.find(ctx, l, l.filesOf(files), inScope)
+		found, err := r.find(ctx, l, l.filesOf(files))
 		if err != nil {
 			return nil, err
 		}
-		mutants = append(mutants, found...)
+		fileMutants = append(fileMutants, found...)
 	}
-	slices.SortStableFunc(mutants, byPosition)
-	return mutants, nil
+	slices.SortStableFunc(fileMutants, func(a, b fileMutant) int { return byPosition(a.mutant, b.mutant) })
+	return fileMutants, nil
 }
 
-func (r *Instance) find(ctx context.Context, l Language, files []string, inScope func(file string, first, last int) bool) ([]mutant.Mutant, error) {
+func (r *Instance) find(ctx context.Context, l Language, files []string) ([]fileMutant, error) {
 	edits, err := l.Pack.Edits(ctx, r.matcher, r.repository.Root(), files)
 	if err != nil {
 		return nil, err
@@ -372,7 +412,7 @@ func (r *Instance) find(ctx context.Context, l Language, files []string, inScope
 
 	var ids mutant.Counter
 	offsets := map[string]lineOffsets{}
-	var mutants []mutant.Mutant
+	var fileMutants []fileMutant
 	for _, edit := range edits {
 		id := ids.Next(edit.File, l.Adapter.Function(edit.File, edit.Start), edit.Operator)
 		lines, found := offsets[edit.File]
@@ -385,11 +425,9 @@ func (r *Instance) find(ctx context.Context, l Language, files []string, inScope
 			offsets[edit.File] = lines
 		}
 		m, last := r.mutantOf(l, edit, id, lines)
-		if inScope(edit.File, m.Line, last) {
-			mutants = append(mutants, m)
-		}
+		fileMutants = append(fileMutants, fileMutant{mutant: m, lastLine: last})
 	}
-	return mutants, nil
+	return fileMutants, nil
 }
 
 func (r *Instance) mutantOf(l Language, edit operator.Edit, id mutant.ID, lines lineOffsets) (m mutant.Mutant, last int) {
