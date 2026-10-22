@@ -173,7 +173,8 @@ mutants run --caller-gaps            # also find new code that no test of a chan
 ```
 
 `mutants run` exits with 0 when no mutant survives. It exits with 10 when a mutant survives, when the run
-finds a caller gap, or when it rejects a proposal. A CI step or a script can use this exit code.
+finds a caller gap, or when it rejects a proposal. It exits with 1 when no mutant survives, but a mutant has
+no verdict, such as INFRA ERROR. A CI step or a script can use this exit code.
 
 ## More documents
 

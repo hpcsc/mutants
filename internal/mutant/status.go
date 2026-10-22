@@ -32,3 +32,7 @@ func (s Status) String() string {
 func (s Status) IsSurvivor() bool {
 	return s == Lived || s == NotCovered
 }
+
+func (s Status) NeedsRerun() bool {
+	return s == InfraError
+}

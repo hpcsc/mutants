@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -78,7 +79,7 @@ func (k *checker) runChecks(ctx context.Context) error {
 	}
 	k.result.Exit, k.result.Seconds, k.result.Mutants = first.exit, first.duration.Seconds(), first.report.Mutants
 	switch first.exit {
-	case 0, exitSurvivors:
+	case 0, exitSurvivors, exitNoVerdict:
 	case exitLimit:
 		k.result.Stop = "the run reached --limit " + k.settings.limit.String()
 	case exitUsage:
@@ -94,7 +95,7 @@ func (k *checker) runChecks(ctx context.Context) error {
 		switch {
 		case err != nil:
 			return err
-		case second.exit != first.exit && second.exit != 0 && second.exit != exitSurvivors:
+		case second.exit != first.exit && !slices.Contains([]int{0, exitSurvivors, exitNoVerdict}, second.exit):
 			k.result.find("second run", "", fmt.Sprintf("exit %d in the first run, exit %d in the second: %s", first.exit, second.exit, stopMessage(second.stderr)))
 		default:
 			if err := k.compareRuns(ctx, first.report, second.report); err != nil {
@@ -140,7 +141,7 @@ func (k *checker) runMutants(ctx context.Context) (mutantsRun, error) {
 	for _, process := range leftover {
 		k.result.find("processes", "", "alive after the run: "+process)
 	}
-	if ran.code == 0 || ran.code == exitSurvivors || ran.code == exitLimit {
+	if slices.Contains([]int{0, exitSurvivors, exitNoVerdict, exitLimit}, ran.code) {
 		if err := json.Unmarshal([]byte(ran.stdout), &run.report); err != nil {
 			k.result.find("exit code", "", "the JSON report does not parse: "+err.Error())
 		}

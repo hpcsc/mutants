@@ -37,7 +37,8 @@ func newRunCommand() *cli.Command {
 		ArgsUsage: "[--all FOLDER...]",
 		Description: "mutants run compares the work tree with the merge base of HEAD and --base, and runs the mutants of\n" +
 			"the changed lines, committed or not. Every line of an untracked file counts.\n\n" +
-			"Exit codes: 0 no survivor, 10 survivors, caller gaps or rejected proposals, 124 the limit, 2 a usage or tool error.",
+			"Exit codes: 0 no survivor, 10 survivors, caller gaps or rejected proposals, 1 a mutant with no verdict,\n" +
+			"such as INFRA ERROR, 124 the limit, 2 a usage or tool error.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "base", Usage: "compare with the merge base of HEAD and this commit (default: " + defaultBase + ")"},
 			&cli.BoolFlag{Name: "all", Usage: "run every line of the files in each FOLDER, and in its subfolders for FOLDER/..."},
@@ -109,13 +110,25 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 		return cli.Exit(err, exitUsage)
 	}
 
+	return exitOf(outcome, runSettings.Limit)
+}
+
+func exitOf(outcome run.Outcome, limit time.Duration) error {
+	noVerdict := 0
+	for _, m := range outcome.Mutants {
+		if m.Verdict.Status.NeedsRerun() {
+			noVerdict++
+		}
+	}
 	switch {
 	case outcome.Stopped:
-		return cli.Exit(fmt.Sprintf("mutants stopped at the limit of %s: the report holds the mutants that got a verdict", runSettings.Limit), exitLimit)
+		return cli.Exit(fmt.Sprintf("mutants stopped at the limit of %s: the report holds the mutants that got a verdict", limit), exitLimit)
 	case slices.ContainsFunc(outcome.Mutants, func(m mutant.Mutant) bool { return m.Verdict.Status.IsSurvivor() }),
 		outcome.CallerGaps != nil && len(*outcome.CallerGaps) > 0,
 		outcome.Proposals != nil && len(outcome.Proposals.Rejected) > 0:
 		return cli.Exit("", exitSurvivors)
+	case noVerdict > 0:
+		return cli.Exit(fmt.Sprintf("mutants has no verdict for %d of the mutants: run each one again with mutants rerun ID", noVerdict), exitNoVerdict)
 	}
 	return nil
 }

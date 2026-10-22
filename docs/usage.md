@@ -107,6 +107,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | --- | --- | --- |
 | `mutants run` | 0 | no mutant survived |
 | | 10 | at least one mutant survived, the run found a caller gap, or the run rejected a proposal |
+| | 1 | no mutant survived, but at least one mutant has no verdict, such as INFRA ERROR. Run each one again with `mutants rerun`. |
 | | 124 | the run reached `--limit` |
 | | 2 | a usage error or a tool error, for example a test that fails with the real code, or a file of proposals that `mutants` cannot read |
 | | 130 | an interrupt or SIGTERM stopped the run |

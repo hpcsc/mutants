@@ -240,6 +240,16 @@ func TestRegression(t *testing.T) {
 			require.Contains(t, output, "FINDING exit code : mutants run exited with code 3")
 		})
 
+		t.Run("exit 1 for a mutant with no verdict is no finding", func(t *testing.T) {
+			fake := newFake(t, withStatus(boundary, infraError))
+			fake.env["FAKE_EXIT"] = "1"
+
+			output, code := fake.check(t)
+
+			require.Equal(t, 0, code, output)
+			require.NotContains(t, output, "FINDING")
+		})
+
 		t.Run("a file that the run leaves in the work tree is a finding", func(t *testing.T) {
 			fake := newFake(t, withStatus(boundary, lived))
 			fake.env["FAKE_WRITE"] = "left.txt"

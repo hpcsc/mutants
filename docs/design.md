@@ -721,6 +721,10 @@ flowchart TD
 | TIMED OUT | the tests ran past the limit | no |
 | INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past its limit. In Go, also tests that passed and wrote a file in the work tree. | no |
 
+An INFRA ERROR is no verdict. A run with one and no survivor exits 1, not 0, so that a script that reads only
+the exit code does not take the run for a clean result. A NOT VIABLE mutant is no verdict either, but no run
+of the same code gives it one, so it does not change the exit code.
+
 Go's coverage profile has no block for the part of a statement that comes after a function literal, and from
 Go 1.27 it has none for the brace that opens a branch. A tool that reads "no block" as "not covered" never
 runs the mutants on those lines. So `mutants` marks a mutant NOT COVERED when a block with a count of 0 holds
@@ -789,7 +793,7 @@ coverage runs of different packages run at the same time, as many as there are w
 
 | Command | Does | Exit |
 | --- | --- | --- |
-| `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors, caller gaps or rejected proposals, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
+| `mutants run` | runs the mutants of the changed lines | 0 no survivor, 10 survivors, caller gaps or rejected proposals, 1 no survivor but a mutant with no verdict, 124 the limit, 2 a usage or tool error, 130 SIGINT or SIGTERM |
 | `mutants run --all FOLDER...` | runs the mutants of whole packages | same |
 | `mutants rerun ID` | runs one mutant again, with no cache. It takes the id with or without the `[ ]` of a row. When the tests fail with the real code, its last line is `NO VERDICT: ...`. | 0 killed, 10 lived or not covered, 1 no verdict, 2 a text that is not an id, an unknown id, or an error before the mutant runs |
 | `mutants operators` | lists the operators and their rules | 0 |
