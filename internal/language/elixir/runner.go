@@ -94,22 +94,22 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	})
 }
 
-// inReusedVM leaves a LIVED mutant to a new VM, because the reused VM started the application before the mutant
-// loaded, so a mutant of the code that starts the application has no effect there.
+// inReusedVM leaves a LIVED mutant of code that ran when the application started or a test file compiled to a new
+// VM, because the reused VM did both before the mutant loaded.
 func (r *runner) inReusedVM(ctx context.Context, project project, original, mutated string, limit time.Duration) (mutant.Verdict, bool, error) {
-	verdict, judged, err := r.vms.test(ctx, project, original, mutated, limit)
-	if err != nil || !judged || verdict.Status == mutant.Lived {
+	first, judged, err := r.vms.test(ctx, project, original, mutated, limit)
+	if err != nil || !judged || first.verdict.Status == mutant.Lived && first.loadedBeforeTests {
 		return mutant.Verdict{}, false, err
 	}
 	if !r.confirmKills {
-		return verdict, true, nil
+		return first.verdict, true, nil
 	}
-	verdict, err = mutant.ConfirmKill(ctx, verdict, func(ctx context.Context) (mutant.Verdict, error) {
+	verdict, err := mutant.ConfirmKill(ctx, first.verdict, func(ctx context.Context) (mutant.Verdict, error) {
 		again, judged, err := r.vms.test(ctx, project, original, mutated, limit)
 		if !judged {
 			return mutant.Verdict{Status: mutant.Killed}, err
 		}
-		return again, err
+		return again.verdict, err
 	})
 	return verdict, true, err
 }

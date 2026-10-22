@@ -596,6 +596,33 @@ end
 			require.Equal(t, 2, vmsOf(t, pids), "the coverage run and one reused VM")
 		})
 
+		t.Run("in a reused VM, a LIVED mutant of a module that loads only when the tests run stays LIVED with no new VM", func(t *testing.T) {
+			pids := filepath.Join(t.TempDir(), "pids")
+			t.Setenv("MUTANTS_TEST_PIDS", pids)
+			root := newProject(t, shop(map[string]string{"test/shop/pid_test.exs": pidTest}))
+			m := mutantOf(t, root, "lib/shop/discount.ex", "else\n      0", "else\n      0 * 2")
+
+			verdict, err := elixir.New(root, elixir.Settings{Workers: 1, ReuseVM: true}).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Verdict{Status: mutant.Lived}, verdict)
+			require.Equal(t, 2, vmsOf(t, pids), "the coverage run and one reused VM")
+		})
+
+		t.Run("in a reused VM, a mutant of code that a macro calls while a test file compiles is KILLED by the check in a new VM", func(t *testing.T) {
+			root := newProject(t, shop(map[string]string{
+				"lib/shop/codegen.ex":       "defmodule Shop.Codegen do\n  def double(n), do: n * 2\nend\n",
+				"lib/shop/macros.ex":        "defmodule Shop.Macros do\n  defmacro twice(n), do: Shop.Codegen.double(n)\nend\n",
+				"test/shop/macros_test.exs": "defmodule Shop.MacrosTest do\n  use ExUnit.Case\n  require Shop.Macros\n\n  test \"twice\", do: assert(Shop.Macros.twice(2) == 4)\nend\n",
+			}))
+			m := mutantOf(t, root, "lib/shop/codegen.ex", "n * 2", "n * 3")
+
+			verdict, err := elixir.New(root, elixir.Settings{Workers: 1, ReuseVM: true}).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Killed, verdict.Status, verdict.Detail)
+		})
+
 		t.Run("in a reused VM, the next mutant runs against the real code again, so each mutant gets its own verdict", func(t *testing.T) {
 			root := newProject(t, shop(nil))
 			runner := elixir.New(root, elixir.Settings{Workers: 1, ReuseVM: true}).Runner()

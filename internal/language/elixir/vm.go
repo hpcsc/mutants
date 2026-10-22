@@ -27,9 +27,17 @@ const (
 )
 
 type vmReply struct {
-	Status  string `json:"status"`
-	Detail  string `json:"detail"`
-	Restart bool   `json:"restart"`
+	Status            string `json:"status"`
+	Detail            string `json:"detail"`
+	Restart           bool   `json:"restart"`
+	LoadedBeforeTests bool   `json:"loaded_before_tests"`
+}
+
+// loadedBeforeTests is true when a module of the file loaded while the application started or a test file
+// compiled, so its code can run before the mutant loads.
+type vmVerdict struct {
+	verdict           mutant.Verdict
+	loadedBeforeTests bool
 }
 
 // vm must test one mutant at a time, because the code server holds one version of a module.
@@ -50,19 +58,19 @@ func newVMs() *vms {
 }
 
 // test returns false when no VM could judge the mutant, and an error only when ctx ends.
-func (p *vms) test(ctx context.Context, project project, original, mutated string, limit time.Duration) (mutant.Verdict, bool, error) {
+func (p *vms) test(ctx context.Context, project project, original, mutated string, limit time.Duration) (vmVerdict, bool, error) {
 	v := p.take(ctx, project, limit)
 	if v == nil {
-		return mutant.Verdict{}, false, ctx.Err()
+		return vmVerdict{}, false, ctx.Err()
 	}
 	reply, answered := v.test(ctx, original, mutated, limit)
 	switch {
 	case ctx.Err() != nil:
 		v.stop()
-		return mutant.Verdict{}, false, ctx.Err()
+		return vmVerdict{}, false, ctx.Err()
 	case !answered:
 		v.stop()
-		return mutant.Verdict{}, false, nil
+		return vmVerdict{}, false, nil
 	case reply.Restart:
 		v.stop()
 	default:
@@ -70,13 +78,13 @@ func (p *vms) test(ctx context.Context, project project, original, mutated strin
 	}
 	switch reply.Status {
 	case "killed":
-		return mutant.Verdict{Status: mutant.Killed, Detail: reply.Detail}, true, nil
+		return vmVerdict{verdict: mutant.Verdict{Status: mutant.Killed, Detail: reply.Detail}}, true, nil
 	case "lived":
-		return mutant.Verdict{Status: mutant.Lived}, true, nil
+		return vmVerdict{verdict: mutant.Verdict{Status: mutant.Lived}, loadedBeforeTests: reply.LoadedBeforeTests}, true, nil
 	case "not_compiled":
-		return mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(reply.Detail)}, true, nil
+		return vmVerdict{verdict: mutant.Verdict{Status: mutant.NotViable, Detail: strings.TrimSpace(reply.Detail)}}, true, nil
 	}
-	return mutant.Verdict{}, false, nil
+	return vmVerdict{}, false, nil
 }
 
 func (p *vms) take(ctx context.Context, project project, limit time.Duration) *vm {

@@ -109,7 +109,8 @@ func configTemplate(base string, tags map[string]int) string {
 	text.WriteString("  # true runs the tests of a mutant again after a kill, and gives UNSTABLE when they pass. Each second\n" +
 		"  # run starts a new VM, so it is off by default.\n  # confirm_kills: false\n\n")
 	text.WriteString("  # true tests the mutants in VMs that load the application and the tests one time. A new VM still\n" +
-		"  # checks each mutant that lives. This runner is experimental.\n  # reuse_vm: false\n")
+		"  # checks each mutant that lives in the code that runs before the tests: when the application starts\n" +
+		"  # or a test file compiles. This runner is experimental.\n  # reuse_vm: false\n")
 	return text.String()
 }
 

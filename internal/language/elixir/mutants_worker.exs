@@ -22,16 +22,18 @@ defmodule Mix.Tasks.Mutants.Worker do
     files = Mix.Utils.extract_files(paths, Mix.Project.config()[:test_pattern] || "*_test.exs")
 
     case Kernel.ParallelCompiler.require(files) do
-      {:ok, modules, _} -> start(Enum.filter(modules, &function_exported?(&1, :__ex_unit__, 0)), failure)
+      {:ok, modules, _} -> start(Enum.filter(modules, &function_exported?(&1, :__ex_unit__, 0)), failure, loaded())
       {:error, _, _} -> reply(%{"status" => "red", "detail" => "the test files do not compile"})
     end
   end
 
-  defp start(tests, failure) do
+  defp loaded, do: MapSet.new(for {module, _} <- :code.all_loaded(), do: module)
+
+  defp start(tests, failure, before_tests) do
     case run_tests(tests, failure) do
       %{"status" => "lived"} ->
         reply(%{"status" => "ready"})
-        loop(%{tests: tests, failure: failure, sources: modules_by_source()})
+        loop(%{tests: tests, failure: failure, sources: modules_by_source(), before_tests: before_tests})
 
       %{"detail" => detail} ->
         reply(%{"status" => "red", "detail" => detail})
@@ -57,7 +59,11 @@ defmodule Mix.Tasks.Mutants.Worker do
       {:ok, modules} ->
         verdict = run_tests(state.tests, state.failure)
         restored = restore(Enum.uniq(modules ++ real))
-        Map.put(verdict, "restart", not restored or not running?())
+
+        Map.merge(verdict, %{
+          "restart" => not restored or not running?(),
+          "loaded_before_tests" => Enum.any?(modules ++ real, &MapSet.member?(state.before_tests, &1))
+        })
 
       {:error, detail} ->
         %{"status" => "not_compiled", "detail" => detail, "restart" => real == [] or not restore(real)}

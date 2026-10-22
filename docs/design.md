@@ -734,8 +734,10 @@ sequenceDiagram
   it compiles the mutant, runs the tests with `ExUnit.run/1`, loads the real modules from the build again, and
   writes one reply line on stdout. After a mutant that does not compile, it loads each module of the file from
   the build again, because a module of the file can load before the error. When `:code.soft_purge` fails, a process still runs the mutated code, so the
-  runner stops that VM and starts a new one. A LIVED mutant runs again in a new VM, because the reused VM
-  started the application before the mutant loaded. A VM that does not reply within the limit of the tests
+  runner stops that VM and starts a new one. A LIVED mutant runs again in a new VM when a module of its file
+  loaded before the first test: while the application started, or while a test file compiled, such as a
+  function that a macro calls. That code ran before the mutant loaded, and the runner without reused VMs runs
+  it again after the mutant loads. The VM takes the list of loaded modules after the test files compile. A VM that does not reply within the limit of the tests
   stops, and the mutant runs in a new VM.
 - **No process stays alive.** The VM runs in its own process group, as each test binary of Go does. The VM
   gives each port program, such as the program of a `System.cmd`, a session of its own, so the kill of the
