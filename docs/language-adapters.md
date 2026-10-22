@@ -222,6 +222,8 @@ The runner must:
   process in a process group of its own, and kills the group.
 - Set the limit of the tests to `process.TestLimit` of a baseline run of the real code, and run them with
   `RunAgainAfterTimeout` of `process.Command`, as [Time limits](design.md#time-limits) tells.
+- Run the tests again after a kill with `mutant.ConfirmKill`, with the limit of the run that failed, so that a
+  test that fails for a reason other than the mutant gives UNSTABLE and not KILLED.
 - Give an error only when the whole run must stop. A problem with one mutant is an INFRA ERROR verdict.
 
 The Python runner keeps the work tree clean with an import hook, as

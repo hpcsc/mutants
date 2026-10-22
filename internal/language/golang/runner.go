@@ -104,12 +104,20 @@ func (r *runner) testIn(ctx context.Context, suite goPackage, original, content 
 	}
 
 	before, checked := r.changedFiles(ctx, suite.Dir)
-	tested, limit, err := r.test(ctx, suite, binary, baseline.test)
+	test := r.test(suite, binary, baseline.test)
+	tested, limit, err := test.RunAgainAfterTimeout(ctx)
 	if err != nil {
 		return mutant.Verdict{}, err
 	}
-	verdict := r.verdict(tested, limit)
-	if verdict.Status == mutant.Lived && checked {
+	verdict, err := mutant.ConfirmKill(ctx, r.verdict(tested, limit), func(ctx context.Context) (mutant.Verdict, error) {
+		test.Limit = limit
+		again, err := test.Run(ctx)
+		return r.verdict(again, limit), err
+	})
+	if err != nil {
+		return mutant.Verdict{}, err
+	}
+	if (verdict.Status == mutant.Lived || verdict.Status == mutant.Unstable) && checked {
 		after, checkedAgain := r.changedFiles(ctx, suite.Dir)
 		if written := writtenFiles(before, after); checkedAgain && len(written) > 0 {
 			return mutant.Verdict{Status: mutant.InfraError, Detail: "the tests passed and changed " + strings.Join(written, ", ") + " in the work tree"}, nil
@@ -159,15 +167,14 @@ func writtenFiles(before, after map[string]string) []string {
 	return written
 }
 
-func (r *runner) test(ctx context.Context, pkg goPackage, binary string, baseline time.Duration) (process.Exit, time.Duration, error) {
-	test := process.Command{
+func (r *runner) test(pkg goPackage, binary string, baseline time.Duration) process.Command {
+	return process.Command{
 		Program:   binary,
 		Arguments: []string{"-test.count=1", "-test.failfast"},
 		Folder:    pkg.Dir,
 		Env:       r.settings.testEnv(),
 		Limit:     process.TestLimit(baseline),
 	}
-	return test.RunAgainAfterTimeout(ctx)
 }
 
 func (r *runner) build(ctx context.Context, pkg goPackage, folder, original, content, binary string, limit time.Duration) (process.Exit, error) {

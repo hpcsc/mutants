@@ -59,24 +59,28 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	}
 
 	tests := run.testsOf(m)
-	tested, limit, err := r.test(ctx, project, folder, original, mutated, tests, run.duration(tests))
+	test := r.test(project, folder, original, mutated, tests, run.duration(tests))
+	tested, limit, err := test.RunAgainAfterTimeout(ctx)
 	if err != nil {
 		return mutant.Verdict{}, err
 	}
-	return verdict(tested, limit), nil
+	return mutant.ConfirmKill(ctx, verdict(tested, limit), func(ctx context.Context) (mutant.Verdict, error) {
+		test.Limit = limit
+		again, err := test.Run(ctx)
+		return verdict(again, limit), err
+	})
 }
 
-func (r *runner) test(ctx context.Context, project project, folder, original, mutated string, tests []string, baseline time.Duration) (process.Exit, time.Duration, error) {
+func (r *runner) test(project project, folder, original, mutated string, tests []string, baseline time.Duration) process.Command {
 	python := r.projects.python(project)
 	arguments := append(append(python[1:], pytestArguments()...), "-x")
-	test := process.Command{
+	return process.Command{
 		Program:   python[0],
 		Arguments: append(arguments, testArguments(tests)...),
 		Folder:    project.folder,
 		Env:       append(testEnv(folder), "MUTANTS_ORIGINAL="+original, "MUTANTS_MUTATED="+mutated),
 		Limit:     process.TestLimit(baseline),
 	}
-	return test.RunAgainAfterTimeout(ctx)
 }
 
 func testArguments(tests []string) []string {

@@ -107,13 +107,13 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | --- | --- | --- |
 | `mutants run` | 0 | no mutant survived |
 | | 10 | at least one mutant survived, the run found a caller gap, or the run rejected a proposal |
-| | 1 | no mutant survived, but at least one mutant has no verdict, such as INFRA ERROR. Run each one again with `mutants rerun`. |
+| | 1 | no mutant survived, but at least one mutant has no verdict, such as INFRA ERROR or UNSTABLE. Run each one again with `mutants rerun`. |
 | | 124 | the run reached `--limit` |
 | | 2 | a usage error or a tool error, for example a test that fails with the real code, or a file of proposals that `mutants` cannot read |
 | | 130 | an interrupt or SIGTERM stopped the run |
 | `mutants rerun` | 0 | a test killed the mutant |
 | | 10 | the mutant lived, or no test runs its line |
-| | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, the proposal of the mutant does not fit the code, or the tests fail with the real code |
+| | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, a test failed and then passed, the proposal of the mutant does not fit the code, or the tests fail with the real code |
 | | 2 | the text is not a mutant id, no mutant has this id, or a usage error or a tool error before the mutant runs, for example a key of `.mutants.yml` that `mutants` does not know |
 
 ## Statuses
@@ -126,6 +126,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | NOT VIABLE | the mutant does not build | no |
 | TIMED OUT | the tests ran past their time limit two times | no |
 | INFRA ERROR | the computer stopped the run, for example when it had no more memory, or the build ran past its limit. In Go, also tests that passed and wrote a file in the work tree, such as a new snapshot: the detail names the file, so that you can remove it. | no |
+| UNSTABLE | a test failed with the mutant, and the same tests passed when they ran again. The detail gives the failure of the first run. | no |
 
 A package whose tests fail with the real code stops the run with exit code 2, because its mutants cannot get
 a verdict.
@@ -509,7 +510,8 @@ rule:
   lines that no test runs. Each other mutant runs each test of its project, and stops at the first failure.
   An alias for `test` in `mix.exs`, such as one that creates the database, runs as it does for `mix test`.
 - **The database.** The workers run the tests of more than one mutant at the same time, against the same test
-  database. When the tests of a project cannot run two times at the same time, use `--workers 1`.
+  database. When the tests of a project cannot run two times at the same time, use `--workers 1`. A test that
+  fails only when another worker uses the database gives UNSTABLE, because it passes when it runs again.
 - **One order.** `mutants` runs the tests with `--seed 0`, so the tests run in the same order in each run.
 - **Limits.** A mutant of a macro, a guard or the defaults of a struct gets no row: a module that uses them
   keeps the code that it got when it compiled. A program that a test starts through a port, such as with

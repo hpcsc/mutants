@@ -135,6 +135,7 @@ you did not write, or an assertion that is too weak. When you add the test, the 
 | NOT COVERED | no test runs the line | Add a test that runs the line. In Go, a test of a changed package that calls the line counts too. |
 | TIMED OUT | the tests with the mutant ran past the time limit, for example in an endless loop | Nothing. A mutant that makes the tests hang counts as found. |
 | INFRA ERROR | the computer stopped the run, for example when it had no more memory | Run the mutant again with `mutants rerun`. |
+| UNSTABLE | a test failed with the mutant, and passed when the tests ran again | Run the mutant again with `mutants rerun`. When it stays UNSTABLE, a test fails for a reason other than the mutant: fix that test, or use `--workers 1` when the tests share a database. |
 
 A mutant that a test killed, and a mutant that does not build, get no row.
 
@@ -174,7 +175,7 @@ mutants run --caller-gaps            # also find new code that no test of a chan
 
 `mutants run` exits with 0 when no mutant survives. It exits with 10 when a mutant survives, when the run
 finds a caller gap, or when it rejects a proposal. It exits with 1 when no mutant survives, but a mutant has
-no verdict, such as INFRA ERROR. A CI step or a script can use this exit code.
+no verdict, such as INFRA ERROR or UNSTABLE. A CI step or a script can use this exit code.
 
 ## More documents
 

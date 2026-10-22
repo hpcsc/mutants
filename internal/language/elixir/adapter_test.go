@@ -47,6 +47,25 @@ const discountTest = `defmodule Shop.DiscountTest do
 end
 `
 
+const secondRunFailsTest = `defmodule Shop.SecondRunTest do
+  use ExUnit.Case
+
+  test "second run" do
+    path = System.fetch_env!("MUTANTS_TEST_COUNTER")
+
+    count =
+      case File.read(path) do
+        {:ok, text} -> String.to_integer(text) + 1
+        {:error, _} -> 1
+      end
+
+    File.write!(path, Integer.to_string(count))
+    assert count != 2
+    assert Shop.Discount.discount(50) == 0
+  end
+end
+`
+
 func newProject(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -468,6 +487,17 @@ end
 
 			require.NoError(t, err)
 			require.Equal(t, mutant.Verdict{Status: mutant.Killed, Detail: "test edge (Shop.DiscountTest), test/shop/discount_test.exs:8"}, verdict)
+		})
+
+		t.Run("a mutant whose tests fail and then pass when they run again is UNSTABLE, with the failure as the detail", func(t *testing.T) {
+			t.Setenv("MUTANTS_TEST_COUNTER", filepath.Join(t.TempDir(), "counter"))
+			root := newProject(t, shop(map[string]string{"test/shop/second_run_test.exs": secondRunFailsTest}))
+			m := mutantOf(t, root, "lib/shop/discount.ex", "else\n      0", "else\n      0 * 2")
+
+			verdict, err := newAdapter(root).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Verdict{Status: mutant.Unstable, Detail: "a test failed, and passed when the tests ran again: test second run (Shop.SecondRunTest), test/shop/second_run_test.exs:4"}, verdict)
 		})
 
 		t.Run("a mutant that each test passes LIVED", func(t *testing.T) {

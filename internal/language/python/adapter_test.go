@@ -25,6 +25,20 @@ const discount = "LIMIT = 100\n\n\ndef discount(total):\n    if total >= LIMIT:\
 const discountTest = "from shop.discount import discount\n\n\ndef test_low():\n    assert discount(50) == 0\n\n\n" +
 	"def test_edge():\n    assert discount(100) == 10\n"
 
+const secondRunFailsTest = `import os
+
+from shop.discount import discount
+
+
+def test_second_run():
+    path = os.environ["MUTANTS_TEST_COUNTER"]
+    count = int(open(path).read()) + 1 if os.path.exists(path) else 1
+    with open(path, "w") as counter:
+        counter.write(str(count))
+    assert count != 2
+    assert discount(50) == 0
+`
+
 func newProject(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
@@ -278,6 +292,17 @@ def limit():
 
 			require.NoError(t, err)
 			require.Equal(t, mutant.Verdict{Status: mutant.Killed, Detail: "FAILED tests/test_discount.py::test_edge - assert 0 == 10"}, verdict)
+		})
+
+		t.Run("a mutant whose tests fail and then pass when they run again is UNSTABLE, with the failure as the detail", func(t *testing.T) {
+			t.Setenv("MUTANTS_TEST_COUNTER", filepath.Join(t.TempDir(), "counter"))
+			root := newProject(t, shop(map[string]string{"tests/test_second_run.py": secondRunFailsTest}))
+			m := mutantOf(t, root, "shop/discount.py", "return 0", "return 0 * 2")
+
+			verdict, err := newAdapter(root).Runner().Run(context.Background(), m)
+
+			require.NoError(t, err)
+			require.Equal(t, mutant.Verdict{Status: mutant.Unstable, Detail: "a test failed, and passed when the tests ran again: FAILED tests/test_second_run.py::test_second_run - assert 2 != 2"}, verdict)
 		})
 
 		t.Run("a mutant that each test passes LIVED", func(t *testing.T) {

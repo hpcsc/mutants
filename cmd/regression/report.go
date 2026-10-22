@@ -14,9 +14,10 @@ const (
 	notViable  = "NOT VIABLE"
 	timedOut   = "TIMED OUT"
 	infraError = "INFRA ERROR"
+	unstable   = "UNSTABLE"
 )
 
-var statuses = []string{killed, lived, notCovered, notViable, timedOut, infraError}
+var statuses = []string{killed, lived, notCovered, notViable, timedOut, infraError, unstable}
 
 type report struct {
 	Base    string           `json:"base"`

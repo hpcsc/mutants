@@ -9,6 +9,7 @@ const (
 	NotViable
 	TimedOut
 	InfraError
+	Unstable
 )
 
 func (s Status) String() string {
@@ -25,6 +26,8 @@ func (s Status) String() string {
 		return "TIMED OUT"
 	case InfraError:
 		return "INFRA ERROR"
+	case Unstable:
+		return "UNSTABLE"
 	}
 	return "NO VERDICT"
 }
@@ -34,5 +37,5 @@ func (s Status) IsSurvivor() bool {
 }
 
 func (s Status) NeedsRerun() bool {
-	return s == InfraError
+	return s == InfraError || s == Unstable
 }

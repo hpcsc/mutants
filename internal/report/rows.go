@@ -75,7 +75,7 @@ func rows(outcome run.Outcome) string {
 	}
 	printed := map[string]bool{}
 	var text strings.Builder
-	for _, status := range []mutant.Status{mutant.Lived, mutant.NotCovered, mutant.TimedOut, mutant.InfraError} {
+	for _, status := range []mutant.Status{mutant.Lived, mutant.NotCovered, mutant.TimedOut, mutant.InfraError, mutant.Unstable} {
 		header := false
 		for _, m := range sorted {
 			if _, isInside := outerOf[m.ID]; isInside || m.Verdict.Status != status {
@@ -150,7 +150,7 @@ func Row(m mutant.Mutant) string {
 
 func Counts(mutants []mutant.Mutant, base string) string {
 	counts := []string{fmt.Sprintf("mutants: %d", len(mutants))}
-	for _, status := range []mutant.Status{mutant.Killed, mutant.Lived, mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError} {
+	for _, status := range []mutant.Status{mutant.Killed, mutant.Lived, mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError, mutant.Unstable} {
 		count := 0
 		for _, m := range mutants {
 			if m.Verdict.Status == status {

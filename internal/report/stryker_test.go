@@ -81,7 +81,7 @@ func TestStryker(t *testing.T) {
 			root := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\n"), 0o644))
 			var mutants []mutant.Mutant
-			for i, status := range []mutant.Status{mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError} {
+			for i, status := range []mutant.Status{mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError, mutant.Unstable} {
 				m := reported("a.go", 1, "BRANCH_IF", i+1, "{ g() }", "{}", status)
 				m.Verdict.Detail = fmt.Sprintf("detail %d", i+1)
 				mutants = append(mutants, m)
@@ -97,7 +97,7 @@ func TestStryker(t *testing.T) {
 			}
 			require.NoError(t, json.Unmarshal([]byte(output.String()), &document))
 			require.Equal(t, []struct{ Status, StatusReason string }{
-				{"NoCoverage", "detail 1"}, {"CompileError", "detail 2"}, {"Timeout", "detail 3"}, {"RuntimeError", "detail 4"},
+				{"NoCoverage", "detail 1"}, {"CompileError", "detail 2"}, {"Timeout", "detail 3"}, {"RuntimeError", "detail 4"}, {"RuntimeError", "detail 5"},
 			}, document.Files["a.go"].Mutants)
 		})
 	})

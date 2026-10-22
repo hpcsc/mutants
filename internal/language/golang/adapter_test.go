@@ -231,6 +231,29 @@ func TestMax(t *testing.T) {
 }
 `
 
+const secondRunFailsTest = `package calc
+
+import (
+	"os"
+	"strconv"
+	"testing"
+)
+
+func TestMax(t *testing.T) {
+	path := os.Getenv("MUTANTS_TEST_COUNTER")
+	content, _ := os.ReadFile(path)
+	count, _ := strconv.Atoi(string(content))
+	count++
+	if err := os.WriteFile(path, []byte(strconv.Itoa(count)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if count == 2 {
+		t.Fatal("the second run fails")
+	}
+	_ = Max(1, 2)
+}
+`
+
 func maxTestLinkedWith(ldflags string) string {
 	return fmt.Sprintf(`package calc
 
@@ -1583,6 +1606,16 @@ func age(id string) error {
 
 			require.Equal(t, mutant.Killed, result.Status, result.Detail)
 			require.Contains(t, result.Detail, "--- FAIL: TestMax")
+		})
+
+		t.Run("a mutant whose tests fail and then pass when they run again is UNSTABLE, with the failure as the detail", func(t *testing.T) {
+			t.Setenv("MUTANTS_TEST_COUNTER", filepath.Join(t.TempDir(), "counter"))
+			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": secondRunFailsTest})
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Unstable, result.Status, result.Detail)
+			require.Contains(t, result.Detail, "a test failed, and passed when the tests ran again: --- FAIL: TestMax")
 		})
 
 		t.Run("a mutant that only the tests of a changed caller run is KILLED by a test of the caller", func(t *testing.T) {

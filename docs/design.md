@@ -510,7 +510,10 @@ sequenceDiagram
             R-->>W: TIMED OUT
         else the binary exits
             B-->>R: exit code and output
-            R-->>W: KILLED, LIVED or INFRA ERROR
+            opt a test failed
+                R->>B: the same binary again, with the same limit
+            end
+            R-->>W: KILLED, LIVED, UNSTABLE or INFRA ERROR
         end
     end
 ```
@@ -587,7 +590,10 @@ sequenceDiagram
             R-->>W: TIMED OUT
         else pytest exits
             P-->>R: exit code and output
-            R-->>W: KILLED, LIVED or INFRA ERROR
+            opt a test failed
+                R->>P: the same tests again, with the same limit
+            end
+            R-->>W: KILLED, LIVED, UNSTABLE or INFRA ERROR
         end
     end
 ```
@@ -650,7 +656,10 @@ sequenceDiagram
             R-->>W: TIMED OUT
         else mix test exits
             M-->>R: exit code and output
-            R-->>W: KILLED, LIVED or INFRA ERROR
+            opt a test failed
+                R->>T: the same command again, with the same limit
+            end
+            R-->>W: KILLED, LIVED, UNSTABLE or INFRA ERROR
         end
     end
 ```
@@ -708,7 +717,9 @@ flowchart TD
     BLD -- "yes" --> RUN{"how did the binary end?"}
     RUN -- "the limit ended first, two times" --> TO["TIMED OUT"]
     RUN -- "exit 0" --> LV["LIVED"]
-    RUN -- "a test failed or panicked" --> KD["KILLED"]
+    RUN -- "a test failed or panicked" --> AGAIN{"the same tests again"}
+    AGAIN -- "a test failed" --> KD["KILLED"]
+    AGAIN -- "exit 0" --> UN["UNSTABLE"]
     RUN -- "a signal or out of memory" --> IE["INFRA ERROR"]
 ```
 
@@ -720,9 +731,10 @@ flowchart TD
 | NOT VIABLE | the mutant does not build | no |
 | TIMED OUT | the tests ran past the limit | no |
 | INFRA ERROR | the host stopped the run, for example out of memory, or the build ran past its limit. In Go, also tests that passed and wrote a file in the work tree. | no |
+| UNSTABLE | a test failed, and the same tests passed when they ran again | no |
 
-An INFRA ERROR is no verdict. A run with one and no survivor exits 1, not 0, so that a script that reads only
-the exit code does not take the run for a clean result. A NOT VIABLE mutant is no verdict either, but no run
+An INFRA ERROR and an UNSTABLE mutant have no verdict. A run with one and no survivor exits 1, not 0, so that a
+script that reads only the exit code does not take the run for a clean result. A NOT VIABLE mutant is no verdict either, but no run
 of the same code gives it one, so it does not change the exit code.
 
 Go's coverage profile has no block for the part of a statement that comes after a function literal, and from
@@ -773,6 +785,9 @@ The coverage run also measures the build of the real code, and that build has no
 
 The load of the host can grow after the baseline. A mutant that runs past its limit therefore runs one more
 time with twice the limit, and it is TIMED OUT only when the second run also runs past the limit.
+
+A mutant whose tests fail runs its tests one more time, with the limit of the run that failed. It is KILLED
+only when the second run does not pass.
 
 At the `--limit` of the whole run, `mutants` stops the workers, writes the rows that it has, and exits 124.
 At SIGINT or SIGTERM, it stops the workers and exits 130.
@@ -1119,6 +1134,13 @@ each rule of its kind when it has one.
 the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example
 a rule that loses one of its conditions. Three more were values that `zero_functions` now skips. So most of
 its survivors are real test gaps, and they are worth the longer run.
+
+**Why a kill runs the tests again.** A test can fail for a reason other than the mutant: a test that depends on
+the time or on the order of goroutines, or two workers that write the same rows of one test database. Such a
+failure gives KILLED, and a false KILLED hides a gap in the tests. The second run costs one more test run for each
+KILLED mutant: in Go, only a run of the test binary, which is built already, and in Python and Elixir, the whole
+command. The second run runs the same tests in the same order, not only the test that failed, because a mutant can
+make a test fail only after an earlier test changed the state.
 
 **Why the move of a limit skips the side of CONDITIONALS_BOUNDARY also when that operator is off.** The ids count
 after the filters, and `rerun` runs only the operator of its id. A filter that reads the operators of the run

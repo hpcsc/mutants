@@ -42,6 +42,7 @@ func TestRows(t *testing.T) {
 				reported("handler.go", 60, "ARITHMETIC_BASE", 1, `"a" + b`, `"a" - b`, mutant.NotViable),
 				reported("handler.go", 70, "BREAK_AT_END", 1, "for { f() }", "for { f(); break }", mutant.TimedOut),
 				reported("handler.go", 80, "BRANCH_ELSE", 1, "{ g() }", "{}", mutant.InfraError),
+				reported("handler.go", 90, "RETURN_TRUE", 1, "ok", "true", mutant.Unstable),
 			}
 			var output strings.Builder
 
@@ -55,7 +56,9 @@ TIMED OUT:
   handler.go:70 BREAK_AT_END: for { f() } -> for { f(); break }  [handler.go:(*Handler).accounts:BREAK_AT_END#1]
 INFRA ERROR:
   handler.go:80 BRANCH_ELSE: { g() } -> {}  [handler.go:(*Handler).accounts:BRANCH_ELSE#1]
-mutants: 6, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, infra error: 1 (base 1a2b3c4d5e)
+UNSTABLE:
+  handler.go:90 RETURN_TRUE: ok -> true  [handler.go:(*Handler).accounts:RETURN_TRUE#1]
+mutants: 7, killed: 1, lived: 1, not covered: 1, not viable: 1, timed out: 1, infra error: 1, unstable: 1 (base 1a2b3c4d5e)
 `, output.String())
 		})
 

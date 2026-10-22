@@ -50,6 +50,7 @@ var strykerStatuses = map[mutant.Status]string{
 	mutant.NotViable:  "CompileError",
 	mutant.TimedOut:   "Timeout",
 	mutant.InfraError: "RuntimeError",
+	mutant.Unstable:   "RuntimeError",
 }
 
 func Stryker(w io.Writer, root string, mutants []mutant.Mutant) error {

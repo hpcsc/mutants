@@ -38,7 +38,7 @@ func newRunCommand() *cli.Command {
 		Description: "mutants run compares the work tree with the merge base of HEAD and --base, and runs the mutants of\n" +
 			"the changed lines, committed or not. Every line of an untracked file counts.\n\n" +
 			"Exit codes: 0 no survivor, 10 survivors, caller gaps or rejected proposals, 1 a mutant with no verdict,\n" +
-			"such as INFRA ERROR, 124 the limit, 2 a usage or tool error.",
+			"such as INFRA ERROR or UNSTABLE, 124 the limit, 2 a usage or tool error.",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "base", Usage: "compare with the merge base of HEAD and this commit (default: " + defaultBase + ")"},
 			&cli.BoolFlag{Name: "all", Usage: "run every line of the files in each FOLDER, and in its subfolders for FOLDER/..."},

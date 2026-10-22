@@ -70,7 +70,11 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	if err != nil {
 		return mutant.Verdict{}, err
 	}
-	return verdict(tested, limit), nil
+	return mutant.ConfirmKill(ctx, verdict(tested, limit), func(ctx context.Context) (mutant.Verdict, error) {
+		test.Limit = limit
+		again, err := test.Run(ctx)
+		return verdict(again, limit), err
+	})
 }
 
 func verdict(tested process.Exit, limit time.Duration) mutant.Verdict {

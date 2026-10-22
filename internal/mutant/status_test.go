@@ -19,6 +19,7 @@ func TestStatus(t *testing.T) {
 				mutant.NotViable:  false,
 				mutant.TimedOut:   false,
 				mutant.InfraError: false,
+				mutant.Unstable:   false,
 			}
 			for status, survivor := range survivors {
 				require.Equal(t, survivor, status.IsSurvivor(), status.String())
@@ -27,9 +28,9 @@ func TestStatus(t *testing.T) {
 	})
 
 	t.Run("needs rerun", func(t *testing.T) {
-		t.Run("only INFRA ERROR has no verdict that a run of the same mutant can change", func(t *testing.T) {
+		t.Run("only INFRA ERROR and UNSTABLE have no verdict that a run of the same mutant can change", func(t *testing.T) {
 			rerun := map[mutant.Status]bool{}
-			for _, status := range []mutant.Status{mutant.Killed, mutant.Lived, mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError} {
+			for _, status := range []mutant.Status{mutant.Killed, mutant.Lived, mutant.NotCovered, mutant.NotViable, mutant.TimedOut, mutant.InfraError, mutant.Unstable} {
 				rerun[status] = status.NeedsRerun()
 			}
 
@@ -40,6 +41,7 @@ func TestStatus(t *testing.T) {
 				mutant.NotViable:  false,
 				mutant.TimedOut:   false,
 				mutant.InfraError: true,
+				mutant.Unstable:   true,
 			}, rerun)
 		})
 	})
