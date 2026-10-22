@@ -12,19 +12,17 @@ shop/order.py:discount:CONDITION_TRUE#1 18:8 NOT COVERED
   "total >= 100" -> "True"
 shop/order.py:discount:INTEGER_DECREMENT#1 18:17 NOT COVERED
   "100" -> "(100-1)"
-shop/order.py:discount:INTEGER_INCREMENT#1 18:17 NOT COVERED
-  "100" -> "(100+1)"
 shop/order.py:discount:BRANCH_IF#1 19:9 NOT COVERED
   "return 10" -> "pass"
 shop/order.py:discount:INTEGER_DECREMENT#2 19:16 NOT COVERED
   "10" -> "(10-1)"
-shop/order.py:discount:INTEGER_INCREMENT#2 19:16 NOT COVERED
+shop/order.py:discount:INTEGER_INCREMENT#1 19:16 NOT COVERED
   "10" -> "(10+1)"
 shop/order.py:discount:RETURN_EMPTY#1 19:16 NOT COVERED
   "10" -> "0"
 shop/order.py:discount:INTEGER_DECREMENT#3 20:12 NOT COVERED
   "0" -> "(0-1)"
-shop/order.py:discount:INTEGER_INCREMENT#3 20:12 NOT COVERED
+shop/order.py:discount:INTEGER_INCREMENT#2 20:12 NOT COVERED
   "0" -> "(0+1)"
 shop/order.py:price:ARITHMETIC_BASE#1 24:12 NOT COVERED
   "order[\"total\"] - discount(order[\"total\"])" -> "order[\"total\"] + discount(order[\"total\"])"
@@ -120,8 +118,6 @@ shop/order.py:kind:CONDITIONALS_BOUNDARY#1 63:19 NOT COVERED
   "m > 1" -> "m >= 1"
 shop/order.py:kind:CONDITIONALS_NEGATION#1 63:19 NOT COVERED
   "m > 1" -> "m <= 1"
-shop/order.py:kind:INTEGER_DECREMENT#2 63:23 NOT COVERED
-  "1" -> "(1-1)"
 shop/order.py:kind:INTEGER_INCREMENT#2 63:23 NOT COVERED
   "1" -> "(1+1)"
 shop/order.py:kind:BRANCH_CASE#2 64:13 NOT COVERED

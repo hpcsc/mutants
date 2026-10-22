@@ -794,10 +794,17 @@ func TestPack(t *testing.T) {
 		})
 
 		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT skip a number in a case pattern, where (0+1) does not compile, and keep a number in a guard", func(t *testing.T) {
-			source := "def f(a):\n    match a:\n        case 0 | [1, -2] | {\"k\": 3} | Point(x=4):\n            pass\n        case n if n > 5:\n            pass\n"
+			source := "def f(a):\n    match a:\n        case 0 | [1, -2] | {\"k\": 3} | Point(x=4):\n            pass\n        case n if n == 5:\n            pass\n"
 
 			require.Equal(t, []string{"5 -> (5+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
 			require.Equal(t, []string{"5 -> (5-1)"}, pythonEditsOf(t, "INTEGER_DECREMENT", source))
+		})
+
+		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT skip the move of a limit that makes the same change as CONDITIONALS_BOUNDARY", func(t *testing.T) {
+			source := "def f(n):\n    return [n >= 10, n < 20, n > 30, n <= 40, 50 > n, 60 <= n, n == 70, 0 < n < 80]\n"
+
+			require.Equal(t, []string{"30 -> (30+1)", "40 -> (40+1)", "70 -> (70+1)", "0 -> (0+1)", "80 -> (80+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"10 -> (10-1)", "20 -> (20-1)", "50 -> (50-1)", "60 -> (60-1)", "70 -> (70-1)", "0 -> (0-1)", "80 -> (80-1)"}, pythonEditsOf(t, "INTEGER_DECREMENT", source))
 		})
 
 		t.Run("BRANCH_IF puts pass in place of the body of an if and of an elif", func(t *testing.T) {
@@ -922,7 +929,7 @@ func TestPack(t *testing.T) {
 			source := "import sys\nfrom sys import version_info\n\n\ndef f(n):\n    if sys.version_info >= (3, 14):\n        return n + 1\n" +
 				"    if version_info[0] > 2 and sys.version_info.minor < 10:\n        return n + 2\n    if n >= 3:\n        return n + 3\n    return n\n"
 
-			require.Equal(t, []string{"1 -> (1+1)", "2 -> (2+1)", "3 -> (3+1)", "3 -> (3+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"1 -> (1+1)", "2 -> (2+1)", "3 -> (3+1)"}, pythonEditsOf(t, "INTEGER_INCREMENT", source))
 			require.Equal(t, []string{"n >= 3 -> n > 3"}, pythonEditsOf(t, "CONDITIONALS_BOUNDARY", source))
 		})
 
@@ -1014,18 +1021,25 @@ func TestPack(t *testing.T) {
 
 		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT skip a number in a pattern, where (0+1) does not compile, and keep a number in a guard", func(t *testing.T) {
 			source := `def f(0, [1 | _]), do: :zero
-def f(n, size \\ 2) when n > 3 do
+def f(n, size \\ 2) when n == 3 do
   {:ok, 4} = g(n)
   <<_::size(5), _::6>> = h(n)
   case n do
     7 -> :seven
-    m when m > 8 -> m
+    m when m == 8 -> m
   end
 end
 `
 
 			require.Equal(t, []string{"3 -> (3+1)", "8 -> (8+1)"}, elixirEditsOf(t, "INTEGER_INCREMENT", source))
 			require.Equal(t, []string{"3 -> (3-1)", "8 -> (8-1)"}, elixirEditsOf(t, "INTEGER_DECREMENT", source))
+		})
+
+		t.Run("INTEGER_INCREMENT and INTEGER_DECREMENT skip the move of a limit that makes the same change as CONDITIONALS_BOUNDARY", func(t *testing.T) {
+			source := "def f(n), do: [n >= 10, n < 20, n > 30, n <= 40, 50 > n, 60 <= n, n == 70]\n"
+
+			require.Equal(t, []string{"30 -> (30+1)", "40 -> (40+1)", "70 -> (70+1)"}, elixirEditsOf(t, "INTEGER_INCREMENT", source))
+			require.Equal(t, []string{"10 -> (10-1)", "20 -> (20-1)", "50 -> (50-1)", "60 -> (60-1)", "70 -> (70-1)"}, elixirEditsOf(t, "INTEGER_DECREMENT", source))
 		})
 
 		t.Run("BRANCH_IF puts nil in place of the statements of an if or unless body, with the comments between them, and of a do: value", func(t *testing.T) {

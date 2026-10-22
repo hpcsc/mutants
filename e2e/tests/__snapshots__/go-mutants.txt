@@ -10,19 +10,17 @@ shop/shop.go:Discount:CONDITION_TRUE#1 28:5 NOT COVERED
   "total >= 100" -> "true"
 shop/shop.go:Discount:INTEGER_DECREMENT#1 28:14 NOT COVERED
   "100" -> "(100-1)"
-shop/shop.go:Discount:INTEGER_INCREMENT#1 28:14 NOT COVERED
-  "100" -> "(100+1)"
 shop/shop.go:Discount:BRANCH_IF#1 28:18 NOT COVERED
   "{\n\t\treturn 10\n\t}" -> "{}"
 shop/shop.go:Discount:INTEGER_DECREMENT#2 29:10 NOT COVERED
   "10" -> "(10-1)"
-shop/shop.go:Discount:INTEGER_INCREMENT#2 29:10 NOT COVERED
+shop/shop.go:Discount:INTEGER_INCREMENT#1 29:10 NOT COVERED
   "10" -> "(10+1)"
 shop/shop.go:Discount:RETURN_EMPTY#1 29:10 NOT COVERED
   "10" -> "0"
 shop/shop.go:Discount:INTEGER_DECREMENT#3 31:9 NOT COVERED
   "0" -> "(0-1)"
-shop/shop.go:Discount:INTEGER_INCREMENT#3 31:9 NOT COVERED
+shop/shop.go:Discount:INTEGER_INCREMENT#2 31:9 NOT COVERED
   "0" -> "(0+1)"
 shop/shop.go:Price:ARITHMETIC_BASE#1 35:9 NOT COVERED
   "order.Total - Discount(order.Total)" -> "order.Total + Discount(order.Total)"
@@ -130,8 +128,6 @@ shop/shop.go:Save:CONDITIONALS_NEGATION#1 75:5 NOT COVERED
   "total < 0" -> "total >= 0"
 shop/shop.go:Save:INTEGER_DECREMENT#1 75:13 NOT COVERED
   "0" -> "(0-1)"
-shop/shop.go:Save:INTEGER_INCREMENT#1 75:13 NOT COVERED
-  "0" -> "(0+1)"
 shop/shop.go:Save:BRANCH_IF#1 75:15 NOT COVERED
   "{\n\t\treturn fmt.Errorf(\"save %s: %w\", order.ID, errEmpty)\n\t}" -> "{}"
 shop/shop.go:Save:ERROR_CAUSE_REMOVE#1 76:10 NOT COVERED

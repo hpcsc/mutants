@@ -610,6 +610,35 @@ func First(xs []int) (int, []int, []int, int) {
 			require.True(t, adapter.Keep(editIn(t, root, "calc/calc.go", "INTEGER_DECREMENT", "start := 0", "0", "(0-1)")))
 		})
 
+		t.Run("drops the move of an integer limit that makes the same change as CONDITIONALS_BOUNDARY, and keeps the move to the other side", func(t *testing.T) {
+			root := newModule(t, map[string]string{"calc/calc.go": `package calc
+
+func Limits(n int, price float64) []bool {
+	return []bool{n >= 10, n < 20, n > 30, n <= 40, 50 > n, 60 <= n, n == 70, price >= 80}
+}
+`})
+			adapter := golang.New(root, defaultSettings)
+			type moves struct{ increment, decrement bool }
+			kept := map[string]moves{}
+			for context, literal := range map[string]string{"n >= 10": "10", "n < 20": "20", "n > 30": "30", "n <= 40": "40", "50 > n": "50", "60 <= n": "60", "n == 70": "70", "price >= 80": "80"} {
+				kept[context] = moves{
+					increment: adapter.Keep(editIn(t, root, "calc/calc.go", "INTEGER_INCREMENT", context, literal, "("+literal+"+1)")),
+					decrement: adapter.Keep(editIn(t, root, "calc/calc.go", "INTEGER_DECREMENT", context, literal, "("+literal+"-1)")),
+				}
+			}
+
+			require.Equal(t, map[string]moves{
+				"n >= 10":     {increment: false, decrement: true},
+				"n < 20":      {increment: false, decrement: true},
+				"n > 30":      {increment: true, decrement: false},
+				"n <= 40":     {increment: true, decrement: false},
+				"50 > n":      {increment: false, decrement: true},
+				"60 <= n":     {increment: false, decrement: true},
+				"n == 70":     {increment: true, decrement: true},
+				"price >= 80": {increment: true, decrement: true},
+			}, kept)
+		})
+
 		t.Run("keeps a CONDITIONALS_BOUNDARY edit of After or Before only for a method of time.Time, also through an embedded field", func(t *testing.T) {
 			root := newModule(t, map[string]string{"wait/wait.go": `package wait
 

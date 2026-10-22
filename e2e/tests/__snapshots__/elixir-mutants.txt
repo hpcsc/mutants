@@ -116,8 +116,6 @@ lib/shop/order.ex:Shop.Order.kind/1:CONDITIONALS_BOUNDARY#1 44:14 NOT COVERED
   "m > 1" -> "m >= 1"
 lib/shop/order.ex:Shop.Order.kind/1:CONDITIONALS_NEGATION#1 44:14 NOT COVERED
   "m > 1" -> "m <= 1"
-lib/shop/order.ex:Shop.Order.kind/1:INTEGER_DECREMENT#2 44:18 NOT COVERED
-  "1" -> "(1-1)"
 lib/shop/order.ex:Shop.Order.kind/1:INTEGER_INCREMENT#2 44:18 NOT COVERED
   "1" -> "(1+1)"
 lib/shop/order.ex:Shop.Order.kind/1:BRANCH_CASE#2 44:23 NOT COVERED
@@ -164,8 +162,6 @@ lib/shop/order.ex:Shop.Order.count/1:CONDITIONALS_BOUNDARY#1 64:24 NOT COVERED
   "item > 0" -> "item >= 0"
 lib/shop/order.ex:Shop.Order.count/1:CONDITIONALS_NEGATION#1 64:24 NOT COVERED
   "item > 0" -> "item <= 0"
-lib/shop/order.ex:Shop.Order.count/1:INTEGER_DECREMENT#2 64:31 NOT COVERED
-  "0" -> "(0-1)"
 lib/shop/order.ex:Shop.Order.count/1:INTEGER_INCREMENT#2 64:31 NOT COVERED
   "0" -> "(0+1)"
 lib/shop/order.ex:Shop.Order.count/1:RETURN_EMPTY#1 65:5 NOT COVERED

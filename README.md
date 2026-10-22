@@ -93,15 +93,14 @@ its options, and how to update `mutants`.
    LIVED:
      shop/discount.go:5 CONDITIONALS_BOUNDARY: total >= 100 -> total > 100  [shop/discount.go:Discount:CONDITIONALS_BOUNDARY#1]
      shop/discount.go:5 INTEGER_DECREMENT: 100 -> (100-1)  [shop/discount.go:Discount:INTEGER_DECREMENT#1]
-     shop/discount.go:5 INTEGER_INCREMENT: 100 -> (100+1)  [shop/discount.go:Discount:INTEGER_INCREMENT#1]
-   mutants: 10, killed: 7, lived: 3 (base 4eea634536)
+   mutants: 9, killed: 7, lived: 2 (base 4eea634536)
    ```
 
    Each row gives the file and the line, the operator, the code before and after the change, and the id
    of the mutant in `[ ]`. The last line counts the mutants of each status.
 
-4. Find the gap. The three survivors show one gap: no test uses an order near 100. A test on
-   each side of the boundary kills all three:
+4. Find the gap. The two survivors show one gap: no test uses an order near 100. A test on
+   each side of the boundary kills both:
 
    ```go
    if got := Discount(99); got != 0 {
@@ -123,7 +122,7 @@ its options, and how to update `mutants`.
      --- FAIL: TestDiscount (0.00s)
    ```
 
-6. Run all the mutants again. The last line is now `mutants: 10, killed: 10`.
+6. Run all the mutants again. The last line is now `mutants: 9, killed: 9`.
 
 ## What to do with each status
 

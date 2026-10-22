@@ -32,7 +32,7 @@ the reason.
 | --- | --- | --- |
 | `ARITHMETIC_BASE` | `a + b` to `a - b`, `a * b` to `a / b` | no test checks the result of the calculation |
 | `INCREMENT_DECREMENT` | `i++` to `i--`, and `total += n` to `total -= n` | no test checks the count or the total |
-| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)` | no test pins the number, for example a limit or a size |
+| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)`. A limit of a comparison of integers moves only to the side that `CONDITIONALS_BOUNDARY` does not test: `total >= 100` gets `(100-1)`, because `total >= (100+1)` is `total > 100`. | no test pins the number, for example a limit or a size |
 | `INVERT_NEGATIVES` | `-offset` to `offset` | no test checks the sign, for example a time before now against a time after it |
 
 ## Branches and statements
@@ -76,7 +76,7 @@ The operators make the same changes in Python:
 | `INVERT_LOGICAL`, `EXPRESSION_REMOVE`, `REMOVE_LOGICAL_NOT` | `a and b` to `a or b`, `a and b` to `True and b`, and `not ok` to `ok` |
 | `ARITHMETIC_BASE` | `a + b` to `a - b`, and `a // b` to `a * b`. A `+` or `*` with a string, such as `"id: " + x`, and the `%` of `"%s" % x` get no mutant, because the change always raises `TypeError`. |
 | `INCREMENT_DECREMENT` | `count += 1` to `count -= 1` |
-| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)`. A number in the pattern of a `case` gets no mutant, because Python does not compile `case (3+1):`. |
+| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)`. A number in the pattern of a `case` gets no mutant, because Python does not compile `case (3+1):`. A limit of a comparison moves only to the side that `CONDITIONALS_BOUNDARY` does not test, also when the other side is a float. |
 | `INVERT_NEGATIVES` | `-offset` to `offset`, and `items[-1]` to `items[1]` |
 | `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | the body of an `if`, an `elif`, an `else` or a `case` to `pass` |
 | `STATEMENT_REMOVE` | `self.total = s` to `_ = s` and `s = s + item` to `_ = s + item` in a function, and a call that stands alone, such as `client.close()`, to `pass`. An assignment gets no mutant when its name has no value before it in the function: no parameter, no earlier assignment, no `for` or `with` target, and no `global` or `nonlocal`. The next read of the name then raises `NameError`. |
@@ -101,7 +101,7 @@ removes code puts `nil` in its place:
 | `INVERT_LOGICAL`, `EXPRESSION_REMOVE`, `REMOVE_LOGICAL_NOT` | `a and b` to `a or b`, `a && b` to `true && b`, and `not ok` or `!ok` to `ok` |
 | `ARITHMETIC_BASE` | `a + b` to `a - b`, and `div(a, b)` to `(a * b)`. The `/` of a capture such as `&f/1` gets no mutant. |
 | `INCREMENT_DECREMENT` | `count = count + 1` to `count = count - 1`. `ARITHMETIC_BASE` makes no mutant of this `+`. |
-| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)`. A number in a pattern, such as a function head, a `case` clause or the left side of `=`, gets no mutant, because Elixir does not compile `(3+1)` there. A number in a guard gets mutants. |
+| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `3` to `(3+1)` and to `(3-1)`. A number in a pattern, such as a function head, a `case` clause or the left side of `=`, gets no mutant, because Elixir does not compile `(3+1)` there. A number in a guard gets mutants. A limit of a comparison moves only to the side that `CONDITIONALS_BOUNDARY` does not test, also when the other side is a float. |
 | `INVERT_NEGATIVES` | `DateTime.add(now, -amount, unit)` to `DateTime.add(now, amount, unit)`. The `-` of a bitstring segment, such as `<<n::signed-64>>`, is no minus, so it gets no mutant. |
 | `BRANCH_IF`, `BRANCH_ELSE`, `BRANCH_CASE` | the body of an `if`, an `unless`, an `else`, or a clause of `case`, `cond`, `receive` or the `else` of `with` to `nil`, in a function. An `if` outside a function chooses the functions of the module when it compiles, so it gets no mutant. |
 | `STATEMENT_REMOVE` | `total = total * 2` to `_ = total * 2`, and a call or a pipe that stands alone, such as `send(pid, :done)`, to `nil`. The last expression of a body gets no mutant, because it gives the value of the body. Each step of a pipe in a function is removed, the last step too, such as `\|> halt()` of `conn \|> redirect(to: path) \|> halt()`. A binding gets no mutant when its variable has no value before it in the function, because the next read of the variable does not compile. |
@@ -142,6 +142,8 @@ These operators run only when `--operators` or `.mutants.yml` names them, for ex
   comparison with `sys.version_info`
 - a change in a call of Elixir's `Logger`, in a typespec, in `import`, `alias` or `require`, in `@compile`
   or `@dialyzer`, in a capture such as `&f/1`, or in a macro, a guard, `defstruct` or `defexception`
+- the move of an integer limit to the side that `CONDITIONALS_BOUNDARY` already tests, such as
+  `total >= (100+1)`, which is `total > 100` for an integer
 - the removal of a branch that its function needs to end, such as one case of a `switch` whose cases each
   return
 - a value that is already the zero value of its type, except the value of an entry of a set such as

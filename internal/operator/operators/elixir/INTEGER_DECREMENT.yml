@@ -56,9 +56,25 @@ utils:
             matches: guard
             field: right
             stopBy: end
+  same_as_boundary:
+    any:
+      - inside:
+          kind: binary_operator
+          field: right
+          has:
+            field: operator
+            regex: ^(>|<=)$
+      - inside:
+          kind: binary_operator
+          field: left
+          has:
+            field: operator
+            regex: ^(>=|<)$
 rule:
   kind: integer
   pattern: $N
   not:
-    matches: pattern
+    any:
+      - matches: pattern
+      - matches: same_as_boundary
 fix: ($N-1)

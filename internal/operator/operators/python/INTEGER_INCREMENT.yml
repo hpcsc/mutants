@@ -1,10 +1,32 @@
 id: INTEGER_INCREMENT
 language: python
+utils:
+  comparison:
+    kind: comparison_operator
+    not:
+      has:
+        nthChild: 3
+  same_as_boundary:
+    any:
+      - nthChild: 2
+        inside:
+          matches: comparison
+          has:
+            field: operators
+            regex: ^(>=|<)$
+      - nthChild: 1
+        inside:
+          matches: comparison
+          has:
+            field: operators
+            regex: ^(>|<=)$
 rule:
   kind: integer
   pattern: $N
   not:
-    inside:
-      kind: case_pattern
-      stopBy: end
+    any:
+      - inside:
+          kind: case_pattern
+          stopBy: end
+      - matches: same_as_boundary
 fix: ($N+1)

@@ -291,7 +291,7 @@ The Go pack for v1:
 | `RETURN_EMPTY` | a return value to the zero value of its type, and a struct literal `T{…}` to `T{}` | the type comes from `go/types` |
 | `ERROR_REMOVE` | an error return value to `nil` | `go/types` finds the error slot |
 | `RETURN_TRUE` | a bool return value to `true` | `go/types` finds the bool slot; `RETURN_EMPTY` already makes it `false` |
-| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `n` to `(n+1)`, `(n-1)` | |
+| `INTEGER_INCREMENT`, `INTEGER_DECREMENT` | `n` to `(n+1)`, `(n-1)` | a limit of a comparison of integers moves only to the side that `CONDITIONALS_BOUNDARY` does not test |
 | `INVERT_NEGATIVES` | `-x` to `x` | |
 | `BREAK_AT_START` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
@@ -317,6 +317,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Type | an `ERROR_REMOVE` value that does not fill an error slot, and a `RETURN_TRUE` value that does not fill a bool slot or is `true` already |
 | Error beside | a `RETURN_EMPTY` or `RETURN_TRUE` value of a return that also gives an error that is not nil: a call of `errors.New` or `fmt.Errorf`, a struct literal or a pointer to one, or a variable that an enclosing `if err != nil` checks. A caller reads the error first, so it does not read the other values. |
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
+| Boundary | an `INTEGER_INCREMENT` or `INTEGER_DECREMENT` of the limit of a comparison of integers that makes the change of `CONDITIONALS_BOUNDARY`: `total >= (100+1)` is `total > 100`. A comparison of floats keeps both, because `go/types` gives the type. |
 | Missing return | a `BRANCH_IF`, `BRANCH_ELSE` or `BRANCH_CASE` edit that empties a branch that its function needs to end in a terminating statement, such as one case of a `switch` whose cases each return. The build would give `missing return`. |
 | Type | a `NAMED_VALUE_REMOVE` element outside a struct literal or a map literal, or whose value is zero already. The entry of a set, whose value is an empty struct, stays, because its removal changes `_, ok := m[k]` and `len(m)`. |
 | Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
@@ -363,6 +364,10 @@ the typespecs, in `import`, `alias` and `require`, in `@compile` and `@dialyzer`
 `&f/1`. They also drop the edits in the macros, the guards, `defstruct` and `defexception`. A module that uses such code gets its expansion when
 it compiles, and the runner does not compile it again with the mutant (see
 [The Elixir runner](#the-elixir-runner)).
+
+In Python and Elixir, the rules of `INTEGER_INCREMENT` and `INTEGER_DECREMENT` skip the move of a limit that
+makes the change of `CONDITIONALS_BOUNDARY`, as the boundary filter of Go does. A rule has no type, so it also
+skips the move for a float, where `x >= (100+1)` and `x > 100` differ for a value such as 100.5.
 
 A candidate that passes the filters and still fails to build is NOT VIABLE.
 
@@ -1110,6 +1115,11 @@ each rule of its kind when it has one.
 the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example
 a rule that loses one of its conditions. Three more were values that `zero_functions` now skips. So most of
 its survivors are real test gaps, and they are worth the longer run.
+
+**Why the move of a limit skips the side of CONDITIONALS_BOUNDARY also when that operator is off.** The ids count
+after the filters, and `rerun` runs only the operator of its id. A filter that reads the operators of the run
+gives one mutant two numbers. So with `--operators=-CONDITIONALS_BOUNDARY`, no mutant moves a limit to the side
+that the boundary tests.
 
 **Why RETURN_TRUE is its own operator.** `true` is not a zero value, so it does not belong in `RETURN_EMPTY`.
 Without it, a guard that returns `false` gets no mutant.

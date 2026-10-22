@@ -22,6 +22,7 @@ const (
 	returnEmpty      = "RETURN_EMPTY"
 	errorRemove      = "ERROR_REMOVE"
 	returnTrue       = "RETURN_TRUE"
+	integerIncrement = "INTEGER_INCREMENT"
 	integerDecrement = "INTEGER_DECREMENT"
 	namedValueRemove = "NAMED_VALUE_REMOVE"
 	argumentEmpty    = "ARGUMENT_EMPTY"
@@ -142,8 +143,11 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 		return a.types.isErrorSlot(path, candidate.Start, candidate.End)
 	case returnTrue:
 		return a.types.canBecomeTrue(path, candidate.Start, candidate.End) && !a.types.returnedWithAnError(path, candidate.Start, candidate.End)
+	case integerIncrement:
+		return a.types.sameAsBoundary(path, candidate.Start, candidate.End) != integerIncrement
 	case integerDecrement:
-		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End)
+		return !a.sources.isZeroIndexOrSize(candidate.File, candidate.Start, candidate.End) &&
+			a.types.sameAsBoundary(path, candidate.Start, candidate.End) != integerDecrement
 	case namedValueRemove:
 		return a.types.canRemoveNamedValue(path, candidate.Start)
 	case argumentEmpty:

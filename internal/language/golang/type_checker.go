@@ -301,6 +301,43 @@ func (c *typeChecker) callsTimeMethod(path string, start, end int) bool {
 	return isMethod && strings.HasPrefix(method.FullName(), "(time.Time).")
 }
 
+// sameAsBoundary gives the integer operator whose edit of the literal makes the same change as
+// CONDITIONALS_BOUNDARY on its comparison: for an integer x, x > 100 is x >= (100+1).
+func (c *typeChecker) sameAsBoundary(path string, start, end int) string {
+	loaded, syntax, lines := c.file(path)
+	if syntax == nil || start < 0 || end > lines.Size() {
+		return ""
+	}
+	enclosing, _ := astutil.PathEnclosingInterval(syntax, lines.Pos(start), lines.Pos(end))
+	if len(enclosing) < 2 {
+		return ""
+	}
+	literal, isLiteral := enclosing[0].(*ast.BasicLit)
+	comparison, isComparison := enclosing[1].(*ast.BinaryExpr)
+	if !isLiteral || !isComparison || literal.Kind != token.INT {
+		return ""
+	}
+	literalType := loaded.TypesInfo.TypeOf(literal)
+	if literalType == nil {
+		return ""
+	}
+	basic, isBasic := literalType.Underlying().(*types.Basic)
+	if !isBasic || basic.Info()&types.IsInteger == 0 || basic.Info()&types.IsUntyped != 0 {
+		return ""
+	}
+	up, ordered := map[token.Token]bool{token.GEQ: true, token.LSS: true, token.GTR: false, token.LEQ: false}[comparison.Op]
+	if !ordered {
+		return ""
+	}
+	if comparison.X == literal {
+		up = !up
+	}
+	if up {
+		return integerIncrement
+	}
+	return integerDecrement
+}
+
 func (c *typeChecker) isError(slot types.Type) bool {
 	return types.Identical(slot, types.Universe.Lookup("error").Type())
 }
