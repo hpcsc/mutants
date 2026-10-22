@@ -47,6 +47,29 @@ const discountTest = `defmodule Shop.DiscountTest do
 end
 `
 
+const pidTest = `defmodule Shop.PidTest do
+  use ExUnit.Case
+
+  setup_all do
+    File.write!(System.fetch_env!("MUTANTS_TEST_PIDS"), System.pid() <> "\n", [:append])
+    :ok
+  end
+
+  test "pid", do: assert(Shop.Discount.discount(50) == 0)
+end
+`
+
+func vmsOf(t *testing.T, pids string) int {
+	t.Helper()
+	content, err := os.ReadFile(pids)
+	require.NoError(t, err)
+	distinct := map[string]bool{}
+	for _, pid := range strings.Fields(string(content)) {
+		distinct[pid] = true
+	}
+	return len(distinct)
+}
+
 const secondRunFailsTest = `defmodule Shop.SecondRunTest do
   use ExUnit.Case
 
@@ -551,6 +574,26 @@ end
 			require.NoError(t, err)
 			require.Equal(t, mutant.NotViable, verdict.Status)
 			require.Contains(t, verdict.Detail, "syntax error")
+		})
+
+		t.Run("in a reused VM, a mutant that does not compile keeps the VM, and the next mutant runs in it", func(t *testing.T) {
+			pids := filepath.Join(t.TempDir(), "pids")
+			t.Setenv("MUTANTS_TEST_PIDS", pids)
+			root := newProject(t, shop(map[string]string{"test/shop/pid_test.exs": pidTest}))
+			runner := elixir.New(root, elixir.Settings{Workers: 1, ReuseVM: true}).Runner()
+			var statuses []mutant.Status
+
+			for _, m := range []mutant.Mutant{
+				mutantOf(t, root, "lib/shop/discount.ex", "total >= @limit", "total >= @limit +"),
+				mutantOf(t, root, "lib/shop/discount.ex", "total >= @limit", "total > @limit"),
+			} {
+				verdict, err := runner.Run(context.Background(), m)
+				require.NoError(t, err)
+				statuses = append(statuses, verdict.Status)
+			}
+
+			require.Equal(t, []mutant.Status{mutant.NotViable, mutant.Killed}, statuses)
+			require.Equal(t, 2, vmsOf(t, pids), "the coverage run and one reused VM")
 		})
 
 		t.Run("in a reused VM, the next mutant runs against the real code again, so each mutant gets its own verdict", func(t *testing.T) {

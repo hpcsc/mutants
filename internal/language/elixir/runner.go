@@ -62,7 +62,12 @@ func (r *runner) Run(ctx context.Context, m mutant.Mutant) (mutant.Verdict, erro
 	}
 
 	if r.vms != nil {
-		verdict, judged, err := r.inReusedVM(ctx, project, original, mutated, process.TestLimit(run.baseline))
+		// the build names each module by the real path of its file, and the VM finds the modules of the file by it
+		real, err := filepath.EvalSymlinks(original)
+		if err != nil {
+			real = original
+		}
+		verdict, judged, err := r.inReusedVM(ctx, project, real, mutated, process.TestLimit(run.baseline))
 		if err != nil || judged {
 			return verdict, err
 		}

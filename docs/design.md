@@ -732,7 +732,8 @@ sequenceDiagram
   `mutants_worker.exs`, a second Mix task in the binary. The VM starts the application, loads the test files
   and runs the tests one time. For each line on stdin, the path of the original file and of the mutated file,
   it compiles the mutant, runs the tests with `ExUnit.run/1`, loads the real modules from the build again, and
-  writes one reply line on stdout. When `:code.soft_purge` fails, a process still runs the mutated code, so the
+  writes one reply line on stdout. After a mutant that does not compile, it loads each module of the file from
+  the build again, because a module of the file can load before the error. When `:code.soft_purge` fails, a process still runs the mutated code, so the
   runner stops that VM and starts a new one. A LIVED mutant runs again in a new VM, because the reused VM
   started the application before the mutant loaded. A VM that does not reply within the limit of the tests
   stops, and the mutant runs in a new VM.

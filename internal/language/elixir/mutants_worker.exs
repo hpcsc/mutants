@@ -31,34 +31,49 @@ defmodule Mix.Tasks.Mutants.Worker do
     case run_tests(tests, failure) do
       %{"status" => "lived"} ->
         reply(%{"status" => "ready"})
-        loop(tests, failure)
+        loop(%{tests: tests, failure: failure, sources: modules_by_source()})
 
       %{"detail" => detail} ->
         reply(%{"status" => "red", "detail" => detail})
     end
   end
 
-  defp loop(tests, failure) do
+  defp loop(state) do
     case IO.read(:stdio, :line) do
       line when is_binary(line) ->
         [original, mutated] = line |> String.trim_trailing("\n") |> String.split("\t")
-        reply(judge(original, mutated, tests, failure))
-        loop(tests, failure)
+        reply(judge(original, mutated, state))
+        loop(state)
 
       _end ->
         System.halt(0)
     end
   end
 
-  defp judge(original, mutated, tests, failure) do
+  defp judge(original, mutated, state) do
+    real = Map.get(state.sources, original, [])
+
     case compile(original, mutated) do
       {:ok, modules} ->
-        verdict = run_tests(tests, failure)
-        restored = restore(modules)
+        verdict = run_tests(state.tests, state.failure)
+        restored = restore(Enum.uniq(modules ++ real))
         Map.put(verdict, "restart", not restored or not running?())
 
       {:error, detail} ->
-        %{"status" => "not_compiled", "detail" => detail, "restart" => true}
+        %{"status" => "not_compiled", "detail" => detail, "restart" => real == [] or not restore(real)}
+    end
+  end
+
+  # a module of a file that does not compile can load before the error, so the VM loads each module of the file again
+  defp modules_by_source do
+    for module <- Application.spec(Mix.Project.config()[:app], :modules) || [],
+        beam = :code.which(module),
+        is_list(beam),
+        {:ok, {^module, [compile_info: info]}} <- [:beam_lib.chunks(beam, [:compile_info])],
+        source = info[:source],
+        source != nil,
+        reduce: %{} do
+      found -> Map.update(found, List.to_string(source), [module], &[module | &1])
     end
   end
 
