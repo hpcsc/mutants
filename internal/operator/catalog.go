@@ -52,6 +52,7 @@ var catalog = Catalog{
 	"NAMED_VALUE_SWAP":      {Tier: Required},
 	"REMOVE_LOGICAL_NOT":    {Tier: Required},
 	"RETURN_EMPTY":          {Tier: Required},
+	"RETURN_ERROR":          {Tier: Optional},
 	"RETURN_TRUE":           {Tier: Required},
 	"STATEMENT_REMOVE":      {Tier: Required},
 }

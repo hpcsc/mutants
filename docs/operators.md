@@ -4,7 +4,7 @@ An operator is one kind of change. Each row of the output names the operator of 
 the same change in each language that has it: the catalog in `internal/operator/catalog.go` names them, and
 the rule pack of each language gives the syntax of each one. Each language has each required operator,
 unless it has no such code and the catalog gives the reason. An optional operator is only in the languages
-whose code it fits. Each operator except `GUARD_REMOVE` is required, so Go, Python and Elixir have each of them. Only Elixir has a rule for the optional `GUARD_REMOVE`. This page tells
+whose code it fits. Each operator except `GUARD_REMOVE` and `RETURN_ERROR` is required, so Go, Python and Elixir have each of them. Only Elixir has a rule for the optional `GUARD_REMOVE` and `RETURN_ERROR`. This page tells
 what each operator changes, with an example in Go, and what a survivor of that operator usually shows.
 
 `mutants operators` lists the operators of your version, whether each one runs by default, and the
@@ -119,6 +119,7 @@ removes code puts `nil` in its place:
 | `BREAK_AT_START`, `BREAK_AT_END` | `x <- xs` of a `for` to `x <- []` and to `x <- Enum.take(xs, 1)`, and the list of `Enum.each`, `Enum.map`, `Enum.reduce` and the other loops of `Enum` to no item and to only its first item, in a function. A loop outside a function makes the functions of the module when it compiles, so it gets no mutant. |
 | `NAMED_VALUE_SWAP`, `NAMED_VALUE_REMOVE` | `%Totals{paid: paid, owed: owed}` to `%Totals{paid: owed, owed: paid}`, and to `%Totals{owed: owed}`. A call keeps at least one of its keywords, because a call without its keywords has another arity. An Ecto `from` loses its only keyword, such as `where:` in `from(c in Code, where: c.at < ^t)`, because its keywords are optional. A field of a pattern that binds a variable, such as `coef: coef`, stays, because the next read of the variable does not compile. A field of a struct whose value is its default in `defstruct` also stays. |
 | `GUARD_REMOVE` | `def load(key) when is_binary(key) do` to `def load(key) do`, and the guard of a clause of `case`, `fn` or `with` removed, in a function. A survivor shows that no test gives the clause a value that the guard refuses. Only Elixir has this operator. |
+| `RETURN_ERROR` | an ok tuple that a function returns, such as `{:ok, user}`, to `{:error, user}`. `RETURN_EMPTY` puts `nil` there, and the `case` or the `with` of the caller then raises, so almost each test kills it. A caller handles `{:error, user}`, so a survivor shows that no test checks what the caller does with the success, for example the reply or the state after the call. An ok tuple in a pattern, or before the last expression of a body, gets no mutant. Only Elixir has this operator. |
 | `ARGUMENT_EMPTY` (off by default) | `resolve(client_id)` to `resolve(nil)` |
 | `ERROR_CAUSE_REMOVE` (off by default) | `reraise error, __STACKTRACE__` to `raise(error)`, which loses the stacktrace |
 | `CONDITION_TRUE` (off by default) | `if key not in seen do` to `if true do`, and `if ok, do: x` to `if true, do: x`, in an `if` with no `else`, in a function. An `unless` gets no mutant, because a true condition there gives the same result as `BRANCH_IF`. |

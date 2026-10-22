@@ -140,6 +140,8 @@ lib/shop/order.ex:Shop.Order.fetch/1:ARGUMENT_EMPTY#2 55:32 NOT COVERED
   "id" -> "nil"
 lib/shop/order.ex:Shop.Order.fetch/1:BRANCH_CASE#1 56:23 NOT COVERED
   "{:ok, value}" -> "nil"
+lib/shop/order.ex:Shop.Order.fetch/1:RETURN_ERROR#1 56:23 NOT COVERED
+  "{:ok, value}" -> "{:error, value}"
 lib/shop/order.ex:Shop.Order.fetch/1:BRANCH_CASE#2 57:17 NOT COVERED
   "{:error, :not_found}" -> "nil"
 lib/shop/order.ex:Shop.Order.fetch/1:ERROR_REMOVE#1 57:17 NOT COVERED

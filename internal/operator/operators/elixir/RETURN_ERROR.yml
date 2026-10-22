@@ -1,0 +1,87 @@
+id: RETURN_ERROR
+language: elixir
+utils:
+  branching:
+    kind: call
+    has:
+      field: target
+      regex: ^(if|unless|case|cond|with|try|receive)$
+  expression:
+    any:
+      - kind: block
+      - kind: identifier
+      - kind: alias
+      - kind: integer
+      - kind: float
+      - kind: char
+      - kind: boolean
+      - kind: nil
+      - kind: atom
+      - kind: quoted_atom
+      - kind: string
+      - kind: charlist
+      - kind: sigil
+      - kind: list
+      - kind: tuple
+      - kind: bitstring
+      - kind: map
+      - kind: unary_operator
+      - kind: binary_operator
+      - kind: dot
+      - kind: call
+      - kind: access_call
+      - kind: anonymous_function
+  function:
+    kind: call
+    has:
+      field: target
+      regex: ^(def|defp)$
+  last:
+    nthChild:
+      position: 1
+      reverse: true
+      ofRule:
+        matches: expression
+  tail:
+    matches: expression
+    any:
+      - matches: last
+        inside:
+          any:
+            - kind: do_block
+            - kind: else_block
+          inside:
+            matches: value
+            stopBy:
+              kind: call
+      - matches: last
+        inside:
+          kind: body
+          inside:
+            kind: stab_clause
+            inside:
+              matches: value
+              stopBy:
+                kind: call
+      - inside:
+          kind: pair
+          field: value
+          has:
+            field: key
+            regex: '^(do|else):'
+          inside:
+            kind: keywords
+            inside:
+              kind: arguments
+              inside:
+                matches: value
+  value:
+    any:
+      - matches: function
+      - all:
+          - matches: branching
+          - matches: tail
+rule:
+  pattern: '{:ok, $$$VALUES}'
+  matches: tail
+fix: '{:error, $$$VALUES}'

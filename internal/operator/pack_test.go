@@ -1308,6 +1308,23 @@ end
 			require.Equal(t, []string{"raise(ArgumentError) -> nil", "{:error, :missing} -> :ok"}, elixirEditsOf(t, "ERROR_REMOVE", source))
 		})
 
+		t.Run("RETURN_ERROR puts :error in place of :ok in an ok tuple that a function returns, and skips an ok tuple in a pattern or before the end of a body", func(t *testing.T) {
+			source := `def f(a) do
+  {:ok, b} = g(a)
+  {:ok, _} = h(b)
+
+  case b do
+    {:ok, c} -> {:ok, c, a}
+    _ -> {:ok, b}
+  end
+end
+
+def k(a), do: if(a, do: {:ok, a}, else: :error)
+`
+
+			require.Equal(t, []string{"{:ok, c, a} -> {:error, c, a}", "{:ok, b} -> {:error, b}", "{:ok, a} -> {:error, a}"}, elixirEditsOf(t, "RETURN_ERROR", source))
+		})
+
 		t.Run("ERROR_CAUSE_REMOVE puts raise in place of reraise, which loses the stacktrace", func(t *testing.T) {
 			source := "def f(a) do\n  g(a)\nrescue\n  e in KeyError -> reraise e, __STACKTRACE__\n  e -> reraise(Error, [cause: e], __STACKTRACE__)\nend\n"
 
