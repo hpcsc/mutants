@@ -1211,6 +1211,22 @@ when the code of the mutant changes.
 now. A later change can bring back a mutant that the entry fits, and the claim of the entry can then be wrong.
 The rows and the JSON report name it, so that the author removes it in the same change.
 
+**Why the reused VMs of Elixir are experimental and off by default.** On a Phoenix app with 94 tests, on
+`decimal` and on `nimble_options`, the tests call most code at run time, and the reused VMs ran 2.5 to 4 times
+as fast. On `jason`, much code runs while the test files compile, through macros and sigils, and each LIVED
+mutant of such a module runs again in a new VM. There, the reused VMs ran no faster. On five projects with both
+runners, the verdicts matched, apart from timeouts when the machine was busy. But a reused VM can keep state from
+an earlier mutant: on `plug`, a test with no relation to a mutant killed it in a reused VM, and the cause is not
+known. A new VM for each mutant cannot keep such state, so it stays the default.
+
+**Why a reused VM checks a LIVED mutant by its module and not by its line.** The lines that ran before the first
+test, from `:cover`, give fewer new VMs: 11 against 30 on the Phoenix app, and 31 against 452 on `decimal`. But
+the check by line needs four rules: the counted lines, the lines of the function for a guard or for the last
+literal of a clause, the whole file for a module attribute, and a new VM for each mutant of module-level code,
+such as an `if` that chooses which macro a module defines. The measurement found the last two only through
+mutants that an earlier version missed. The check by module needs one fact, whether the module loaded before the
+first test, and it sends to a new VM each mutant that the check by line sends there.
+
 **Why the move of a limit skips the side of CONDITIONALS_BOUNDARY also when that operator is off.** The ids count
 after the filters, and `rerun` runs only the operator of its id. A filter that reads the operators of the run
 gives one mutant two numbers. So with `--operators=-CONDITIONALS_BOUNDARY`, no mutant moves a limit to the side
