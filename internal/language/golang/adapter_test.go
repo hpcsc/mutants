@@ -1599,13 +1599,29 @@ func age(id string) error {
 			require.Equal(t, mutant.Killed, result.Status)
 		})
 
-		t.Run("a mutant that a test catches is KILLED", func(t *testing.T) {
+		t.Run("a mutant that a test in its own package catches is KILLED, and the verdict names that test file as internal", func(t *testing.T) {
 			root := newModule(t, map[string]string{"calc/calc.go": maxSource, "calc/calc_test.go": maxTest})
 
 			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
 
 			require.Equal(t, mutant.Killed, result.Status, result.Detail)
 			require.Contains(t, result.Detail, "--- FAIL: TestMax")
+			require.Equal(t, "calc/calc_test.go", result.TestFile)
+			require.True(t, result.InternalTest)
+		})
+
+		t.Run("a mutant that a test of the external test package catches is KILLED, and the verdict names that test file as not internal", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      maxSource,
+				"calc/calc_test.go": "package calc\n\nimport \"testing\"\n\nfunc TestNothing(t *testing.T) {}\n",
+				"calc/max_test.go":  "package calc_test\n\nimport (\n\t\"testing\"\n\n\t\"example.com/fixture/calc\"\n)\n\nfunc TestMax(t *testing.T) {\n\tif calc.Max(1, 2) != 2 {\n\t\tt.Fatal(\"Max(1, 2) is not 2\")\n\t}\n}\n",
+			})
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Killed, result.Status, result.Detail)
+			require.Equal(t, "calc/max_test.go", result.TestFile)
+			require.False(t, result.InternalTest)
 		})
 
 		t.Run("a mutant whose tests fail and then pass when they run again is UNSTABLE, with the failure as the detail", func(t *testing.T) {
@@ -1618,7 +1634,18 @@ func age(id string) error {
 			require.Contains(t, result.Detail, "a test failed, and passed when the tests ran again: --- FAIL: TestMax")
 		})
 
-		t.Run("a mutant that only the tests of a changed caller run is KILLED by a test of the caller", func(t *testing.T) {
+		t.Run("a mutant that makes TestMain exit with no failed test is KILLED, and the verdict names no test file", func(t *testing.T) {
+			root := newModule(t, map[string]string{
+				"calc/calc.go":      maxSource,
+				"calc/main_test.go": "package calc\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\nfunc TestMain(m *testing.M) {\n\tif Max(1, 2) != 2 {\n\t\tos.Exit(1)\n\t}\n\tos.Exit(m.Run())\n}\n",
+			})
+
+			result := run(t, golang.New(root, defaultSettings), mutantOf(t, root, "calc/calc.go", "return b", "return a"))
+
+			require.Equal(t, mutant.Verdict{Status: mutant.Killed, Detail: "the tests exited with code 1"}, result)
+		})
+
+		t.Run("a mutant that only the tests of a changed caller run is KILLED by a test of the caller, which is not internal to the package of the mutant", func(t *testing.T) {
 			root := newModule(t, map[string]string{
 				"store/store.go": recoverSource, "store/store_test.go": recoverTest,
 				"reactor/reactor.go": reactorSource, "reactor/reactor_test.go": reactorTest,
@@ -1632,6 +1659,8 @@ func age(id string) error {
 
 			require.Equal(t, mutant.Killed, result.Status, result.Detail)
 			require.Contains(t, result.Detail, "--- FAIL: TestReact")
+			require.Equal(t, "reactor/reactor_test.go", result.TestFile)
+			require.False(t, result.InternalTest)
 		})
 
 		t.Run("a mutant that only the tests of a changed caller run, and that each of them passes, is LIVED and names the caller", func(t *testing.T) {

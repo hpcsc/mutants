@@ -12,11 +12,13 @@ import (
 )
 
 type goPackage struct {
-	ImportPath string
-	Name       string
-	Dir        string
-	GoFiles    []string
-	CgoFiles   []string
+	ImportPath   string
+	Name         string
+	Dir          string
+	GoFiles      []string
+	CgoFiles     []string
+	TestGoFiles  []string
+	XTestGoFiles []string
 }
 
 func (p goPackage) builds(base string) bool {

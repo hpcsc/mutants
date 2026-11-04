@@ -11,18 +11,20 @@ import (
 )
 
 type jsonMutant struct {
-	ID          string   `json:"id"`
-	File        string   `json:"file"`
-	Line        int      `json:"line"`
-	Column      int      `json:"column"`
-	Operator    string   `json:"operator"`
-	Status      string   `json:"status"`
-	Original    string   `json:"original"`
-	Replacement string   `json:"replacement"`
-	Bug         string   `json:"bug,omitempty"`
-	Refs        []string `json:"refs,omitempty"`
-	Detail      string   `json:"detail,omitempty"`
-	Inside      string   `json:"inside,omitempty"`
+	ID           string   `json:"id"`
+	File         string   `json:"file"`
+	Line         int      `json:"line"`
+	Column       int      `json:"column"`
+	Operator     string   `json:"operator"`
+	Status       string   `json:"status"`
+	Original     string   `json:"original"`
+	Replacement  string   `json:"replacement"`
+	Bug          string   `json:"bug,omitempty"`
+	Refs         []string `json:"refs,omitempty"`
+	Detail       string   `json:"detail,omitempty"`
+	TestFile     string   `json:"testFile,omitempty"`
+	InternalTest bool     `json:"internalTest,omitempty"`
+	Inside       string   `json:"inside,omitempty"`
 }
 
 type jsonRejection struct {
@@ -106,18 +108,20 @@ func JSON(w io.Writer, outcome run.Outcome) error {
 			inside = outer.String()
 		}
 		report.Mutants = append(report.Mutants, jsonMutant{
-			ID:          m.ID.String(),
-			File:        m.File,
-			Line:        m.Line,
-			Column:      m.Column,
-			Operator:    m.Operator,
-			Status:      m.Verdict.Status.String(),
-			Original:    m.Original,
-			Replacement: m.Replacement,
-			Bug:         m.Bug,
-			Refs:        m.Refs,
-			Detail:      m.Verdict.Detail,
-			Inside:      inside,
+			ID:           m.ID.String(),
+			File:         m.File,
+			Line:         m.Line,
+			Column:       m.Column,
+			Operator:     m.Operator,
+			Status:       m.Verdict.Status.String(),
+			Original:     m.Original,
+			Replacement:  m.Replacement,
+			Bug:          m.Bug,
+			Refs:         m.Refs,
+			Detail:       m.Verdict.Detail,
+			TestFile:     m.Verdict.TestFile,
+			InternalTest: m.Verdict.InternalTest,
+			Inside:       inside,
 		})
 	}
 	encoder := json.NewEncoder(w)

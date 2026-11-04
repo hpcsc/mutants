@@ -301,16 +301,25 @@ each mutant, also the killed ones:
       "status": "KILLED",
       "original": "total >= 100",
       "replacement": "total > 100",
-      "detail": "--- FAIL: TestDiscount (0.00s)"
+      "detail": "--- FAIL: TestDiscount (0.00s)",
+      "testFile": "shop/discount_test.go",
+      "internalTest": true
     }
   ]
 }
 ```
 
 `detail` tells why the mutant has its status, for example the test that failed or the build error. It is
-not there when the status has no detail. `bug` holds the bug of a proposed mutant. `inside` holds the id of
-the survivor that holds a NOT COVERED mutant, as the rows show it under that survivor. A mutant that no other
-survivor holds has no `inside`.
+not there when the status has no detail.
+
+For a Go mutant that a test killed, `testFile` names the file that declares the first test that failed.
+`internalTest` is true when that file is in the package of the mutant, for example `package shop` and not
+`package shop_test`. Such a test can read the names that the package does not export, so it can check the
+code and not the behaviour. Read the test of each such kill. A test of a caller in another package is never
+internal. Python and Elixir mutants have neither field.
+
+`bug` holds the bug of a proposed mutant. `inside` holds the id of the survivor that holds a NOT COVERED
+mutant, as the rows show it under that survivor. A mutant that no other survivor holds has no `inside`.
 
 With `--proposals`, the document also holds `proposals`, with the number of accepted proposals and each
 rejected proposal with its reason:

@@ -28,6 +28,7 @@ var (
 	unusedImport   = regexp.MustCompile(`"([^"]+)" imported (?:as \S+ )?and not used`)
 	unusedVariable = regexp.MustCompile(`(\S+\.go):(\d+):(\d+): (?:declared and not used: (\S+)|(\S+) declared and not used)`)
 	unusedLabel    = regexp.MustCompile(`(\S+\.go):(\d+):\d+: label (\S+) defined and not used`)
+	failedTest     = regexp.MustCompile(`(?m)^--- FAIL: (\S+)`)
 )
 
 // runner runs the test binary itself, because go test can give a verdict from its cache.
@@ -116,6 +117,9 @@ func (r *runner) testIn(ctx context.Context, suite goPackage, original, content 
 	})
 	if err != nil {
 		return mutant.Verdict{}, err
+	}
+	if verdict.Status == mutant.Killed {
+		verdict.TestFile, verdict.InternalTest = r.testFile(suite, original, tested.Tail)
 	}
 	if (verdict.Status == mutant.Lived || verdict.Status == mutant.Unstable) && checked {
 		after, checkedAgain := r.changedFiles(ctx, suite.Dir)
@@ -397,6 +401,31 @@ func (r *runner) verdict(tested process.Exit, limit time.Duration) mutant.Verdic
 		return mutant.Verdict{Status: mutant.InfraError, Detail: "the tests ran out of memory"}
 	}
 	return mutant.Verdict{Status: mutant.Killed, Detail: r.failure(tested)}
+}
+
+func (r *runner) testFile(suite goPackage, mutated, output string) (file string, internal bool) {
+	found := failedTest.FindStringSubmatch(output)
+	if found == nil {
+		return "", false
+	}
+	for _, name := range slices.Concat(suite.TestGoFiles, suite.XTestGoFiles) {
+		path := filepath.Join(suite.Dir, name)
+		if declares(path, found[1]) {
+			return relative(r.root, path), suite.Dir == filepath.Dir(mutated) && slices.Contains(suite.TestGoFiles, name)
+		}
+	}
+	return "", false
+}
+
+func declares(path, function string) bool {
+	syntax, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(syntax.Decls, func(declaration ast.Decl) bool {
+		declared, isFunction := declaration.(*ast.FuncDecl)
+		return isFunction && declared.Name.Name == function
+	})
 }
 
 func (r *runner) failure(tested process.Exit) string {

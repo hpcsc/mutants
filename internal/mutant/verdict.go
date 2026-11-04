@@ -3,8 +3,10 @@ package mutant
 import "context"
 
 type Verdict struct {
-	Status Status
-	Detail string
+	Status       Status
+	Detail       string
+	TestFile     string
+	InternalTest bool
 }
 
 // ConfirmKill runs the tests again after a kill, because a test can fail for a reason other than the mutant, and a

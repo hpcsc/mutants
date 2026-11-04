@@ -23,6 +23,8 @@ func TestJSON(t *testing.T) {
 			killed := reported("handler.go", 50, "INVERT_LOGICAL", 1, "a && b", "a || b", mutant.Killed)
 			killed.Start = 100
 			killed.Verdict.Detail = "--- FAIL: TestAccounts"
+			killed.Verdict.TestFile = "handler_test.go"
+			killed.Verdict.InternalTest = true
 			var output strings.Builder
 
 			require.NoError(t, report.JSON(&output, run.Outcome{Mutants: []mutant.Mutant{killed, lived}, Base: "1a2b3c4d5e"}))
@@ -39,7 +41,7 @@ func TestJSON(t *testing.T) {
 					map[string]any{
 						"id": "handler.go:(*Handler).accounts:INVERT_LOGICAL#1", "file": "handler.go", "line": float64(50), "column": float64(2),
 						"operator": "INVERT_LOGICAL", "status": "KILLED", "original": "a && b", "replacement": "a || b",
-						"detail": "--- FAIL: TestAccounts",
+						"detail": "--- FAIL: TestAccounts", "testFile": "handler_test.go", "internalTest": true,
 					},
 				},
 			}, document)

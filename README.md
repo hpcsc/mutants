@@ -126,12 +126,14 @@ its options, and how to update `mutants`.
 
 ## What to do with each status
 
-A survivor is a mutant that lived or that is not covered. Each survivor shows a gap in the tests: a test that
-you did not write, or an assertion that is too weak. When you add the test, the test kills the mutant.
+A survivor is a mutant that lived or that is not covered. Each survivor asks one question: does a caller of
+the code see the change? When a caller sees it, the survivor shows a gap in the tests: a test that you did not
+write, or an assertion that is too weak. Add a test that calls the code as a caller does, and the test kills
+the mutant. When no caller sees the change, read "When a survivor is not a gap in the tests" below.
 
 | Status | Meaning | What to do |
 | --- | --- | --- |
-| LIVED | every test passed with the mutant | Add a test that fails with the mutant, or make an assertion stricter. |
+| LIVED | every test passed with the mutant | Find what a caller sees differently, and test that through the public API of the package. If no caller sees a difference, remove the code, or record the mutant as equivalent. |
 | NOT COVERED | no test runs the line | Add a test that runs the line. In Go, a test of a changed package that calls the line counts too. |
 | TIMED OUT | the tests with the mutant ran past the time limit, for example in an endless loop | Nothing. A mutant that makes the tests hang counts as found. |
 | INFRA ERROR | the computer stopped the run, for example when it had no more memory | Run the mutant again with `mutants rerun`. |
@@ -142,11 +144,18 @@ A mutant that a test killed, and a mutant that does not build, get no row.
 <details>
 <summary><strong>When a survivor is not a gap in the tests</strong></summary>
 
-Some mutants make no difference that a test can see. For example, `NAMED_VALUE_REMOVE` removes one field
+Some mutants make no difference that a caller can see. For example, `NAMED_VALUE_REMOVE` removes one field
 from a struct literal. When the value of that field is already its zero value, the mutant gives the same
 result as the real code. `mutants` already skips many of these mutants, such as the mutants of log lines.
-When you find one:
 
+Do not kill such a mutant with a test that reads the private state of the package, the order of the calls to
+a fake, or the text of a log line. That test fails when you change the code in a correct way. In the JSON
+report, `internalTest` marks a Go kill by a test in the package of the mutant, so you can find such tests.
+
+When you find a mutant that no caller can see:
+
+- Remove the code, when no caller needs it. Such a mutant often shows dead code, or a check that no input
+  gets to.
 - Write it in `.mutants/equivalent.yml` with the reason, as
   [docs/usage.md](docs/usage.md#equivalent-mutants) tells. The run then shows it as EQUIVALENT, with the
   reason, and it does not count as a survivor.
