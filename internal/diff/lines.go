@@ -48,6 +48,19 @@ func (l Lines) WithExtensions(extensions []string) Lines {
 	return kept
 }
 
+func (l Lines) InFiles(files []string) Lines {
+	var kept Lines
+	for _, file := range files {
+		if lines, found := l.files[file]; found {
+			if kept.files == nil {
+				kept.files = map[string]map[int]bool{}
+			}
+			kept.files[file] = lines
+		}
+	}
+	return kept
+}
+
 func (l Lines) Has(file string, line int) bool {
 	return l.files[file][line]
 }

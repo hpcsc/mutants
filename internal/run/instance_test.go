@@ -572,6 +572,55 @@ func TestInstance(t *testing.T) {
 		})
 	})
 
+	t.Run("only", func(t *testing.T) {
+		t.Run("runs and counts only the mutants of the named files, and gives the adapter every changed file for the tests of changed callers", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "b.go": compareBefore, "c.go": compareBefore})
+			r.write("a.go", compareAfter)
+			r.write("b.go", compareAfter)
+			r.write("c.go", compareAfter)
+			adapter := &fakeAdapter{}
+			settings := boundary
+			settings.Only = []string{"b.go", "c.go"}
+
+			outcome, err := r.instance(adapter).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{"b.go:f:CONDITIONALS_BOUNDARY#2 KILLED", "c.go:f:CONDITIONALS_BOUNDARY#2 KILLED"}, idsAndStatuses(outcome.Mutants))
+			require.Equal(t, 2, outcome.Files)
+			require.Equal(t, 2, outcome.Lines)
+			require.Equal(t, []string{"a.go", "b.go", "c.go"}, adapter.coveredChanges)
+		})
+
+		t.Run("holds only the caller gaps of the named files, and the check reads every changed file", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "b.go": compareBefore})
+			r.write("a.go", compareAfter)
+			r.write("b.go", compareAfter)
+			inB := language.CallerGap{File: "b.go", Function: "f", Lines: []int{7}, Callers: []string{"c"}}
+			adapter := &fakeAdapter{callerGaps: []language.CallerGap{{File: "a.go", Function: "f", Lines: []int{7}, Callers: []string{"c"}}, inB}}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, CallerGaps: true, Only: []string{"b.go"}}
+
+			outcome, err := r.instance(adapter).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.NotNil(t, outcome.CallerGaps)
+			require.Equal(t, []language.CallerGap{inB}, *outcome.CallerGaps)
+			require.Equal(t, []string{"a.go", "b.go"}, adapter.callerGapFiles)
+		})
+
+		t.Run("runs a proposal on a changed line of a file that it does not name", func(t *testing.T) {
+			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "b.go": compareBefore})
+			r.write("a.go", compareAfter)
+			r.write("b.go", compareAfter)
+			proposed := proposal.Proposal{File: "a.go", Old: "return a > b", New: "return a >= b", Bug: "equal values count as greater"}
+			settings := run.Settings{Base: "HEAD", Operators: []string{operator.None}, Workers: 1, Proposals: []proposal.Proposal{proposed}, Only: []string{"b.go"}}
+
+			outcome, err := r.instance(&fakeAdapter{}).Run(context.Background(), settings)
+
+			require.NoError(t, err)
+			require.Equal(t, []string{fmt.Sprintf("a.go:f:PROPOSED#%d KILLED", proposed.Number())}, idsAndStatuses(outcome.Mutants))
+		})
+	})
+
 	t.Run("propose", func(t *testing.T) {
 		t.Run("runs each proposal on a changed line, and rejects each other proposal with its reason", func(t *testing.T) {
 			r := newGitRepository(t, map[string]string{"a.go": compareBefore, "notes.txt": "notes\n"})

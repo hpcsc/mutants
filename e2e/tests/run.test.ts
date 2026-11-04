@@ -22,6 +22,20 @@ describe('mutants run', { timeout: 240_000 }, () => {
     expect(result.status).toBe(0)
   })
 
+  it('with --only, makes mutants only in the named file, and leaves the other changed files out', async () => {
+    const dir = goRepository()
+    writeFiles(dir, {
+      'calc/calc.go': maxSource,
+      'calc/calc_test.go': maxTest,
+      'other/max.go': maxSource.replace('package calc', 'package other'),
+    })
+
+    const { result, mutants } = await runMutants(dir, ['--base', 'HEAD', '--only', 'calc/calc.go', '--operators', 'CONDITIONALS_NEGATION'])
+
+    expect(mutants.map((m) => `${m.id} ${m.status}`)).toEqual(['calc/calc.go:Max:CONDITIONALS_NEGATION#1 KILLED'])
+    expect(result.status).toBe(0)
+  })
+
   it('with no flags in a clone, runs the mutants of the commits that the branch adds to the default branch of origin', async () => {
     const clone = scratchDir()
     git(clone, 'clone', '--quiet', goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest }), '.')
@@ -183,6 +197,7 @@ describe('mutants run', { timeout: 240_000 }, () => {
     [['--all'], '--all needs one FOLDER or more, and a FOLDER needs --all'],
     [['calc'], '--all needs one FOLDER or more, and a FOLDER needs --all'],
     [['--base', 'HEAD', '--proposals-anywhere'], '--proposals-anywhere needs --proposals'],
+    [['--all', 'calc', '--only', 'calc/calc.go'], '--only needs the diff, and --all runs every line of its folders'],
   ])('run %j exits 2 and says why', async (args, message) => {
     const result = await runCli(goRepository({ 'calc/calc.go': maxSource }), ['run', ...args])
 

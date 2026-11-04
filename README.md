@@ -178,6 +178,7 @@ When you find a mutant that no caller can see:
 mutants run                          # the changed lines of your branch
 mutants run --base HEAD              # only the changes that you did not commit
 mutants run --all ./internal/order   # each line of one package; ./internal/... adds the subfolders
+mutants run --only shop/order.go     # only the changed lines of one file, after a fix
 mutants rerun ID                     # one mutant again, by the id at the end of its row
 mutants operators                    # each operator, and whether it runs by default
 mutants config init                  # write a first .mutants.yml, with the base and the test tags

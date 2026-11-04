@@ -29,6 +29,10 @@ so its lines do not count.
 - `mutants run --base HEAD` tests only the changes that you did not commit.
 - `mutants run --all FOLDER...` tests each line of the files in each folder, tracked or untracked.
   `FOLDER/...` adds the subfolders.
+- `mutants run --only FILE` makes mutants only on the changed lines of `FILE`. Give `--only` one time for
+  each file, with the path from the root of the repository. The whole diff still decides which callers
+  changed, so a mutant still runs with the tests of a changed caller, and a proposal can still touch each
+  changed line. Use it after a fix, to test again only the files that the fix changed.
 - In Go, a line whose only change is the amount of white space in it does not count, for example a line
   that `gofmt` aligns again. In Python, such a line counts, because indentation changes what the code does.
 
@@ -62,6 +66,7 @@ to the text of a string, such as a prompt, gives the first line.
 | --- | --- |
 | `--base REF` | compares with the merge base of `HEAD` and `REF`. The default is `origin/HEAD`. |
 | `--all FOLDER...` | tests each line of the files in each folder |
+| `--only FILE` | makes mutants only on the changed lines of `FILE`, a path from the root of the repository. Give it one time for each file. It does not go with `--all`. |
 | `--workers N` | tests `N` mutants at the same time. The default is 4. |
 | `--limit DURATION` | stops the whole run after this time, prints the mutants that have a status, and exits with 124 |
 | `--build-limit DURATION` | the least time for the build of one mutant. The default is 2 minutes. See [Time limits](#time-limits). |

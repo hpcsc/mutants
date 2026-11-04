@@ -35,6 +35,7 @@ var errLimit = errors.New("the run reached its limit")
 type Settings struct {
 	Base              string
 	Folders           []string
+	Only              []string
 	Exclude           []string
 	Operators         []string
 	Workers           int
@@ -121,19 +122,23 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	if err != nil {
 		return Outcome{}, err
 	}
-	for _, file := range lines.Files() {
+	mutated := lines
+	if len(settings.Only) > 0 {
+		mutated = lines.InFiles(settings.Only)
+	}
+	for _, file := range mutated.Files() {
 		if l, found := r.languageOf(file); found && l.Adapter.TestFile(file) {
-			outcome.TestFiles, outcome.TestLines = outcome.TestFiles+1, outcome.TestLines+lines.LenOf(file)
+			outcome.TestFiles, outcome.TestLines = outcome.TestFiles+1, outcome.TestLines+mutated.LenOf(file)
 		} else {
-			outcome.Files, outcome.Lines = outcome.Files+1, outcome.Lines+lines.LenOf(file)
+			outcome.Files, outcome.Lines = outcome.Files+1, outcome.Lines+mutated.LenOf(file)
 		}
 	}
 
 	finding := progress.Start(r.stderr, r.terminal, fmt.Sprintf("Finding the mutants in %d files", outcome.Files))
-	fileMutants, err := r.findAll(ctx, languages, lines.Files())
-	mutants := inScope(fileMutants, lines.Touches)
+	fileMutants, err := r.findAll(ctx, languages, mutated.Files())
+	mutants := inScope(fileMutants, mutated.Touches)
 	if err == nil {
-		outcome.StaleEquivalents = stale(settings.Equivalents, languages, lines.Files(), fileMutants)
+		outcome.StaleEquivalents = stale(settings.Equivalents, languages, mutated.Files(), fileMutants)
 	}
 	if err == nil && len(settings.Proposals) > 0 {
 		var proposed []mutant.Mutant
@@ -152,7 +157,7 @@ func (r *Instance) run(ctx context.Context, settings Settings) (Outcome, error) 
 	finding.End()
 	if err == nil && settings.CallerGaps {
 		checking := progress.Start(r.stderr, r.terminal, "Running the tests of the changed callers")
-		outcome.CallerGaps, err = r.callerGaps(ctx, lines)
+		outcome.CallerGaps, err = r.callerGaps(ctx, lines, mutated)
 		checking.End()
 	}
 	if err != nil || len(mutants) == 0 {
@@ -547,7 +552,7 @@ func (r *Instance) languageOf(file string) (Language, bool) {
 	return r.languages[index], true
 }
 
-func (r *Instance) callerGaps(ctx context.Context, lines diff.Lines) (*[]language.CallerGap, error) {
+func (r *Instance) callerGaps(ctx context.Context, lines, mutated diff.Lines) (*[]language.CallerGap, error) {
 	var gaps *[]language.CallerGap
 	for _, l := range r.languages {
 		finder, hasCheck := l.Adapter.(language.CallerGapFinder)
@@ -562,7 +567,7 @@ func (r *Instance) callerGaps(ctx context.Context, lines diff.Lines) (*[]languag
 		if gaps == nil {
 			gaps = &[]language.CallerGap{}
 		}
-		*gaps = append(*gaps, found...)
+		*gaps = append(*gaps, slices.DeleteFunc(found, func(gap language.CallerGap) bool { return mutated.LenOf(gap.File) == 0 })...)
 	}
 	return gaps, nil
 }

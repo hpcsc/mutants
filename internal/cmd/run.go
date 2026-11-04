@@ -43,6 +43,7 @@ func newRunCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "base", Usage: "compare with the merge base of HEAD and this commit (default: " + defaultBase + ")"},
 			&cli.BoolFlag{Name: "all", Usage: "run every line of the files in each FOLDER, and in its subfolders for FOLDER/..."},
+			&cli.StringSliceFlag{Name: "only", Usage: "make mutants only in this file, a path from the root of the repository; the tests of changed callers and the proposals still use the whole diff"},
 			&cli.IntFlag{Name: "workers", Value: defaultWorkers, Usage: "test this many mutants at once"},
 			&cli.DurationFlag{Name: "limit", Usage: "stop the whole run after this time, and exit 124 (default: no limit)"},
 			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "the least time for the build of one mutant; it is 3 times the build of the real code when that is longer"},
@@ -68,6 +69,9 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	if cmd.Bool("all") != (len(folders) > 0) {
 		return cli.Exit("--all needs one FOLDER or more, and a FOLDER needs --all", exitUsage)
 	}
+	if cmd.Bool("all") && len(cmd.StringSlice("only")) > 0 {
+		return cli.Exit("--only needs the diff, and --all runs every line of its folders", exitUsage)
+	}
 
 	repository, err := diff.Open(ctx, ".")
 	if err != nil {
@@ -91,6 +95,7 @@ func runMutants(ctx context.Context, cmd *cli.Command) error {
 	runSettings := run.Settings{
 		Base:              configured.base(cmd),
 		Folders:           folders,
+		Only:              cmd.StringSlice("only"),
 		Exclude:           configured.Exclude,
 		Operators:         configured.operators(cmd),
 		Workers:           configured.workers(cmd),
