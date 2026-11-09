@@ -8,3 +8,11 @@ fix:
   template: ''
   expandEnd:
     regex: ','
+---
+id: NAMED_VALUE_REMOVE/empty-map
+language: go
+rule:
+  kind: literal_value
+  has:
+    kind: keyed_element
+fix: '{}'

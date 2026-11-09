@@ -69,7 +69,7 @@ the reason.
 | Operator | Example | A survivor usually shows |
 | --- | --- | --- |
 | `NAMED_VALUE_SWAP` | `Totals{Paid: paid, Owed: owed}` to `Totals{Paid: owed, Owed: paid}` | the tests use two equal values, so a swap gives the same result |
-| `NAMED_VALUE_REMOVE` | `Info{Arrived: arrived, ID: id}` to `Info{ID: id}`, so `Arrived` gets its zero value, and `map[string]string{"general": "dispute", "fraud": "fraud"}` to `map[string]string{"fraud": "fraud"}` | no test reads the field, or no test looks up the key |
+| `NAMED_VALUE_REMOVE` | `Info{Arrived: arrived, ID: id}` to `Info{ID: id}`, so `Arrived` gets its zero value, and `map[CaseType]string{General: "dispute", Fraud: "fraud"}` to `map[CaseType]string{Fraud: "fraud"}`. A map whose key has a basic type, such as `string`, holds data: it gets one mutant, which empties it, such as `map[string]string{"AVE": "AVENUE", "ST": "STREET"}` to `map[string]string{}` | no test reads the field, no test looks up the key, or no test reads the map |
 
 ## In Python
 

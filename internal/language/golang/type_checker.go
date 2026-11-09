@@ -79,19 +79,56 @@ func (c *typeChecker) canRemoveNamedValue(path string, start int) bool {
 				continue
 			}
 			found = true
-			value, isLiteral := keyed.Value.(*ast.CompositeLit)
-			isZero := c.isZero(loaded.TypesInfo.Types[keyed.Value]) || isLiteral && c.isEmpty(value, loaded.TypesInfo) ||
-				c.callsZeroFunction(keyed.Value, loaded.TypesInfo)
 			if c.isStructLiteral(literal, loaded.TypesInfo) {
-				canRemove = !isZero
+				canRemove = !c.holdsZero(keyed, loaded.TypesInfo)
 			} else if entries, isMap := c.mapOf(literal, loaded.TypesInfo); isMap {
-				canRemove = !isZero || c.isSet(entries)
+				canRemove = c.changesLookup(keyed, entries, loaded.TypesInfo) && !c.hasBasicKey(entries)
 			}
 			return false
 		}
 		return true
 	})
 	return canRemove
+}
+
+// canEmptyMap needs start at the opening brace of a literal.
+func (c *typeChecker) canEmptyMap(path string, start int) bool {
+	loaded, syntax, lines := c.file(path)
+	if syntax == nil {
+		return false
+	}
+	found, canEmpty := false, false
+	ast.Inspect(syntax, func(node ast.Node) bool {
+		literal, ok := node.(*ast.CompositeLit)
+		if !ok || found {
+			return !found
+		}
+		if lines.Offset(literal.Lbrace) != start {
+			return true
+		}
+		found = true
+		entries, isMap := c.mapOf(literal, loaded.TypesInfo)
+		canEmpty = isMap && c.hasBasicKey(entries) && slices.ContainsFunc(literal.Elts, func(element ast.Expr) bool {
+			keyed, isKeyed := element.(*ast.KeyValueExpr)
+			return isKeyed && c.changesLookup(keyed, entries, loaded.TypesInfo)
+		})
+		return false
+	})
+	return canEmpty
+}
+
+func (c *typeChecker) holdsZero(keyed *ast.KeyValueExpr, info *types.Info) bool {
+	value, isLiteral := keyed.Value.(*ast.CompositeLit)
+	return c.isZero(info.Types[keyed.Value]) || isLiteral && c.isEmpty(value, info) || c.callsZeroFunction(keyed.Value, info)
+}
+
+func (c *typeChecker) changesLookup(keyed *ast.KeyValueExpr, entries *types.Map, info *types.Info) bool {
+	return !c.holdsZero(keyed, info) || c.isSet(entries)
+}
+
+func (c *typeChecker) hasBasicKey(entries *types.Map) bool {
+	_, isBasic := types.Unalias(entries.Key()).(*types.Basic)
+	return isBasic
 }
 
 func (c *typeChecker) callsZeroFunction(value ast.Expr, info *types.Info) bool {

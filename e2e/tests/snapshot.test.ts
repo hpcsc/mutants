@@ -111,6 +111,18 @@ var labels = map[string]string{
 func Larger(a, b int) int {
 	return max(a, b)
 }
+
+type Parity string
+
+const (
+	Even Parity = "even"
+	Odd  Parity = "odd"
+)
+
+var names = map[Parity]string{
+	Even: "Even",
+	Odd:  "",
+}
 `
 
 const pythonShop = `import logging

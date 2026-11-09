@@ -32,6 +32,7 @@ const (
 
 	timeBoundaryRules = "CONDITIONALS_BOUNDARY/time-"
 	plusAssignRule    = "INCREMENT_DECREMENT/plus-assign"
+	emptyMapRule      = "NAMED_VALUE_REMOVE/empty-map"
 )
 
 type Settings struct {
@@ -132,6 +133,9 @@ func (a *adapter) Keep(candidate operator.Edit) bool {
 	}
 	if candidate.Rule == plusAssignRule {
 		return a.types.addsNumbers(path, candidate.Start, candidate.End)
+	}
+	if candidate.Rule == emptyMapRule {
+		return a.types.canEmptyMap(path, candidate.Start)
 	}
 	switch candidate.Operator {
 	case namedValueSwap:

@@ -664,13 +664,28 @@ func TestPack(t *testing.T) {
 		t.Run("NAMED_VALUE_REMOVE removes each keyed element with its comma", func(t *testing.T) {
 			source := "package a\n\nvar p = P{A: 1, B: two,\n\tC: Q{D: 3},\n}\n"
 
-			edits := findEdits(t, "NAMED_VALUE_REMOVE", source)
+			edits := slices.DeleteFunc(findEdits(t, "NAMED_VALUE_REMOVE", source), func(edit operator.Edit) bool { return edit.Rule != "NAMED_VALUE_REMOVE" })
 
 			require.Len(t, edits, 4)
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{B: two,\n\tC: Q{D: 3},\n}\n"), mutated(t, source, edits[0]))
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1,\n\tC: Q{D: 3},\n}\n"), mutated(t, source, edits[1]))
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1, B: two}\n"), mutated(t, source, edits[2]))
 			require.Equal(t, formatted(t, "package a\n\nvar p = P{A: 1, B: two,\n\tC: Q{},\n}\n"), mutated(t, source, edits[3]))
+		})
+
+		t.Run("NAMED_VALUE_REMOVE empties each literal with a keyed element, for the type filter to keep a map whose key has a basic type", func(t *testing.T) {
+			source := "package a\n\nvar p = P{A: 1,\n\tC: Q{D: 3},\n}\n\nvar days = []int{1, 2}\n\nvar none = map[string]int{}\n"
+			var sources []string
+			for _, edit := range findEdits(t, "NAMED_VALUE_REMOVE", source) {
+				if edit.Rule == "NAMED_VALUE_REMOVE/empty-map" {
+					sources = append(sources, mutated(t, source, edit))
+				}
+			}
+
+			require.Equal(t, []string{
+				formatted(t, "package a\n\nvar p = P{}\n\nvar days = []int{1, 2}\n\nvar none = map[string]int{}\n"),
+				formatted(t, "package a\n\nvar p = P{A: 1,\n\tC: Q{},\n}\n\nvar days = []int{1, 2}\n\nvar none = map[string]int{}\n"),
+			}, sources)
 		})
 
 		t.Run("ARGUMENT_EMPTY gives each argument the zero values, for the type filter to choose, and skips a log chain", func(t *testing.T) {

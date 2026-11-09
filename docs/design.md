@@ -298,7 +298,7 @@ The Go pack for v1:
 | `BREAK_AT_START` | `break` at the start of a `range` body | |
 | `BREAK_AT_END` | `break` at the end of a `for` body | a loop that keeps only its first item |
 | `NAMED_VALUE_SWAP` | swap the values of two adjacent keyed fields of the same type | a hook; two equal figures hide a swap |
-| `NAMED_VALUE_REMOVE` | removes one keyed field from a struct literal, so the field gets the zero value of its type, and one entry from a map literal | shows a field that no test reads, or a key that no test looks up |
+| `NAMED_VALUE_REMOVE` | removes one keyed field from a struct literal, so the field gets the zero value of its type, and one entry from a map literal whose key has a named type. It empties a map literal whose key has a basic type. | shows a field that no test reads, a key that no test looks up, or a map that no test reads |
 | `ARGUMENT_EMPTY` | a call argument to the zero value of its parameter type | off by default: each argument of each call makes a mutant, so it is noisy until it has a filter |
 | `ERROR_CAUSE_REMOVE` | `%w` to `%v` | off by default: on two measured commits it made 3 of 5 survivors, and no caller unwrapped those errors |
 | `CONDITION_TRUE` | the condition of an `if` with no `else` to `true` | off by default: each `if err != nil` also gets a mutant, and the tests of the success path kill it |
@@ -321,7 +321,7 @@ A filter drops a candidate before it costs a build. The Go adapter has these:
 | Negative index | an `INTEGER_DECREMENT` of a literal `0` in an index, a slice bound or a size for `make` |
 | Boundary | an `INTEGER_INCREMENT` or `INTEGER_DECREMENT` of the limit of a comparison of integers that makes the change of `CONDITIONALS_BOUNDARY`: `total >= (100+1)` is `total > 100`. A comparison of floats keeps both, because `go/types` gives the type. |
 | Missing return | a `BRANCH_IF`, `BRANCH_ELSE` or `BRANCH_CASE` edit that empties a branch that its function needs to end in a terminating statement, such as one case of a `switch` whose cases each return. The build would give `missing return`. |
-| Type | a `NAMED_VALUE_REMOVE` element outside a struct literal or a map literal, or whose value is zero already. The entry of a set, whose value is an empty struct, stays, because its removal changes `_, ok := m[k]` and `len(m)`. |
+| Type | a `NAMED_VALUE_REMOVE` element outside a struct literal or a map literal, or whose value is zero already. The entry of a set, whose value is an empty struct, stays, because its removal changes `_, ok := m[k]` and `len(m)`. Also an entry of a map whose key has a basic type, such as `string`, because one mutant empties that map. That mutant goes too when the map is not such a map, or when each entry is zero already. |
 | Type | an `ARGUMENT_EMPTY` value that is not the zero value of its parameter, that fills an error parameter, or that is zero already, and an argument of a builtin, of a conversion or of a variadic parameter. Also a `context.Context`, and the constant text of a call whose only result is an error, such as `errors.New` or `fmt.Errorf`. |
 | Type | a `CONDITIONALS_BOUNDARY` edit of `After` or `Before` of a method that `go/types` does not find on `time.Time` |
 | Type | an `INCREMENT_DECREMENT` of `+=` whose left side is not a number, such as a string, because a string has no `-=` |
@@ -1186,6 +1186,8 @@ each rule of its kind when it has one.
 the other operators made, and 40 of them lived. About 33 of the 40 were fields that no test reads, for example
 a rule that loses one of its conditions. Three more were values that `zero_functions` now skips. So most of
 its survivors are real test gaps, and they are worth the longer run.
+
+**Why a map whose key has a basic type gets one mutant.** The key of such a map is data, such as a street suffix or the id of a client. A survivor of one entry asks for a test of that entry, and that test restates the map. In one run, the entries of one map of street suffixes made 309 survivors, and each got the same reason for no test. In another run, one test restated a map of 17 entries to close 16 survivors. A key of a named type, such as a case type, is one value of a known set. One test can walk the set and kill the mutant of each entry, with no copy of the map, so each entry keeps its mutant.
 
 **Why a kill runs the tests again.** A test can fail for a reason other than the mutant: a test that depends on
 the time or on the order of goroutines, or two workers that write the same rows of one test database. Such a

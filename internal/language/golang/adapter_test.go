@@ -937,45 +937,112 @@ func Build(arrived bool, id string) (*Info, Info) {
 			require.False(t, adapter.Keep(editOf(t, root, "info/info.go", "NAMED_VALUE_REMOVE", "Inner: Point{}", "")))
 		})
 
-		t.Run("keeps a NAMED_VALUE_REMOVE edit of a map entry, also in an inner map with no type, and drops it when the value is zero already", func(t *testing.T) {
+		t.Run("keeps a NAMED_VALUE_REMOVE edit of an entry of a map whose key has a named type, also in an inner map with no type, and drops it when the value is zero already", func(t *testing.T) {
 			root := newModule(t, map[string]string{"rules/rules.go": `package rules
+
+type CaseType string
+
+const (
+	General   CaseType = "general"
+	Fraud     CaseType = "fraud"
+	PaidClaim CaseType = "paidClaim"
+)
 
 type Point struct{ X int }
 
-var templates = map[string]string{
-	"general": "dispute",
-	"fraud":   "",
+var templates = map[CaseType]string{
+	General: "dispute",
+	Fraud:   "",
 }
 
-var waits = map[string]map[string]int{
-	"paidClaim": {"globex": 3, "trustly": 0},
+var waits = map[CaseType]map[CaseType]int{
+	PaidClaim: {General: 3, Fraud: 0},
 }
 
-var starts = map[string]Point{"origin": {}}
+var starts = map[CaseType]Point{General: {}}
 `})
 			adapter := golang.New(root, defaultSettings)
 			kept := map[string]bool{}
-			for _, entry := range []string{`"general": "dispute",`, `"fraud":   "",`, `"paidClaim": {"globex": 3, "trustly": 0},`, `"globex": 3,`, `"trustly": 0`, `"origin": {}`} {
+			for _, entry := range []string{`General: "dispute",`, `Fraud:   "",`, `PaidClaim: {General: 3, Fraud: 0},`, `General: 3,`, `Fraud: 0`, `General: {}`} {
 				kept[entry] = adapter.Keep(editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", entry, ""))
 			}
 
 			require.Equal(t, map[string]bool{
-				`"general": "dispute",`:                     true,
-				`"fraud":   "",`:                            false,
-				`"paidClaim": {"globex": 3, "trustly": 0},`: true,
-				`"globex": 3,`:                              true,
-				`"trustly": 0`:                              false,
-				`"origin": {}`:                              false,
+				`General: "dispute",`:                true,
+				`Fraud:   "",`:                       false,
+				`PaidClaim: {General: 3, Fraud: 0},`: true,
+				`General: 3,`:                        true,
+				`Fraud: 0`:                           false,
+				`General: {}`:                        false,
 			}, kept)
 		})
 
-		t.Run("keeps a NAMED_VALUE_REMOVE edit of an entry of a set, whose value is an empty struct", func(t *testing.T) {
+		t.Run("keeps a NAMED_VALUE_REMOVE edit of an entry of a set whose key has a named type, whose value is an empty struct", func(t *testing.T) {
 			root := newModule(t, map[string]string{"rules/rules.go": `package rules
 
-var accountLevel = map[string]struct{}{"paidClaim": {}, "duplicative": {}}
+type CaseType string
+
+const (
+	PaidClaim   CaseType = "paidClaim"
+	Duplicative CaseType = "duplicative"
+)
+
+var accountLevel = map[CaseType]struct{}{PaidClaim: {}, Duplicative: {}}
 `})
 
-			require.True(t, golang.New(root, defaultSettings).Keep(editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", `"paidClaim": {},`, "")))
+			require.True(t, golang.New(root, defaultSettings).Keep(editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", "PaidClaim: {},", "")))
+		})
+
+		t.Run("drops a NAMED_VALUE_REMOVE edit of an entry of a map whose key has a basic type, because one edit empties that map", func(t *testing.T) {
+			root := newModule(t, map[string]string{"rules/rules.go": `package rules
+
+var suffixes = map[string]string{"AVE": "AVENUE", "ST": "STREET"}
+`})
+
+			require.False(t, golang.New(root, defaultSettings).Keep(editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", `"AVE": "AVENUE",`, "")))
+		})
+
+		t.Run("keeps the NAMED_VALUE_REMOVE edit that empties a map whose key has a basic type, also an inner map with no type and a set, and drops it for each other literal", func(t *testing.T) {
+			root := newModule(t, map[string]string{"rules/rules.go": `package rules
+
+type CaseType string
+
+const General CaseType = "general"
+
+type Point struct{ X int }
+
+var suffixes = map[string]string{"AVE": "AVENUE", "ST": "STREET"}
+
+var modes = map[CaseType]map[string]int{General: {"globex": 3, "trustly": 1}}
+
+var accountLevel = map[string]struct{}{"paidClaim": {}}
+
+var unset = map[string]int{"a": 0}
+
+var templates = map[CaseType]string{General: "dispute"}
+
+var origin = Point{X: 1}
+`})
+			adapter := golang.New(root, defaultSettings)
+			kept := map[string]bool{}
+			for _, literal := range []string{
+				`{"AVE": "AVENUE", "ST": "STREET"}`, `{General: {"globex": 3, "trustly": 1}}`, `{"globex": 3, "trustly": 1}`,
+				`{"paidClaim": {}}`, `{"a": 0}`, `{General: "dispute"}`, `{X: 1}`,
+			} {
+				edit := editOf(t, root, "rules/rules.go", "NAMED_VALUE_REMOVE", literal, "{}")
+				edit.Rule = "NAMED_VALUE_REMOVE/empty-map"
+				kept[literal] = adapter.Keep(edit)
+			}
+
+			require.Equal(t, map[string]bool{
+				`{"AVE": "AVENUE", "ST": "STREET"}`:      true,
+				`{General: {"globex": 3, "trustly": 1}}`: false,
+				`{"globex": 3, "trustly": 1}`:            true,
+				`{"paidClaim": {}}`:                      true,
+				`{"a": 0}`:                               false,
+				`{General: "dispute"}`:                   false,
+				`{X: 1}`:                                 false,
+			}, kept)
 		})
 
 		t.Run("drops a NAMED_VALUE_REMOVE edit of an index in a slice literal", func(t *testing.T) {
