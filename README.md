@@ -147,10 +147,26 @@ A mutant that a test killed, and a mutant that does not build, get no row.
 Some mutants make no difference that a caller can see. For example, `NAMED_VALUE_REMOVE` removes one field
 from a struct literal. When the value of that field is already its zero value, the mutant gives the same
 result as the real code. `mutants` already skips many of these mutants, such as the mutants of log lines.
+Two other kinds are common:
 
-Do not kill such a mutant with a test that reads the private state of the package, the order of the calls to
-a fake, or the text of a log line. That test fails when you change the code in a correct way. In the JSON
-report, `internalTest` marks a Go kill by a test in the package of the mutant, so you can find such tests.
+- **An error branch where a later step fails too.** `BRANCH_IF` removes the `return` of an error, and the
+  next step fails on the same bad input. The caller still gets an error. Only the text of the error differs.
+
+  ```go
+  if err := rows.Scan(&id, &address); err != nil {
+  	return Customer{}, err
+  }
+  return parse(id, address) // fails too when Scan fails
+  ```
+
+- **One more call to a dependency.** A mutant removes a check before a call, and the call gives the same
+  result for that input. For example, a lookup of an address that does not parse finds no customer, so the
+  caller gets the same answer. Only the number of calls differs.
+
+Do not kill such a mutant with a test that reads the private state of the package, the order or the count of
+the calls to a fake, the text of a log line, or the text of an error that the caller also gets with the
+mutant. That test fails when you change the code in a correct way. In the JSON report, `internalTest` marks a
+Go kill by a test in the package of the mutant, so you can find such tests.
 
 When you find a mutant that no caller can see:
 
