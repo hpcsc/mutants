@@ -237,7 +237,8 @@ In this example, the tests of `gate` run `Allow`, so the mutants of `Allow` die.
 calls `gate.New`, so `handler` reaches `Allow`. But the tests of `handler` use a fake checker, so no test of
 a caller runs `Allow`. The changed statements of `Allow` are a caller gap.
 
-- A caller is a changed package that imports another changed package.
+- A caller is a changed package that imports another changed package. A package with no test file, such as
+  the main package of a command, is not a caller, because no test of it can run the code.
 - `mutants` runs the tests of each caller one more time, and follows the code that the changed lines of the
   caller reach.
 - A caller gap is a changed statement that the tests of its own package run, but that no test of a caller

@@ -1459,6 +1459,19 @@ func apply(xs []int, double func(int) int, extra int) int {
 			}, gaps)
 		})
 
+		t.Run("gives no gap for a caller whose package has no test file, such as the main package of a command", func(t *testing.T) {
+			t.Parallel()
+			root := newModule(t, map[string]string{
+				"gate/gate.go": gateSource, "gate/gate_test.go": gateTest,
+				"cmd/server/main.go": "package main\n\nimport \"example.com/fixture/gate\"\n\nfunc main() {\n\tprintln(gate.NewChecker(nil).Allow(\"a\"))\n}\n",
+			})
+
+			gaps, err := golang.New(root, defaultSettings).(language.CallerGapFinder).CallerGaps(context.Background(), changedFiles(t, root, "gate/gate.go", "cmd/server/main.go"))
+
+			require.NoError(t, err)
+			require.Empty(t, gaps)
+		})
+
 		t.Run("gives only the changed statements of the package, not its other statements", func(t *testing.T) {
 			t.Parallel()
 			root := newModule(t, map[string]string{

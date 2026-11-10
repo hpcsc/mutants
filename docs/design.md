@@ -476,7 +476,9 @@ call a new check, and a reviewer found that no test of these handlers reached it
 With `--caller-gaps`, or `caller_gaps: true` in `.mutants.yml`, the run looks for these gaps:
 
 1. **Callers.** A caller is a changed package that imports another changed package, its callee. `go/types`
-   gives the imports.
+   gives the imports. A package with no test file is not a caller. Each line that it reaches would be a
+   gap, and no test can close it: on the measured runs, 56 gaps of `main` packages each got the same reason
+   for no test.
 2. **Reach.** The check follows each function of the callee that a changed line of the caller calls, then
    each function that those functions call. It also follows the methods of a type that a reached function
    returns, or builds with a composite literal, when the caller calls a method with that name, also through

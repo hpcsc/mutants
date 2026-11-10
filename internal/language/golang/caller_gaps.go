@@ -37,6 +37,9 @@ func (g *callerGaps) find(ctx context.Context, changed diff.Lines) ([]language.C
 	var callers []*caller
 	for _, importPath := range slices.Sorted(maps.Keys(changedPackages)) {
 		c := &caller{pkg: changedPackages[importPath], reached: map[string]bool{}}
+		if !c.pkg.hasTestFiles() {
+			continue
+		}
 		called := g.calledMethods(c.pkg)
 		for _, callee := range g.coverage.changedImports(c.pkg, changedPackages) {
 			entries := g.entries(c.pkg, callee, changed, called)

@@ -25,6 +25,10 @@ func (p goPackage) builds(base string) bool {
 	return slices.Contains(p.GoFiles, base) || slices.Contains(p.CgoFiles, base)
 }
 
+func (p goPackage) hasTestFiles() bool {
+	return len(p.TestGoFiles) > 0 || len(p.XTestGoFiles) > 0
+}
+
 type packageFinder struct {
 	tagArguments []string
 	mutex        sync.Mutex
