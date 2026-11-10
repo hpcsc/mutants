@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ func newRerunCommand() *cli.Command {
 			&cli.StringFlag{Name: "base", Usage: "count the tests of the packages that the branch changes against the merge base of HEAD and this commit (default: " + defaultBase + ")"},
 			&cli.DurationFlag{Name: "build-limit", Value: 2 * time.Minute, Usage: "the least time for the build of the mutant; it is 3 times the build of the real code when that is longer"},
 			&cli.StringSliceFlag{Name: "tags", Usage: "the build tags for go list, the coverage run and the build"},
+			&cli.StringFlag{Name: "json", Usage: "also write the JSON report of the mutant to this file"},
 		},
 		Action: rerunMutant,
 	}
@@ -82,6 +84,11 @@ func rerunMutant(ctx context.Context, cmd *cli.Command) error {
 	}
 	if _, err := fmt.Fprint(cmd.Root().Writer, row); err != nil {
 		return cli.Exit(err, exitNoVerdict)
+	}
+	if path := cmd.String("json"); path != "" {
+		if err := writeFile(path, func(w io.Writer) error { return report.JSON(w, run.Outcome{Mutants: []mutant.Mutant{m}}) }); err != nil {
+			return cli.Exit(err, exitUsage)
+		}
 	}
 	switch {
 	case m.Verdict.Status == mutant.Killed, m.Verdict.Status == mutant.Equivalent:

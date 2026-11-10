@@ -360,6 +360,23 @@ describe('mutants rerun', { timeout: 240_000 }, () => {
     expect(rerun.stdout).toMatch(/^KILLED: calc\/calc.go:\d+ CONDITIONALS_NEGATION/)
   })
 
+  it('with --json, writes the JSON report of the one mutant, with the test file of the kill', async () => {
+    const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest })
+    const report = join(scratchDir(), 'rerun.json')
+
+    const rerun = await runCli(dir, ['rerun', '--json', report, 'calc/calc.go:Max:CONDITIONALS_NEGATION#1'])
+
+    expect(rerun.status).toBe(0)
+    expect(JSON.parse(readFileSync(report, 'utf8')).mutants).toEqual([
+      expect.objectContaining({
+        id: 'calc/calc.go:Max:CONDITIONALS_NEGATION#1',
+        status: 'KILLED',
+        testFile: 'calc/calc_test.go',
+        internalTest: true,
+      }),
+    ])
+  })
+
   it('ends the output of rerun with NO VERDICT and exits 1, when the tests fail with the real code', async () => {
     const dir = goRepository({ 'calc/calc.go': maxSource, 'calc/calc_test.go': maxTest.replace('Max(1, 2) != 2', 'Max(1, 2) != 3') })
 

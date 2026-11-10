@@ -103,6 +103,7 @@ NO VERDICT: the tests of example.com/shop/calc fail with the real code, without 
 | `--base REF` | finds the changed callers against the merge base of `HEAD` and `REF`. The default is `origin/HEAD`. |
 | `--tags a,b` | the build tags for `go list`, for the coverage run and for the build |
 | `--build-limit DURATION` | the least time for the build of the mutant |
+| `--json PATH` | also writes the [JSON report](#the-json-report) of the one mutant to `PATH`, with the test file of a kill |
 
 ## Exit codes
 
@@ -119,7 +120,7 @@ Each command exits 2 for a usage error, for example a flag that it does not know
 | `mutants rerun` | 0 | a test killed the mutant, or the mutant is EQUIVALENT |
 | | 10 | the mutant lived, or no test runs its line |
 | | 1 | no verdict: the mutant timed out, did not build, or the computer stopped it, a test failed and then passed, the proposal of the mutant does not fit the code, or the tests fail with the real code |
-| | 2 | the text is not a mutant id, no mutant has this id, or a usage error or a tool error before the mutant runs, for example a key of `.mutants.yml` that `mutants` does not know |
+| | 2 | the text is not a mutant id, no mutant has this id, a usage error or a tool error before the mutant runs, for example a key of `.mutants.yml` that `mutants` does not know, or a `--json` file that it cannot write |
 
 ## Statuses
 
